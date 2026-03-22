@@ -19,6 +19,7 @@ profile.cov
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+/node_modules/
 
 # Go workspace file
 go.work
@@ -26,7 +27,76 @@ go.work.sum
 
 # env file
 .env
+client/.env.development
+client/.env.production
+client/.env.local
+server/.env.development
+server/.env.production
+server/.env.local
 
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# private
+*.private.*
+
+# agenet rules
+docs/agents
+
+# Node
+node_modules
+*.log
+.nvm
+# package-lock.json (uncomment if you want to ignore this file)
+
+# OS X
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Android
+/android/build/
+/android/.gradle/
+/android/app/build/
+/android/app/.cxx/
+/android/app/generated/
+/android/app/intermediates/
+/android/app/merged_assets/
+/android/app/merged_res/
+/android/app/outputs/
+/android/app/tmp/
+/android/local.properties
+/android/.idea/
+*.iml
+
+# iOS
+/ios/build/
+/ios/Pods/
+/ios/Podfile.lock
+/ios/DerivedData/
+# Xcode
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+*project.xcworkspace*
+xcuserdata
+
+# Buck
+.buckd
+buck-out
+/.lsp.buckd
+/.lsp-buck-out
+
+# Test generated files
+/coverage
+/reports
+
+# Watchman
+.watchmanconfig
