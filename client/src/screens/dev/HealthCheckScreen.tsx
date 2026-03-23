@@ -12,6 +12,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {RUNTIME_CONFIG} from '../../config/runtime/runtime-config';
 import {HealthCheckButton} from '../../shared/components/HealthCheckButton';
+import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
 import {
   getHealthCheckCandidates,
   getHealthCheckLabel,
@@ -239,6 +240,7 @@ export function HealthCheckScreen() {
         </View>
 
         <Pressable
+          {...windowsPressableFocusProps}
           disabled={loadingTarget !== null}
           onPress={async () => {
             for (const {target} of TARGETS) {
@@ -257,44 +259,6 @@ export function HealthCheckScreen() {
         </Pressable>
 
         <View style={styles.targets}>
-          {Platform.OS === 'windows' ? (
-            <View style={styles.targetCard}>
-              <View style={styles.targetHeaderText}>
-                <Text style={styles.targetTitle}>Windows Diagnostic</Text>
-                <Text style={styles.targetSubtitle}>
-                  Use these smaller steps to find which Hermes path crashes first.
-                </Text>
-              </View>
-              <View style={styles.diagnosticButtons}>
-                <HealthCheckButton
-                  label="JS Log"
-                  hint="Only log and update local diagnostic state."
-                  isLoading={false}
-                  onPress={() => runWindowsDiagnostic('js-log')}
-                />
-                <HealthCheckButton
-                  label="State Only"
-                  hint="Only perform a state update without network I/O."
-                  isLoading={false}
-                  onPress={() => runWindowsDiagnostic('state-only')}
-                />
-                <HealthCheckButton
-                  label="XHR Local"
-                  hint="Issue a minimal XMLHttpRequest to the local health URL."
-                  isLoading={false}
-                  onPress={() => runWindowsDiagnostic('xhr-local')}
-                />
-              </View>
-              <View style={styles.resultCard}>
-                <Text style={styles.resultLabel}>Diagnostic</Text>
-                <Text style={styles.resultMessage}>{diagnosticState.message}</Text>
-                <Text style={styles.resultMeta}>
-                  Last step: {diagnosticState.step ?? 'Not yet'}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-
           {TARGETS.map(({target, title, subtitle}) => {
             const state = targetStates[target];
             const result = state.result;

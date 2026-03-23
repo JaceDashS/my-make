@@ -1,0 +1,110 @@
+import React from 'react';
+import {Pressable, Text, View} from 'react-native';
+
+import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
+
+type CommonShellPalette = {
+  border: string;
+  card: string;
+  muted: string;
+  primary: string;
+  primaryText: string;
+  text: string;
+  textMuted: string;
+};
+
+type CommonShellStyles = {
+  bodyStrong: object;
+  bodyText: object;
+  card: object;
+  cardTitle: object;
+  fieldLabel: object;
+  optionChip: object;
+  optionChipText: object;
+};
+
+export function createShellUi<Palette extends CommonShellPalette>(styles: CommonShellStyles) {
+  function Card({
+    children,
+    palette,
+    title,
+  }: React.PropsWithChildren<{
+    palette: Palette;
+    title: string;
+  }>) {
+    return (
+      <View style={[styles.card, {backgroundColor: palette.card, borderColor: palette.border}]}>
+        <Text style={[styles.cardTitle, {color: palette.text}]}>{title}</Text>
+        {children}
+      </View>
+    );
+  }
+
+  function OptionChip({
+    active,
+    label,
+    onPress,
+    palette,
+  }: {
+    active: boolean;
+    label: string;
+    onPress: () => void;
+    palette: Palette;
+  }) {
+    return (
+      <Pressable
+        {...windowsPressableFocusProps}
+        onPress={onPress}
+        style={[
+          styles.optionChip,
+          {
+            backgroundColor: active ? palette.primary : palette.muted,
+            borderColor: active ? palette.primary : palette.border,
+          },
+        ]}>
+        <Text
+          style={[
+            styles.optionChipText,
+            {color: active ? palette.primaryText : palette.text},
+          ]}>
+          {label}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  function BodyText({
+    children,
+    palette,
+  }: React.PropsWithChildren<{
+    palette: Palette;
+  }>) {
+    return <Text style={[styles.bodyText, {color: palette.textMuted}]}>{children}</Text>;
+  }
+
+  function BodyStrong({
+    children,
+    palette,
+  }: React.PropsWithChildren<{
+    palette: Palette;
+  }>) {
+    return <Text style={[styles.bodyStrong, {color: palette.text}]}>{children}</Text>;
+  }
+
+  function FieldLabel({
+    children,
+    palette,
+  }: React.PropsWithChildren<{
+    palette: Palette;
+  }>) {
+    return <Text style={[styles.fieldLabel, {color: palette.text}]}>{children}</Text>;
+  }
+
+  return {
+    BodyStrong,
+    BodyText,
+    Card,
+    FieldLabel,
+    OptionChip,
+  };
+}

@@ -1,14 +1,4 @@
-import React from 'react';
+import App from './App.android';
 
-import {AppNavigator} from './navigation/AppNavigator';
-import {AppProviders} from './providers/AppProviders';
-
-function App() {
-  return (
-    <AppProviders>
-      <AppNavigator />
-    </AppProviders>
-  );
-}
-
+// テストと共通ツール向けに既定エントリを残す。
 export default App;

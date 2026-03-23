@@ -7,6 +7,8 @@ import {
   View,
 } from 'react-native';
 
+import {windowsPressableFocusProps} from '../ui/windowsFocusProps';
+
 type HealthCheckButtonProps = {
   hint: string;
   isLoading: boolean;
@@ -22,6 +24,7 @@ export function HealthCheckButton({
 }: HealthCheckButtonProps) {
   return (
     <Pressable
+      {...windowsPressableFocusProps}
       disabled={isLoading}
       onPress={onPress}
       style={({pressed}) => [
