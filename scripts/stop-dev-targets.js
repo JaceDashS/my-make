@@ -73,7 +73,32 @@ function stopAndroidClient() {
   run(adbPath, ['shell', 'am', 'force-stop', 'com.mymakeclient']);
 }
 
+function stopServerWatch() {
+  if (hostOs !== 'win32') {
+    return;
+  }
+
+  run('powershell', [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    [
+      "$watchers = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |",
+      "Where-Object {",
+      "  $_.Name -eq 'node.exe' -and",
+      "  $_.CommandLine -like '*nodemon*' -and",
+      "  $_.CommandLine -like '*go run ./server*'",
+      "};",
+      "foreach ($watcher in $watchers) {",
+      "  Stop-Process -Id $watcher.ProcessId -Force -ErrorAction SilentlyContinue",
+      "}",
+    ].join(' '),
+  ]);
+}
+
 stopWindowsClient();
 stopAndroidClient();
+stopServerWatch();
 
 console.log('stopped dev target apps');

@@ -27,12 +27,14 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function run(command, args) {
+function run(command, args, timeout = 5000) {
   return spawnSync(command, args, {
     cwd: rootDir,
     encoding: 'utf8',
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
+    killSignal: 'SIGKILL',
   });
 }
 
@@ -42,6 +44,8 @@ function hasCommand(command) {
     encoding: 'utf8',
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 5000,
+    killSignal: 'SIGKILL',
   });
 
   if (result.status !== 0) {
@@ -168,7 +172,7 @@ function findJavaHome() {
 
 function getAndroidDevices(adbPath) {
   const result = run(adbPath, ['devices']);
-  if (result.status !== 0) {
+  if (result.error || result.status !== 0) {
     return [];
   }
 
@@ -182,7 +186,7 @@ function getAndroidDevices(adbPath) {
 
 function getAvds(emulatorPath) {
   const result = run(emulatorPath, ['-list-avds']);
-  if (result.status !== 0) {
+  if (result.error || result.status !== 0) {
     return [];
   }
 

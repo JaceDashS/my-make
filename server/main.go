@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"os"
 )
@@ -24,9 +25,14 @@ func main() {
 		Handler: application.routes(),
 	}
 
+	listener, err := net.Listen("tcp", ":"+addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Printf("server listening on :%s", addr)
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }

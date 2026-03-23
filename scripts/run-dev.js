@@ -183,6 +183,12 @@ async function main() {
   writeLine(`[run-dev] writing combined output to ${logFilePath}`);
 
   await runStep({
+    name: 'cleanup previous dev targets',
+    command: nodeCommand,
+    args: [path.join(rootDir, 'scripts', 'stop-dev-targets.js')],
+  });
+
+  await runStep({
     name: 'clear dev ports',
     command: npmCommand,
     args: ['run', 'ports:dev:kill'],
