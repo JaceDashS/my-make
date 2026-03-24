@@ -72,6 +72,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/", a.handleRoot)
 	mux.HandleFunc("/health", a.handleHealth)
 	mux.HandleFunc("/api/accounts/login", a.handleLogin)
+	mux.HandleFunc("/api/accounts/member-register", a.handleMemberRegister)
 	mux.HandleFunc("/api/accounts/root-register", a.handleRootRegister)
 	mux.HandleFunc("/api/licenses/renew", a.handleRenewLicense)
 	mux.HandleFunc("/api/dev-tools/tables/init", a.handleInitializeTables)
@@ -218,6 +219,41 @@ func (a *app) handleRootRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := a.accounts.RegisterRoot(r.Context(), input)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleMemberRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
+	if a.accounts == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"status": "unavailable",
+			"error":  "oracle account service is not configured",
+		})
+		return
+	}
+
+	input, err := decodeJSONBody[memberRegisterInput](r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	result, err := a.accounts.RegisterMember(r.Context(), input)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"status": "error",

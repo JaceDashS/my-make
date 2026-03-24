@@ -135,6 +135,19 @@ export function loginAccount(payload: {
   return postJson(RUNTIME_CONFIG.CLIENT_ACCOUNT_LOGIN_PATH, payload);
 }
 
+export function registerMemberAccount(payload: {
+  displayName: string;
+  loginId: string;
+  password: string;
+  requestedRoleCode: string;
+}) {
+  return postJson(
+    RUNTIME_CONFIG.CLIENT_ACCOUNT_MEMBER_REGISTER_PATH,
+    payload,
+    LONG_REQUEST_TIMEOUT_MS,
+  );
+}
+
 export function registerRootAccount(payload: {
   academyName: string;
   licenseCode: string;

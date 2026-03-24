@@ -8,7 +8,11 @@ import {
   runHealthCheck,
   type HealthCheckTarget,
 } from '../../shared/lib/healthCheck';
-import {loginAccount, registerRootAccount} from '../../shared/lib/accountApi';
+import {
+  loginAccount,
+  registerMemberAccount,
+  registerRootAccount,
+} from '../../shared/lib/accountApi';
 import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
 import {
   INITIAL_TARGET_STATE,
@@ -62,9 +66,13 @@ export function MobileAppShell() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [requestedRoleCode, setRequestedRoleCode] = useState<'STUDENT' | 'TEACHER' | 'ADMIN'>(
+    'STUDENT',
+  );
   const [registerType, setRegisterType] = useState<'user' | 'root'>('user');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
   const [authAction, setAuthAction] = useState<'login' | 'logout' | 'register' | null>(
@@ -78,6 +86,67 @@ export function MobileAppShell() {
 
   const t = getMobileShellLabels(language);
   const p = getMobileShellPalette(theme);
+
+  const localizeAccountError = (message?: string | null) => {
+    switch (message) {
+      case 'Please enter your login ID and password.':
+        return t.requiredField;
+      case 'Please enter a login ID.':
+        return t.requiredField;
+      case 'Please enter a display name.':
+        return t.requiredField;
+      case 'Please enter a password.':
+        return t.requiredField;
+      case 'Please choose a member role.':
+      case 'Please choose a valid member role.':
+        return t.memberRoleInvalid;
+      case 'That login ID is already in use. Please choose another one.':
+        return t.duplicateLoginId;
+      case 'This academy already has a root account.':
+        return t.rootAlreadyExists;
+      case 'This license has already been assigned to an academy.':
+        return t.licenseAssigned;
+      case 'This license is not available for registration.':
+        return t.licenseUnavailable;
+      case 'This license has expired.':
+        return t.licenseExpired;
+      case 'That license code could not be found.':
+        return t.licenseNotFound;
+      case 'This license can only be renewed before it expires.':
+        return t.licenseRenewUnavailable;
+      case 'account approval is pending':
+      case 'Your account is waiting for approval.':
+        return t.accountPending;
+      case 'account is on hold':
+      case 'Your account is currently on hold.':
+        return t.accountOnHold;
+      case 'account is inactive':
+      case 'Your account is inactive.':
+        return t.accountInactive;
+      case 'academy is inactive':
+      case 'Your academy is currently inactive.':
+        return t.academyInactive;
+      case 'We could not create the academy right now. Please try again.':
+        return t.academyCreateFailed;
+      case 'We could not prepare your password right now. Please try again.':
+        return t.passwordSetupFailed;
+      case 'We could not sign you in right now. Please try again.':
+      case 'We couldn\'t complete sign-in right now. Please try again.':
+        return t.signInFailed;
+      case 'We could not complete registration right now. Please try again.':
+      case 'We couldn\'t create your member account right now. Please try again.':
+      case 'We couldn\'t create the root account right now. Please try again.':
+      case 'We couldn\'t complete root registration right now. Please try again.':
+      case 'We couldn\'t finish registration right now. Please try again.':
+      case 'We couldn\'t assign the license right now. Please try again.':
+      case 'We couldn\'t confirm the license assignment right now. Please try again.':
+      case 'We couldn\'t assign that license. Please check the license and try again.':
+      case 'We couldn\'t start registration right now. Please try again.':
+        return t.registrationBusy;
+      default:
+        return message ?? t.invalid;
+    }
+  };
 
   useEffect(() => {
     // 上部バーは固定し、トグルアイコンだけを自然に切り替える。
@@ -118,6 +187,16 @@ export function MobileAppShell() {
     }
   };
 
+  const clearRegistrationFields = () => {
+    setAcademyName('');
+    setLicenseCode('');
+    setLoginId('');
+    setDisplayName('');
+    setPassword('');
+    setConfirmPassword('');
+    setRequestedRoleCode('STUDENT');
+  };
+
   const handleLogin = async () => {
     setAuthAction('login');
 
@@ -129,7 +208,8 @@ export function MobileAppShell() {
 
       if (result.status !== 'ok') {
         setIsAuthenticated(false);
-        setAuthError(result.error ?? t.invalid);
+        setAuthNotice(null);
+        setAuthError(localizeAccountError(result.error));
         return;
       }
 
@@ -142,6 +222,7 @@ export function MobileAppShell() {
       });
       setIsAuthenticated(true);
       setAuthError(null);
+      setAuthNotice(null);
       setRegisterSuccess(null);
       setPage('account');
       setSection('profile');
@@ -152,9 +233,45 @@ export function MobileAppShell() {
 
   const handleRegister = async () => {
     if (registerType === 'user') {
-      setRegisterError(t.userRegisterPending);
-      setRegisterSuccess(null);
-      return;
+      if (!loginId || !displayName || !password || !confirmPassword) {
+        setRegisterError(t.requiredField);
+        setRegisterSuccess(null);
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setRegisterError(t.passwordMismatch);
+        setRegisterSuccess(null);
+        return;
+      }
+
+      setAuthAction('register');
+
+      try {
+        const result = await registerMemberAccount({
+          displayName,
+          loginId,
+          password,
+          requestedRoleCode,
+        });
+
+        if (result.status !== 'ok') {
+          setRegisterError(localizeAccountError(result.error) ?? t.memberRegisterBody);
+          setRegisterSuccess(null);
+          return;
+        }
+
+        setAuthError(null);
+        setAuthNotice(t.memberRegisterSuccess);
+        setRegisterError(null);
+        setRegisterSuccess(t.memberRegisterSuccess);
+        setPage('account');
+        setSection('login');
+        clearRegistrationFields();
+        return;
+      } finally {
+        setAuthAction(null);
+      }
     }
 
     if (
@@ -188,7 +305,7 @@ export function MobileAppShell() {
       });
 
       if (result.status !== 'ok') {
-        setRegisterError(result.error ?? t.registerSuccess);
+        setRegisterError(localizeAccountError(result.error) ?? t.registrationBusy);
         setRegisterSuccess(null);
         return;
       }
@@ -203,13 +320,14 @@ export function MobileAppShell() {
       setAcademyCode(result.academyCode ?? '');
       setIsAuthenticated(true);
       setAuthError(null);
+      setAuthNotice(null);
       setRegisterError(null);
       setRegisterSuccess(
         `${t.registerSuccess}${result.academyCode ? ` (${result.academyCode})` : ''}`,
       );
       setPage('account');
       setSection('profile');
-      setConfirmPassword('');
+      clearRegistrationFields();
     } finally {
       setAuthAction(null);
     }
@@ -219,6 +337,7 @@ export function MobileAppShell() {
     setAuthAction('logout');
     setIsAuthenticated(false);
     setAuthError(null);
+    setAuthNotice(null);
     setSession(null);
     setPage('account');
     setSection('login');
@@ -387,6 +506,7 @@ export function MobileAppShell() {
           {!isMenuOpen && page === 'account' ? (
             <AccountSection
               authError={authError}
+              authNotice={authNotice}
               academyCode={session?.academyCode ?? academyCode}
               academyName={session?.academyName ?? academyName}
               confirmPassword={confirmPassword}
@@ -406,11 +526,13 @@ export function MobileAppShell() {
               onPasswordChange={setPassword}
               onRegister={handleRegister}
               onRegisterTypeChange={setRegisterType}
+              onRequestedRoleCodeChange={setRequestedRoleCode}
               palette={p}
               password={password}
               registerError={registerError}
               registerSuccess={registerSuccess}
               registerType={registerType}
+              requestedRoleCode={requestedRoleCode}
               roleCode={session?.roleCode ?? 'ROOT'}
               texts={t}
             />

@@ -35,16 +35,22 @@ func (s *stubDevToolsService) CreateLicense(context.Context) (devToolsResponse, 
 }
 
 type stubAccountService struct {
-	loginResult        accountResponse
-	loginErr           error
-	registerRootResult accountResponse
-	registerRootErr    error
-	renewResult        licenseRenewResponse
-	renewErr           error
+	registerMemberResult accountResponse
+	registerMemberErr    error
+	loginResult          accountResponse
+	loginErr             error
+	registerRootResult   accountResponse
+	registerRootErr      error
+	renewResult          licenseRenewResponse
+	renewErr             error
 }
 
 func (s *stubAccountService) Login(context.Context, loginInput) (accountResponse, error) {
 	return s.loginResult, s.loginErr
+}
+
+func (s *stubAccountService) RegisterMember(context.Context, memberRegisterInput) (accountResponse, error) {
+	return s.registerMemberResult, s.registerMemberErr
 }
 
 func (s *stubAccountService) RegisterRoot(context.Context, rootRegisterInput) (accountResponse, error) {
@@ -291,6 +297,44 @@ func TestRootRegisterRouteReturnsAcademyCode(t *testing.T) {
 
 	if body.AcademyCode != "abc123def456" {
 		t.Fatalf("expected academy code abc123def456, got %q", body.AcademyCode)
+	}
+}
+
+func TestMemberRegisterRouteReturnsPendingRole(t *testing.T) {
+	application := &app{
+		accounts: &stubAccountService{
+			registerMemberResult: accountResponse{
+				Status:      "ok",
+				Message:     "Member registration submitted. Approval is required.",
+				DisplayName: "New Member",
+				LoginID:     "new-member",
+				RoleCode:    "STUDENT",
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/accounts/member-register", strings.NewReader(`{
+  "loginId":"new-member",
+  "displayName":"New Member",
+  "password":"secret",
+  "requestedRoleCode":"STUDENT"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body accountResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if body.RoleCode != "STUDENT" {
+		t.Fatalf("expected role STUDENT, got %q", body.RoleCode)
 	}
 }
 

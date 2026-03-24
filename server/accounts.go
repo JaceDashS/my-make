@@ -14,8 +14,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	constraintUsersLoginID     = "uq_mame_users_login_id"
+	constraintUsersRootAcademy = "uq_mame_users_root_per_academy"
+)
+
 type accountService interface {
 	Login(ctx context.Context, input loginInput) (accountResponse, error)
+	RegisterMember(ctx context.Context, input memberRegisterInput) (accountResponse, error)
 	RegisterRoot(ctx context.Context, input rootRegisterInput) (accountResponse, error)
 	RenewLicense(ctx context.Context, input renewLicenseInput) (licenseRenewResponse, error)
 }
@@ -40,6 +46,13 @@ type rootRegisterInput struct {
 	Password        string `json:"password"`
 }
 
+type memberRegisterInput struct {
+	LoginID           string `json:"loginId"`
+	DisplayName       string `json:"displayName"`
+	Password          string `json:"password"`
+	RequestedRoleCode string `json:"requestedRoleCode"`
+}
+
 type renewLicenseInput struct {
 	LicenseCode string `json:"licenseCode"`
 }
@@ -62,12 +75,14 @@ type licenseRenewResponse struct {
 }
 
 type storedAccount struct {
-	academyCode  string
-	academyName  string
+	academyCode  sql.NullString
+	academyName  sql.NullString
+	academyState sql.NullString
 	displayName  string
 	loginID      string
 	passwordHash string
 	roleCode     string
+	statusCode   string
 }
 
 type storedLicense struct {
@@ -98,7 +113,7 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 	input.LoginID = strings.TrimSpace(input.LoginID)
 
 	if input.LoginID == "" || input.Password == "" {
-		return accountResponse{}, fmt.Errorf("loginId and password are required")
+		return accountResponse{}, fmt.Errorf("Please enter your login ID and password.")
 	}
 
 	account, err := s.fetchAccount(ctx, input.LoginID)
@@ -107,22 +122,106 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(account.passwordHash), []byte(input.Password)); err != nil {
-		return accountResponse{}, fmt.Errorf("invalid login ID or password")
+		return accountResponse{}, fmt.Errorf("The login ID or password is incorrect.")
+	}
+
+	switch account.statusCode {
+	case "PENDING":
+		return accountResponse{}, fmt.Errorf("Your account is waiting for approval.")
+	case "HOLD":
+		return accountResponse{}, fmt.Errorf("Your account is currently on hold.")
+	case "INACTIVE":
+		return accountResponse{}, fmt.Errorf("Your account is inactive.")
+	case "ACTIVE":
+	default:
+		return accountResponse{}, fmt.Errorf("Your account is unavailable right now.")
+	}
+
+	if account.academyCode.Valid && account.academyState.Valid && account.academyState.String != "ACTIVE" {
+		return accountResponse{}, fmt.Errorf("Your academy is currently inactive.")
 	}
 
 	update := `UPDATE MAME_USERS SET LAST_LOGIN_AT = SYSTIMESTAMP WHERE LOGIN_ID = :1`
 	if _, err := s.execWithReconnect(ctx, update, input.LoginID); err != nil {
-		return accountResponse{}, fmt.Errorf("update last login: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't complete sign-in right now. Please try again.")
 	}
 
 	return accountResponse{
 		Status:      "ok",
 		Message:     "Signed in successfully.",
-		AcademyCode: account.academyCode,
-		AcademyName: account.academyName,
+		AcademyCode: nullStringValue(account.academyCode),
+		AcademyName: nullStringValue(account.academyName),
 		DisplayName: account.displayName,
 		LoginID:     account.loginID,
 		RoleCode:    account.roleCode,
+	}, nil
+}
+
+func (s *oracleAccountService) RegisterMember(
+	ctx context.Context,
+	input memberRegisterInput,
+) (accountResponse, error) {
+	input.LoginID = strings.TrimSpace(input.LoginID)
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	input.RequestedRoleCode = strings.ToUpper(strings.TrimSpace(input.RequestedRoleCode))
+
+	switch {
+	case input.LoginID == "":
+		return accountResponse{}, fmt.Errorf("Please enter a login ID.")
+	case input.DisplayName == "":
+		return accountResponse{}, fmt.Errorf("Please enter a display name.")
+	case input.Password == "":
+		return accountResponse{}, fmt.Errorf("Please enter a password.")
+	case input.RequestedRoleCode == "":
+		return accountResponse{}, fmt.Errorf("Please choose a member role.")
+	}
+
+	switch input.RequestedRoleCode {
+	case "ADMIN", "TEACHER", "STUDENT":
+	default:
+		return accountResponse{}, fmt.Errorf("Please choose a valid member role.")
+	}
+
+	passwordHash, err := hashPassword(input.Password)
+	if err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't prepare your password right now. Please try again.")
+	}
+
+	query := `
+INSERT INTO MAME_USERS (
+    LOGIN_ID,
+    DISPLAY_NAME,
+    PASSWORD_HASH,
+    ROLE_CODE,
+    STATUS_CODE
+) VALUES (
+    :1,
+    :2,
+    :3,
+    :4,
+    'PENDING'
+)`
+	if _, err := s.execWithReconnect(
+		ctx,
+		query,
+		input.LoginID,
+		input.DisplayName,
+		passwordHash,
+		input.RequestedRoleCode,
+	); err != nil {
+		if isAccountUniqueConstraintError(err, constraintUsersLoginID) {
+			return accountResponse{}, fmt.Errorf("That login ID is already in use. Please choose another one.")
+		}
+
+		return accountResponse{}, fmt.Errorf("We couldn't create your member account right now. Please try again.")
+	}
+
+	return accountResponse{
+		Status:      "ok",
+		Message:     "Member registration submitted. Approval is required.",
+		DisplayName: input.DisplayName,
+		LoginID:     input.LoginID,
+		RoleCode:    input.RequestedRoleCode,
 	}, nil
 }
 
@@ -134,15 +233,15 @@ func (s *oracleAccountService) RegisterRoot(ctx context.Context, input rootRegis
 
 	switch {
 	case input.LicenseCode == "":
-		return accountResponse{}, fmt.Errorf("licenseCode is required")
+		return accountResponse{}, fmt.Errorf("Please enter a license code.")
 	case input.AcademyName == "":
-		return accountResponse{}, fmt.Errorf("academyName is required")
+		return accountResponse{}, fmt.Errorf("Please enter an academy name.")
 	case input.RootLoginID == "":
-		return accountResponse{}, fmt.Errorf("rootLoginId is required")
+		return accountResponse{}, fmt.Errorf("Please enter a root login ID.")
 	case input.RootDisplayName == "":
-		return accountResponse{}, fmt.Errorf("rootDisplayName is required")
+		return accountResponse{}, fmt.Errorf("Please enter a root display name.")
 	case input.Password == "":
-		return accountResponse{}, fmt.Errorf("password is required")
+		return accountResponse{}, fmt.Errorf("Please enter a password.")
 	}
 
 	license, err := s.fetchLicense(ctx, input.LicenseCode)
@@ -156,25 +255,25 @@ func (s *oracleAccountService) RegisterRoot(ctx context.Context, input rootRegis
 	}
 
 	if license.academyCode.Valid {
-		return accountResponse{}, fmt.Errorf("license is already assigned to an academy")
+		return accountResponse{}, fmt.Errorf("This license has already been assigned to an academy.")
 	}
 
 	if license.statusCode != "UNASSIGNED" {
-		return accountResponse{}, fmt.Errorf("license is not available for root registration")
+		return accountResponse{}, fmt.Errorf("This license is not available for registration.")
 	}
 
 	if !license.expiresAt.After(now()) {
-		return accountResponse{}, fmt.Errorf("license has expired")
+		return accountResponse{}, fmt.Errorf("This license has expired.")
 	}
 
 	passwordHash, err := hashPassword(input.Password)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("hash password: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't prepare your password right now. Please try again.")
 	}
 
 	tx, err := s.beginTxWithReconnect(ctx)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("begin transaction: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't start registration right now. Please try again.")
 	}
 
 	defer func() {
@@ -197,7 +296,7 @@ INSERT INTO MAME_ACADEMIES (
 		createAcademy,
 		input.AcademyName,
 	); err != nil {
-		return accountResponse{}, fmt.Errorf("create academy: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't create the academy right now. Please try again.")
 	}
 
 	readAcademyCode := `
@@ -205,7 +304,7 @@ SELECT ACADEMY_CODE
   FROM MAME_ACADEMIES
  WHERE ACADEMY_NAME = :1`
 	if err := tx.QueryRowContext(ctx, readAcademyCode, input.AcademyName).Scan(&academyCode); err != nil {
-		return accountResponse{}, fmt.Errorf("fetch created academy code: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't finish registration right now. Please try again.")
 	}
 
 	createRoot := `
@@ -232,7 +331,14 @@ INSERT INTO MAME_USERS (
 		input.RootDisplayName,
 		passwordHash,
 	); err != nil {
-		return accountResponse{}, fmt.Errorf("create root account: %w", err)
+		if isAccountUniqueConstraintError(err, constraintUsersLoginID) {
+			return accountResponse{}, fmt.Errorf("That login ID is already in use. Please choose another one.")
+		}
+		if isAccountUniqueConstraintError(err, constraintUsersRootAcademy) {
+			return accountResponse{}, fmt.Errorf("This academy already has a root account.")
+		}
+
+		return accountResponse{}, fmt.Errorf("We couldn't create the root account right now. Please try again.")
 	}
 
 	assignLicense := `
@@ -245,20 +351,20 @@ UPDATE MAME_LICENSES
    AND EXPIRES_AT > SYSTIMESTAMP`
 	result, err := tx.ExecContext(ctx, assignLicense, academyCode, input.LicenseCode)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("assign license: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't assign the license right now. Please try again.")
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("read license assignment result: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't confirm the license assignment right now. Please try again.")
 	}
 
 	if rowsAffected != 1 {
-		return accountResponse{}, fmt.Errorf("license assignment failed")
+		return accountResponse{}, fmt.Errorf("We couldn't assign that license. Please check the license and try again.")
 	}
 
 	if err := tx.Commit(); err != nil {
-		return accountResponse{}, fmt.Errorf("commit root registration: %w", err)
+		return accountResponse{}, fmt.Errorf("We couldn't complete root registration right now. Please try again.")
 	}
 	tx = nil
 
@@ -276,7 +382,7 @@ UPDATE MAME_LICENSES
 func (s *oracleAccountService) RenewLicense(ctx context.Context, input renewLicenseInput) (licenseRenewResponse, error) {
 	input.LicenseCode = strings.TrimSpace(input.LicenseCode)
 	if input.LicenseCode == "" {
-		return licenseRenewResponse{}, fmt.Errorf("licenseCode is required")
+		return licenseRenewResponse{}, fmt.Errorf("Please enter a license code.")
 	}
 
 	license, err := s.fetchLicense(ctx, input.LicenseCode)
@@ -290,7 +396,7 @@ func (s *oracleAccountService) RenewLicense(ctx context.Context, input renewLice
 	}
 
 	if !license.expiresAt.After(now()) || license.statusCode == "EXPIRED" {
-		return licenseRenewResponse{}, fmt.Errorf("license can only be renewed before expiration")
+		return licenseRenewResponse{}, fmt.Errorf("This license can only be renewed before it expires.")
 	}
 
 	nextExpiresAt := license.expiresAt.Add(defaultLicenseDuration)
@@ -303,7 +409,7 @@ UPDATE MAME_LICENSES
        END
  WHERE LICENSE_CODE = :2`
 	if _, err := s.execWithReconnect(ctx, query, nextExpiresAt, input.LicenseCode); err != nil {
-		return licenseRenewResponse{}, fmt.Errorf("renew license: %w", err)
+		return licenseRenewResponse{}, fmt.Errorf("We couldn't renew the license right now. Please try again.")
 	}
 
 	return licenseRenewResponse{
@@ -319,35 +425,37 @@ func (s *oracleAccountService) fetchAccount(ctx context.Context, loginID string)
 SELECT
     u.ACADEMY_CODE,
     a.ACADEMY_NAME,
+    a.STATUS_CODE,
     u.DISPLAY_NAME,
     u.LOGIN_ID,
     u.PASSWORD_HASH,
-    u.ROLE_CODE
+    u.ROLE_CODE,
+    u.STATUS_CODE
 FROM MAME_USERS u
-JOIN MAME_ACADEMIES a
+LEFT JOIN MAME_ACADEMIES a
   ON a.ACADEMY_CODE = u.ACADEMY_CODE
-WHERE u.LOGIN_ID = :1
-  AND u.STATUS_CODE = 'ACTIVE'
-  AND a.STATUS_CODE = 'ACTIVE'`
+WHERE u.LOGIN_ID = :1`
 
 	var account storedAccount
 	scan := func(db *sql.DB) error {
 		return db.QueryRowContext(ctx, query, loginID).Scan(
 			&account.academyCode,
 			&account.academyName,
+			&account.academyState,
 			&account.displayName,
 			&account.loginID,
 			&account.passwordHash,
 			&account.roleCode,
+			&account.statusCode,
 		)
 	}
 
 	err := s.queryRowWithReconnect(ctx, scan)
 	if errors.Is(err, sql.ErrNoRows) {
-		return storedAccount{}, fmt.Errorf("invalid login ID or password")
+		return storedAccount{}, fmt.Errorf("The login ID or password is incorrect.")
 	}
 	if err != nil {
-		return storedAccount{}, fmt.Errorf("fetch account: %w", err)
+		return storedAccount{}, fmt.Errorf("We couldn't check your account right now. Please try again.")
 	}
 
 	return account, nil
@@ -373,10 +481,10 @@ WHERE LICENSE_CODE = :1`
 
 	err := s.queryRowWithReconnect(ctx, scan)
 	if errors.Is(err, sql.ErrNoRows) {
-		return storedLicense{}, fmt.Errorf("license code was not found")
+		return storedLicense{}, fmt.Errorf("That license code could not be found.")
 	}
 	if err != nil {
-		return storedLicense{}, fmt.Errorf("fetch license: %w", err)
+		return storedLicense{}, fmt.Errorf("We couldn't check that license right now. Please try again.")
 	}
 
 	return license, nil
@@ -489,4 +597,21 @@ func isClosedConnectionError(err error) bool {
 
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "closed connection")
+}
+
+func nullStringValue(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+
+	return value.String
+}
+
+func isAccountUniqueConstraintError(err error, constraintName string) bool {
+	if err == nil {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "ora-00001") && strings.Contains(message, constraintName)
 }
