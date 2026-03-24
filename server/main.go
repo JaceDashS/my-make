@@ -71,11 +71,11 @@ func (a *app) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", a.handleRoot)
 	mux.HandleFunc("/health", a.handleHealth)
-	mux.HandleFunc("/accounts/login", a.handleLogin)
-	mux.HandleFunc("/accounts/root-register", a.handleRootRegister)
-	mux.HandleFunc("/licenses/renew", a.handleRenewLicense)
-	mux.HandleFunc("/dev-tools/tables/init", a.handleInitializeTables)
-	mux.HandleFunc("/dev-tools/licenses", a.handleCreateLicense)
+	mux.HandleFunc("/api/accounts/login", a.handleLogin)
+	mux.HandleFunc("/api/accounts/root-register", a.handleRootRegister)
+	mux.HandleFunc("/api/licenses/renew", a.handleRenewLicense)
+	mux.HandleFunc("/api/dev-tools/tables/init", a.handleInitializeTables)
+	mux.HandleFunc("/api/dev-tools/licenses", a.handleCreateLicense)
 	return mux
 }
 

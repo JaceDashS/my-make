@@ -203,7 +203,7 @@ func TestInitializeTablesRouteReturnsJSON(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/dev-tools/tables/init", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/dev-tools/tables/init", nil)
 	rec := httptest.NewRecorder()
 
 	application.routes().ServeHTTP(rec, req)
@@ -234,7 +234,7 @@ func TestCreateLicenseRouteReturnsLicenseCode(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/dev-tools/licenses", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/dev-tools/licenses", nil)
 	rec := httptest.NewRecorder()
 
 	application.routes().ServeHTTP(rec, req)
@@ -268,7 +268,7 @@ func TestRootRegisterRouteReturnsAcademyCode(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/accounts/root-register", strings.NewReader(`{
+	req := httptest.NewRequest(http.MethodPost, "/api/accounts/root-register", strings.NewReader(`{
   "licenseCode":"LICENSE001",
   "academyName":"My Academy",
   "rootLoginId":"root-admin",
@@ -309,7 +309,7 @@ func TestLoginRouteReturnsAccountPayload(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/accounts/login", strings.NewReader(`{
+	req := httptest.NewRequest(http.MethodPost, "/api/accounts/login", strings.NewReader(`{
   "loginId":"root-admin",
   "password":"secret"
 }`))
@@ -344,7 +344,7 @@ func TestRenewLicenseRouteReturnsNewExpiration(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/licenses/renew", strings.NewReader(`{
+	req := httptest.NewRequest(http.MethodPost, "/api/licenses/renew", strings.NewReader(`{
   "licenseCode":"LICENSE001"
 }`))
 	req.Header.Set("Content-Type", "application/json")
