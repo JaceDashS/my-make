@@ -51,15 +51,28 @@ export function createShellUi<Palette extends CommonShellPalette>(styles: Common
     onPress: () => void;
     palette: Palette;
   }) {
+    const [isHovered, setIsHovered] = React.useState(false);
+
     return (
       <Pressable
         {...windowsPressableFocusProps}
+        onHoverIn={() => setIsHovered(true)}
+        onHoverOut={() => setIsHovered(false)}
         onPress={onPress}
-        style={[
+        style={({pressed}) => [
           styles.optionChip,
           {
-            backgroundColor: active ? palette.primary : palette.muted,
-            borderColor: active ? palette.primary : palette.border,
+            backgroundColor: active
+              ? palette.primary
+              : isHovered
+                ? palette.card
+                : palette.muted,
+            borderColor: active
+              ? palette.primary
+              : isHovered
+                ? palette.textMuted
+                : palette.border,
+            opacity: pressed ? 0.9 : 1,
           },
         ]}>
         <Text
