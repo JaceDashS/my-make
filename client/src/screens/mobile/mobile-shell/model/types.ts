@@ -17,4 +17,4 @@ export type MobileShellPalette = {
 
 export type MobileMenuSection =
   | import('../../../shared/shell-model').SettingsSection
-  | import('../../../shared/shell-model').LoginSection;
+  | import('../../../shared/shell-model').AccountSection;

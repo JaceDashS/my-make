@@ -7,6 +7,7 @@ import {mobileShellStyles as styles} from '../config/styles';
 import type {MobileMenuSection, MobileShellPalette} from '../model/types';
 
 export function MenuPanel({
+  isAuthenticated,
   currentPage,
   currentSection,
   labels,
@@ -14,32 +15,35 @@ export function MenuPanel({
   onSelectSection,
   palette,
 }: {
+  isAuthenticated: boolean;
   currentPage: AppPage;
   currentSection: MobileMenuSection;
   labels: {
+    account: string;
     devHealth: string;
     general: string;
     login: string;
-    signIn: string;
+    profile: string;
+    register: string;
     settings: string;
   };
   onSelectGroup: (page: AppPage) => void;
   onSelectSection: (page: AppPage, section: MobileMenuSection) => void;
   palette: MobileShellPalette;
 }) {
-  const [expandedGroup, setExpandedGroup] = useState<'settings' | 'login' | null>(
-    currentPage === 'settings' || currentPage === 'login' ? currentPage : null,
+  const [expandedGroup, setExpandedGroup] = useState<'settings' | 'account' | null>(
+    currentPage === 'settings' || currentPage === 'account' ? currentPage : null,
   );
   const settingsAnimation = useRef(
     new Animated.Value(currentPage === 'settings' ? 1 : 0),
   ).current;
-  const loginAnimation = useRef(
-    new Animated.Value(currentPage === 'login' ? 1 : 0),
+  const accountAnimation = useRef(
+    new Animated.Value(currentPage === 'account' ? 1 : 0),
   ).current;
 
   useEffect(() => {
     // 現在表示中のページに合わせて、対応するメニュー群だけを初期展開する。
-    if (currentPage === 'settings' || currentPage === 'login') {
+    if (currentPage === 'settings' || currentPage === 'account') {
       setExpandedGroup(currentPage);
       return;
     }
@@ -53,13 +57,13 @@ export function MenuPanel({
         toValue: expandedGroup === 'settings' ? 1 : 0,
         useNativeDriver: false,
       }),
-      Animated.timing(loginAnimation, {
+      Animated.timing(accountAnimation, {
         duration: 180,
-        toValue: expandedGroup === 'login' ? 1 : 0,
+        toValue: expandedGroup === 'account' ? 1 : 0,
         useNativeDriver: false,
       }),
     ]).start();
-  }, [expandedGroup, loginAnimation, settingsAnimation]);
+  }, [accountAnimation, expandedGroup, settingsAnimation]);
 
   const getSubItemTextStyle = (active: boolean) => [
     styles.overlaySubItemText,
@@ -135,29 +139,29 @@ export function MenuPanel({
       </Animated.View>
       <Pressable
         {...windowsPressableFocusProps}
-        onPress={() => onSelectGroup('login')}
+        onPress={() => onSelectGroup('account')}
         style={[
           styles.overlayItem,
           styles.overlayItemSpaced,
           {backgroundColor: palette.sidebarItem},
         ]}>
-        <Text style={getTopLevelTextStyle(currentPage === 'login')}>
-          {labels.login}
+        <Text style={getTopLevelTextStyle(currentPage === 'account')}>
+          {labels.account}
         </Text>
       </Pressable>
       <Animated.View
-        pointerEvents={expandedGroup === 'login' ? 'auto' : 'none'}
+        pointerEvents={expandedGroup === 'account' ? 'auto' : 'none'}
         style={[
           styles.overlaySubmenu,
           {
-            opacity: loginAnimation,
-            maxHeight: loginAnimation.interpolate({
+            opacity: accountAnimation,
+            maxHeight: accountAnimation.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 58],
+              outputRange: [0, isAuthenticated ? 58 : 116],
             }),
             transform: [
               {
-                translateY: loginAnimation.interpolate({
+                translateY: accountAnimation.interpolate({
                   inputRange: [0, 1],
                   outputRange: [-8, 0],
                 }),
@@ -165,17 +169,44 @@ export function MenuPanel({
             ],
           },
         ]}>
-        <Pressable
-          {...windowsPressableFocusProps}
-          onPress={() => onSelectSection('login', 'sign-in')}
-          style={styles.overlaySubItem}>
-          <Text
-            style={getSubItemTextStyle(
-              currentPage === 'login' && currentSection === 'sign-in',
-            )}>
-            {labels.signIn}
-          </Text>
-        </Pressable>
+        {isAuthenticated ? (
+          <Pressable
+            {...windowsPressableFocusProps}
+            onPress={() => onSelectSection('account', 'profile')}
+            style={styles.overlaySubItem}>
+            <Text
+              style={getSubItemTextStyle(
+                currentPage === 'account' && currentSection === 'profile',
+              )}>
+              {labels.profile}
+            </Text>
+          </Pressable>
+        ) : (
+          <>
+            <Pressable
+              {...windowsPressableFocusProps}
+              onPress={() => onSelectSection('account', 'login')}
+              style={styles.overlaySubItem}>
+              <Text
+                style={getSubItemTextStyle(
+                  currentPage === 'account' && currentSection === 'login',
+                )}>
+                {labels.login}
+              </Text>
+            </Pressable>
+            <Pressable
+              {...windowsPressableFocusProps}
+              onPress={() => onSelectSection('account', 'register')}
+              style={styles.overlaySubItem}>
+              <Text
+                style={getSubItemTextStyle(
+                  currentPage === 'account' && currentSection === 'register',
+                )}>
+                {labels.register}
+              </Text>
+            </Pressable>
+          </>
+        )}
       </Animated.View>
     </View>
   );

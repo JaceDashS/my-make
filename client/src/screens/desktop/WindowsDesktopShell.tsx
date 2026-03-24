@@ -8,16 +8,18 @@ import {
   runHealthCheck,
   type HealthCheckTarget,
 } from '../../shared/lib/healthCheck';
+import {loginAccount, registerRootAccount} from '../../shared/lib/accountApi';
 import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
 import {
   INITIAL_TARGET_STATE,
   type AppPage,
+  type AccountSection as AccountSectionType,
   type LanguageMode,
   type ThemeMode,
 } from '../shared/shell-model';
 import {SidebarMenu} from './desktop-shell/components/SidebarMenu';
 import {getDesktopShellLabels} from './desktop-shell/config/labels';
-import {LoginSection} from './desktop-shell/pages/login/LoginSection';
+import {AccountSection} from './desktop-shell/pages/account/AccountSection';
 import {DevHealthSection} from './desktop-shell/pages/settings/DevHealthSection';
 import {GeneralSection} from './desktop-shell/pages/settings/GeneralSection';
 import {desktopShellStyles as styles} from './desktop-shell/config/styles';
@@ -33,23 +35,41 @@ function getDefaultSection(nextPage: AppPage): DesktopMenuSection | undefined {
     return 'general';
   }
 
-  if (nextPage === 'login') {
-    return 'sign-in';
+  if (nextPage === 'account') {
+    return 'login';
   }
 
   return undefined;
 }
 
 export function WindowsDesktopShell() {
+  const [session, setSession] = useState<{
+    academyCode: string;
+    academyName: string;
+    displayName: string;
+    loginId: string;
+    roleCode: string;
+  } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [page, setPage] = useState<AppPage>('settings');
   const [section, setSection] = useState<DesktopMenuSection>('general');
   const [language, setLanguage] = useState<LanguageMode>('ja');
   const [theme, setTheme] = useState<ThemeMode>('light');
+  const [academyCode, setAcademyCode] = useState('');
+  const [academyName, setAcademyName] = useState('');
+  const [licenseCode, setLicenseCode] = useState('');
   const [loginId, setLoginId] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [registerType, setRegisterType] = useState<'user' | 'root'>('user');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
+  const [authAction, setAuthAction] = useState<'login' | 'logout' | 'register' | null>(
+    null,
+  );
   const [loadingTarget, setLoadingTarget] = useState<HealthCheckTarget | null>(
     null,
   );
@@ -68,21 +88,122 @@ export function WindowsDesktopShell() {
     }).start();
   }, [isSidebarOpen, sidebarAnimation]);
 
-  const handleLogin = () => {
-    if (loginId === 'admin' && password === '1111') {
-      setIsAuthenticated(true);
-      setAuthError(null);
+  useEffect(() => {
+    if (isAuthenticated && page === 'account' && section !== 'profile') {
+      setSection('profile');
       return;
     }
 
-    setIsAuthenticated(false);
-    setAuthError(t.invalid);
+    if (!isAuthenticated && page === 'account' && section === 'profile') {
+      setSection('login');
+    }
+  }, [isAuthenticated, page, section]);
+
+  const handleLogin = async () => {
+    setAuthAction('login');
+
+    try {
+      const result = await loginAccount({
+        loginId,
+        password,
+      });
+
+      if (result.status !== 'ok') {
+        setIsAuthenticated(false);
+        setAuthError(result.error ?? t.invalid);
+        return;
+      }
+
+      setSession({
+        academyCode: result.academyCode ?? academyCode,
+        academyName: result.academyName ?? '',
+        displayName: result.displayName ?? '',
+        loginId: result.loginId ?? loginId,
+        roleCode: result.roleCode ?? 'ROOT',
+      });
+      setIsAuthenticated(true);
+      setAuthError(null);
+      setRegisterSuccess(null);
+      setPage('account');
+      setSection('profile');
+    } finally {
+      setAuthAction(null);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (registerType === 'user') {
+      setRegisterError(t.userRegisterPending);
+      setRegisterSuccess(null);
+      return;
+    }
+
+    if (
+      !licenseCode ||
+      !academyName ||
+      !loginId ||
+      !displayName ||
+      !password ||
+      !confirmPassword
+    ) {
+      setRegisterError(t.requiredField);
+      setRegisterSuccess(null);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setRegisterError(t.passwordMismatch);
+      setRegisterSuccess(null);
+      return;
+    }
+
+    setAuthAction('register');
+
+    try {
+      const result = await registerRootAccount({
+        academyName,
+        licenseCode,
+        password,
+        rootDisplayName: displayName,
+        rootLoginId: loginId,
+      });
+
+      if (result.status !== 'ok') {
+        setRegisterError(result.error ?? t.registerSuccess);
+        setRegisterSuccess(null);
+        return;
+      }
+
+      setSession({
+        academyCode: result.academyCode ?? '',
+        academyName: result.academyName ?? academyName,
+        displayName: result.displayName ?? displayName,
+        loginId: result.loginId ?? loginId,
+        roleCode: result.roleCode ?? 'ROOT',
+      });
+      setAcademyCode(result.academyCode ?? '');
+      setIsAuthenticated(true);
+      setAuthError(null);
+      setRegisterError(null);
+      setRegisterSuccess(
+        `${t.registerSuccess}${result.academyCode ? ` (${result.academyCode})` : ''}`,
+      );
+      setPage('account');
+      setSection('profile');
+      setConfirmPassword('');
+    } finally {
+      setAuthAction(null);
+    }
   };
 
   const handleLogout = () => {
+    setAuthAction('logout');
     setIsAuthenticated(false);
     setAuthError(null);
-    setPassword('');
+    setSession(null);
+    setPage('account');
+    setSection('login');
+    setAuthAction(null);
   };
 
   const handleHealthCheck = async (target: HealthCheckTarget) => {
@@ -142,12 +263,19 @@ export function WindowsDesktopShell() {
     }
   };
 
+  const accountSection: AccountSectionType = isAuthenticated
+    ? 'profile'
+    : section === 'register'
+      ? 'register'
+      : 'login';
+
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: p.appBg}]}>
       <View style={[styles.shell, {backgroundColor: p.appBg}]}>
         <SidebarMenu
           animation={sidebarAnimation}
           isOpen={isSidebarOpen}
+          isAuthenticated={isAuthenticated}
           labels={t}
           onPageChange={handlePageChange}
           onSectionChange={setSection}
@@ -165,7 +293,7 @@ export function WindowsDesktopShell() {
               <Text style={[styles.menuButtonLabel, {color: p.text}]}>☰</Text>
             </Pressable>
             <Text style={[styles.topBarTitle, {color: p.text}]}>
-              {page === 'settings' ? t.settings : t.login}
+              {page === 'settings' ? t.settings : t.account}
             </Text>
           </View>
 
@@ -182,17 +310,34 @@ export function WindowsDesktopShell() {
                 />
               ) : null}
 
-              {page === 'login' && section === 'sign-in' ? (
-                <LoginSection
+              {page === 'account' ? (
+                <AccountSection
+                  academyCode={session?.academyCode ?? academyCode}
+                  academyName={session?.academyName ?? academyName}
                   authError={authError}
+                  confirmPassword={confirmPassword}
+                  currentSection={accountSection}
+                  displayName={session?.displayName ?? displayName}
                   isAuthenticated={isAuthenticated}
+                  isSubmitting={authAction !== null}
+                  licenseCode={licenseCode}
                   loginId={loginId}
+                  onAcademyNameChange={setAcademyName}
+                  onConfirmPasswordChange={setConfirmPassword}
+                  onDisplayNameChange={setDisplayName}
+                  onLicenseCodeChange={setLicenseCode}
                   onLogin={handleLogin}
                   onLoginIdChange={setLoginId}
                   onLogout={handleLogout}
                   onPasswordChange={setPassword}
+                  onRegister={handleRegister}
+                  onRegisterTypeChange={setRegisterType}
                   palette={p}
                   password={password}
+                  registerError={registerError}
+                  registerSuccess={registerSuccess}
+                  registerType={registerType}
+                  roleCode={session?.roleCode ?? 'ROOT'}
                   texts={t}
                 />
               ) : null}

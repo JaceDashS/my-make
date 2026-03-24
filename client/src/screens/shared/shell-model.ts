@@ -1,8 +1,8 @@
 import type {HealthCheckResult, HealthCheckTarget} from '../../shared/lib/healthCheck';
 
-export type AppPage = 'settings' | 'login';
+export type AppPage = 'settings' | 'account';
 export type SettingsSection = 'general' | 'dev-health';
-export type LoginSection = 'sign-in';
+export type AccountSection = 'login' | 'register' | 'profile';
 export type LanguageMode = 'ja' | 'en';
 export type ThemeMode = 'light' | 'dark';
 

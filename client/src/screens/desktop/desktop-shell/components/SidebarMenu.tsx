@@ -10,6 +10,7 @@ import {SidebarSubItem} from './ui';
 export function SidebarMenu({
   animation,
   isOpen,
+  isAuthenticated,
   labels,
   onPageChange,
   onSectionChange,
@@ -19,11 +20,14 @@ export function SidebarMenu({
 }: {
   animation: Animated.Value;
   isOpen: boolean;
+  isAuthenticated: boolean;
   labels: {
+    account: string;
     devHealth: string;
     general: string;
     login: string;
-    signIn: string;
+    profile: string;
+    register: string;
     settings: string;
   };
   onPageChange: (page: AppPage) => void;
@@ -35,8 +39,8 @@ export function SidebarMenu({
   const settingsAnimation = useRef(
     new Animated.Value(page === 'settings' ? 1 : 0),
   ).current;
-  const loginAnimation = useRef(
-    new Animated.Value(page === 'login' ? 1 : 0),
+  const accountAnimation = useRef(
+    new Animated.Value(page === 'account' ? 1 : 0),
   ).current;
 
   useEffect(() => {
@@ -46,13 +50,13 @@ export function SidebarMenu({
         toValue: page === 'settings' ? 1 : 0,
         useNativeDriver: false,
       }),
-      Animated.timing(loginAnimation, {
+      Animated.timing(accountAnimation, {
         duration: 180,
-        toValue: page === 'login' ? 1 : 0,
+        toValue: page === 'account' ? 1 : 0,
         useNativeDriver: false,
       }),
     ]).start();
-  }, [loginAnimation, page, settingsAnimation]);
+  }, [accountAnimation, page, settingsAnimation]);
 
   const getTopLevelTextStyle = () => [
     styles.sidebarItemLabel,
@@ -142,27 +146,27 @@ export function SidebarMenu({
             </Animated.View>
             <Pressable
               {...windowsPressableFocusProps}
-              onPress={() => onPageChange('login')}
+              onPress={() => onPageChange('account')}
               style={[
                 styles.sidebarItem,
                 styles.sidebarItemSpaced,
                 {backgroundColor: palette.sidebarItem},
               ]}>
-              <Text style={getTopLevelTextStyle()}>{labels.login}</Text>
+              <Text style={getTopLevelTextStyle()}>{labels.account}</Text>
             </Pressable>
             <Animated.View
-              pointerEvents={page === 'login' ? 'auto' : 'none'}
+              pointerEvents={page === 'account' ? 'auto' : 'none'}
               style={[
                 styles.sidebarSubmenuAnimated,
                 {
-                  opacity: loginAnimation,
-                  maxHeight: loginAnimation.interpolate({
+                  opacity: accountAnimation,
+                  maxHeight: accountAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, 52],
+                    outputRange: [0, isAuthenticated ? 52 : 104],
                   }),
                   transform: [
                     {
-                      translateY: loginAnimation.interpolate({
+                      translateY: accountAnimation.interpolate({
                         inputRange: [0, 1],
                         outputRange: [-8, 0],
                       }),
@@ -171,12 +175,29 @@ export function SidebarMenu({
                 },
               ]}>
               <View style={styles.sidebarSubmenu}>
-                <SidebarSubItem
-                  active={section === 'sign-in'}
-                  label={labels.signIn}
-                  onPress={() => onSectionChange('sign-in')}
-                  palette={palette}
-                />
+                {isAuthenticated ? (
+                  <SidebarSubItem
+                    active={section === 'profile'}
+                    label={labels.profile}
+                    onPress={() => onSectionChange('profile')}
+                    palette={palette}
+                  />
+                ) : (
+                  <>
+                    <SidebarSubItem
+                      active={section === 'login'}
+                      label={labels.login}
+                      onPress={() => onSectionChange('login')}
+                      palette={palette}
+                    />
+                    <SidebarSubItem
+                      active={section === 'register'}
+                      label={labels.register}
+                      onPress={() => onSectionChange('register')}
+                      palette={palette}
+                    />
+                  </>
+                )}
               </View>
             </Animated.View>
           </>

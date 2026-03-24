@@ -16,4 +16,4 @@ export type DesktopShellPalette = {
 
 export type DesktopMenuSection =
   | import('../../../shared/shell-model').SettingsSection
-  | import('../../../shared/shell-model').LoginSection;
+  | import('../../../shared/shell-model').AccountSection;

@@ -8,16 +8,18 @@ import {
   runHealthCheck,
   type HealthCheckTarget,
 } from '../../shared/lib/healthCheck';
+import {loginAccount, registerRootAccount} from '../../shared/lib/accountApi';
 import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
 import {
   INITIAL_TARGET_STATE,
   type AppPage,
+  type AccountSection as AccountSectionType,
   type LanguageMode,
   type ThemeMode,
 } from '../shared/shell-model';
 import {getMobileShellLabels} from './mobile-shell/config/labels';
 import {MenuPanel} from './mobile-shell/components/MenuPanel';
-import {LoginSection} from './mobile-shell/pages/login/LoginSection';
+import {AccountSection} from './mobile-shell/pages/account/AccountSection';
 import {DevHealthSection} from './mobile-shell/pages/settings/DevHealthSection';
 import {GeneralSection} from './mobile-shell/pages/settings/GeneralSection';
 import {mobileShellStyles as styles} from './mobile-shell/config/styles';
@@ -33,23 +35,41 @@ function getDefaultSection(nextPage: AppPage): MobileMenuSection | undefined {
     return 'general';
   }
 
-  if (nextPage === 'login') {
-    return 'sign-in';
+  if (nextPage === 'account') {
+    return 'login';
   }
 
   return undefined;
 }
 
 export function MobileAppShell() {
+  const [session, setSession] = useState<{
+    academyCode: string;
+    academyName: string;
+    displayName: string;
+    loginId: string;
+    roleCode: string;
+  } | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [page, setPage] = useState<AppPage>('settings');
   const [section, setSection] = useState<MobileMenuSection>('general');
   const [language, setLanguage] = useState<LanguageMode>('ja');
   const [theme, setTheme] = useState<ThemeMode>('light');
+  const [academyCode, setAcademyCode] = useState('');
+  const [academyName, setAcademyName] = useState('');
+  const [licenseCode, setLicenseCode] = useState('');
   const [loginId, setLoginId] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [registerType, setRegisterType] = useState<'user' | 'root'>('user');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
+  const [authAction, setAuthAction] = useState<'login' | 'logout' | 'register' | null>(
+    null,
+  );
   const [loadingTarget, setLoadingTarget] = useState<HealthCheckTarget | null>(
     null,
   );
@@ -67,6 +87,17 @@ export function MobileAppShell() {
       useNativeDriver: true,
     }).start();
   }, [isMenuOpen, toggleAnimation]);
+
+  useEffect(() => {
+    if (isAuthenticated && page === 'account' && section !== 'profile') {
+      setSection('profile');
+      return;
+    }
+
+    if (!isAuthenticated && page === 'account' && section === 'profile') {
+      setSection('login');
+    }
+  }, [isAuthenticated, page, section]);
 
   const choosePage = (nextPage: AppPage, nextSection?: MobileMenuSection) => {
     // モバイルは項目選択後にメニューを閉じて本文へ戻す。
@@ -87,21 +118,111 @@ export function MobileAppShell() {
     }
   };
 
-  const handleLogin = () => {
-    if (loginId === 'admin' && password === '1111') {
+  const handleLogin = async () => {
+    setAuthAction('login');
+
+    try {
+      const result = await loginAccount({
+        loginId,
+        password,
+      });
+
+      if (result.status !== 'ok') {
+        setIsAuthenticated(false);
+        setAuthError(result.error ?? t.invalid);
+        return;
+      }
+
+      setSession({
+        academyCode: result.academyCode ?? academyCode,
+        academyName: result.academyName ?? '',
+        displayName: result.displayName ?? '',
+        loginId: result.loginId ?? loginId,
+        roleCode: result.roleCode ?? 'ROOT',
+      });
       setIsAuthenticated(true);
       setAuthError(null);
+      setRegisterSuccess(null);
+      setPage('account');
+      setSection('profile');
+    } finally {
+      setAuthAction(null);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (registerType === 'user') {
+      setRegisterError(t.userRegisterPending);
+      setRegisterSuccess(null);
       return;
     }
 
-    setIsAuthenticated(false);
-    setAuthError(t.invalid);
+    if (
+      !licenseCode ||
+      !academyName ||
+      !loginId ||
+      !displayName ||
+      !password ||
+      !confirmPassword
+    ) {
+      setRegisterError(t.requiredField);
+      setRegisterSuccess(null);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setRegisterError(t.passwordMismatch);
+      setRegisterSuccess(null);
+      return;
+    }
+
+    setAuthAction('register');
+
+    try {
+      const result = await registerRootAccount({
+        academyName,
+        licenseCode,
+        password,
+        rootDisplayName: displayName,
+        rootLoginId: loginId,
+      });
+
+      if (result.status !== 'ok') {
+        setRegisterError(result.error ?? t.registerSuccess);
+        setRegisterSuccess(null);
+        return;
+      }
+
+      setSession({
+        academyCode: result.academyCode ?? '',
+        academyName: result.academyName ?? academyName,
+        displayName: result.displayName ?? displayName,
+        loginId: result.loginId ?? loginId,
+        roleCode: result.roleCode ?? 'ROOT',
+      });
+      setAcademyCode(result.academyCode ?? '');
+      setIsAuthenticated(true);
+      setAuthError(null);
+      setRegisterError(null);
+      setRegisterSuccess(
+        `${t.registerSuccess}${result.academyCode ? ` (${result.academyCode})` : ''}`,
+      );
+      setPage('account');
+      setSection('profile');
+      setConfirmPassword('');
+    } finally {
+      setAuthAction(null);
+    }
   };
 
   const handleLogout = () => {
+    setAuthAction('logout');
     setIsAuthenticated(false);
     setAuthError(null);
-    setPassword('');
+    setSession(null);
+    setPage('account');
+    setSection('login');
+    setAuthAction(null);
   };
 
   const handleHealthCheck = async (target: HealthCheckTarget) => {
@@ -152,6 +273,12 @@ export function MobileAppShell() {
       await handleHealthCheck(target);
     }
   };
+
+  const accountSection: AccountSectionType = isAuthenticated
+    ? 'profile'
+    : section === 'register'
+      ? 'register'
+      : 'login';
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: p.appBg}]}>
@@ -218,13 +345,14 @@ export function MobileAppShell() {
             </View>
           </Pressable>
           <Text style={[styles.topBarTitle, {color: p.text}]}>
-            {page === 'settings' ? t.settings : t.login}
+            {page === 'settings' ? t.settings : t.account}
           </Text>
         </View>
 
         <View style={styles.body}>
           {isMenuOpen ? (
             <MenuPanel
+              isAuthenticated={isAuthenticated}
               currentPage={page}
               currentSection={section}
               labels={t}
@@ -256,17 +384,34 @@ export function MobileAppShell() {
             />
           ) : null}
 
-          {!isMenuOpen && page === 'login' && section === 'sign-in' ? (
-            <LoginSection
+          {!isMenuOpen && page === 'account' ? (
+            <AccountSection
               authError={authError}
+              academyCode={session?.academyCode ?? academyCode}
+              academyName={session?.academyName ?? academyName}
+              confirmPassword={confirmPassword}
+              currentSection={accountSection}
+              displayName={session?.displayName ?? displayName}
               isAuthenticated={isAuthenticated}
+              isSubmitting={authAction !== null}
+              licenseCode={licenseCode}
               loginId={loginId}
+              onAcademyNameChange={setAcademyName}
+              onConfirmPasswordChange={setConfirmPassword}
+              onDisplayNameChange={setDisplayName}
+              onLicenseCodeChange={setLicenseCode}
               onLogin={handleLogin}
               onLoginIdChange={setLoginId}
               onLogout={handleLogout}
               onPasswordChange={setPassword}
+              onRegister={handleRegister}
+              onRegisterTypeChange={setRegisterType}
               palette={p}
               password={password}
+              registerError={registerError}
+              registerSuccess={registerSuccess}
+              registerType={registerType}
+              roleCode={session?.roleCode ?? 'ROOT'}
               texts={t}
             />
           ) : null}
