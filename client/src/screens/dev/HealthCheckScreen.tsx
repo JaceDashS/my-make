@@ -327,7 +327,9 @@ export function HealthCheckScreen() {
                       <Text style={styles.resultText}>
                         Candidates: {result.candidates.join(', ')}
                       </Text>
-                      <Text style={styles.resultText}>Error: {result.error}</Text>
+                      <Text style={styles.resultText} numberOfLines={1}>
+                        Error: {result.error || 'Unknown error.'}
+                      </Text>
                     </View>
                   ) : (
                     <View style={styles.resultDetails}>
@@ -444,9 +446,11 @@ function WindowsHealthCheckScreen({
                     Body: {result.body || '(empty)'}
                   </Text>
                 ) : result ? (
-                  <Text style={styles.windowsResultText}>
-                    Error: {result.error}
-                  </Text>
+                  <>
+                    <Text style={styles.windowsResultText} numberOfLines={1}>
+                      Error: {result.error || 'Unknown error.'}
+                    </Text>
+                  </>
                 ) : null}
               </View>
             </View>

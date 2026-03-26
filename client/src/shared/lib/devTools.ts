@@ -97,6 +97,7 @@ async function runDevToolsAction(path: string): Promise<DevToolsResult> {
       }
 
       lastError = payload.error ?? payload.message ?? `HTTP ${response.status}`;
+      return payload;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }

@@ -30,7 +30,6 @@ export function MembersHomeScreen() {
         `Candidates: ${candidates.join(', ')}`,
       ].join('\n'),
     );
-
     try {
       const response = await runHealthCheck(target);
 
@@ -43,10 +42,10 @@ export function MembersHomeScreen() {
               response.body ? `Body: ${response.body}` : 'Body: (empty)',
             ].join('\n')
           : [
-              `${response.label} request failed`,
-              `Candidates: ${response.candidates.join(', ')}`,
-              `Error: ${response.error}`,
-            ].join('\n'),
+            `${response.label} request failed`,
+            `Candidates: ${response.candidates.join(', ')}`,
+            `Error: ${response.error}`,
+          ].join('\n'),
       );
     } catch (error) {
       const errorMessage =
