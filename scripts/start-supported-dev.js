@@ -399,6 +399,7 @@ async function main() {
   console.log(makeBox(effectiveLines));
 
   const commands = [];
+  const launchCommands = [];
 
   if (metroPortInUse) {
     console.log(
@@ -433,7 +434,7 @@ async function main() {
   }
 
   if (effectiveAndroidSupported) {
-    commands.push({
+    launchCommands.push({
       color: 'magenta',
       command: 'npm --prefix client run android -- --no-packager',
       name: 'android',
@@ -441,7 +442,7 @@ async function main() {
   }
 
   if (windowsSupported) {
-    commands.push({
+    launchCommands.push({
       color: 'cyan',
       command: 'npm --prefix client run windows -- --no-packager',
       name: 'windows',
@@ -476,11 +477,35 @@ async function main() {
     console.log(
       [
         '',
-        'dry run commands:',
+        'dry run persistent commands:',
         ...commands.map(item => `- [${item.name}] ${item.command}`),
+        '',
+        'dry run launch commands:',
+        ...launchCommands.map(item => `- [${item.name}] ${item.command}`),
       ].join('\n'),
     );
     process.exit(0);
+  }
+
+  for (const item of launchCommands) {
+    const launcher =
+      process.platform === 'win32'
+        ? spawn(commandShell, ['/d', '/c', item.command], {
+            cwd: rootDir,
+            env,
+            shell: false,
+            stdio: 'inherit',
+          })
+        : spawn(item.command, [], {
+            cwd: rootDir,
+            env,
+            shell: true,
+            stdio: 'inherit',
+          });
+
+    launcher.on('error', error => {
+      console.error(`[start-supported-dev] ${item.name} launcher failed: ${error.message}`);
+    });
   }
 
   const concurrentlyBin = path.join(
@@ -516,8 +541,8 @@ async function main() {
   const expectedTargets = {
     metro: commands.some(item => item.name === 'metro'),
     server: commands.some(item => item.name === 'server'),
-    android: commands.some(item => item.name === 'android'),
-    windows: commands.some(item => item.name === 'windows'),
+    android: launchCommands.some(item => item.name === 'android'),
+    windows: launchCommands.some(item => item.name === 'windows'),
   };
 
   let readyBannerPrinted = false;

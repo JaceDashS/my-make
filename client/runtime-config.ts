@@ -1,6 +1,6 @@
 export const RUNTIME_CONFIG = {
   "APP_ENV": "development",
-  "DEV_HOST_IP": "192.168.1.2",
+  "DEV_HOST_IP": "192.168.1.3",
   "CLIENT_LOCAL_PORT": "8080",
   "CLIENT_DOCKER_PORT": "18080",
   "CLIENT_HEALTH_PATH": "/health",

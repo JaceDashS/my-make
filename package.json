@@ -8,6 +8,7 @@
     "sync:runtime-config:prod": "node ./scripts/generate-runtime-config.js production",
     "port:8080:kill": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$port=8080; $processIds=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach($processId in $processIds){ Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared port ' + $port)\"",
     "port:8081:kill": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$port=8081; $processIds=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach($processId in $processIds){ Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared port ' + $port)\"",
+    "port:8090:kill": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$port=8090; $processIds=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach($processId in $processIds){ Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared port ' + $port)\"",
     "ports:dev:kill": "npm run port:8080:kill && npm run port:8081:kill",
     "client": "npm --prefix client run start",
     "client:start:reset": "npm --prefix client run start -- --reset-cache",
@@ -25,10 +26,13 @@
     "server:docker:up:prod": "docker run --rm --name my-make-server --env-file server/.env.production -p 18080:8080 my-make-server",
     "server:docker:down": "docker stop my-make-server",
     "dev": "node ./scripts/run-dev.js",
-    "dev:android": "npm run sync:runtime-config:dev && concurrently -k -n metro,server,android -c blue,green,magenta \"npm --prefix client run start\" \"npm run server:watch\" \"npm --prefix client run android -- --no-packager\"",
+    "dev:server": "node ./scripts/run-dev.js --server",
+    "dev:android": "node ./scripts/run-dev.js --android",
+    "dev:android:legacy": "npm run sync:runtime-config:dev && concurrently -k -n metro,server,android -c blue,green,magenta \"npm --prefix client run start\" \"npm run server:watch\" \"npm --prefix client run android -- --no-packager\"",
     "dev:ios": "node ./scripts/run-platform-target.js ios",
     "dev:windows:check": "node ./scripts/run-platform-target.js windows",
-    "dev:windows": "npm run sync:runtime-config:dev && node ./scripts/run-platform-target.js windows && concurrently -k -n metro,server,windows -c blue,green,magenta \"npm --prefix client run start\" \"npm run server:watch\" \"npm --prefix client run windows -- --no-packager\"",
+    "dev:windows": "node ./scripts/run-dev.js --windows",
+    "debug:windows": "node ./scripts/run-debug-windows.js",
     "dev:macos": "node ./scripts/run-platform-target.js macos"
   },
   "devDependencies": {
