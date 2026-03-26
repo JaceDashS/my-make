@@ -94,6 +94,7 @@ async function postJson(
       }
 
       lastError = parsed.error ?? parsed.message ?? `HTTP ${response.status}`;
+      return parsed;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
@@ -137,7 +138,9 @@ export function loginAccount(payload: {
 
 export function registerMemberAccount(payload: {
   displayName: string;
+  email: string;
   loginId: string;
+  phone: string;
   password: string;
   requestedRoleCode: string;
 }) {
@@ -150,7 +153,9 @@ export function registerMemberAccount(payload: {
 
 export function registerRootAccount(payload: {
   academyName: string;
+  email: string;
   licenseCode: string;
+  phone: string;
   password: string;
   rootDisplayName: string;
   rootLoginId: string;

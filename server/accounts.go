@@ -23,6 +23,8 @@ type accountService interface {
 	Login(ctx context.Context, input loginInput) (accountResponse, error)
 	RegisterMember(ctx context.Context, input memberRegisterInput) (accountResponse, error)
 	RegisterRoot(ctx context.Context, input rootRegisterInput) (accountResponse, error)
+	SearchPendingMembers(ctx context.Context, input pendingMemberSearchInput) (pendingMembersResponse, error)
+	ApprovePendingMember(ctx context.Context, input approvePendingMemberInput) (accountResponse, error)
 	RenewLicense(ctx context.Context, input renewLicenseInput) (licenseRenewResponse, error)
 }
 
@@ -43,18 +45,35 @@ type rootRegisterInput struct {
 	AcademyName     string `json:"academyName"`
 	RootLoginID     string `json:"rootLoginId"`
 	RootDisplayName string `json:"rootDisplayName"`
+	Email           string `json:"email"`
+	Phone           string `json:"phone"`
 	Password        string `json:"password"`
 }
 
 type memberRegisterInput struct {
 	LoginID           string `json:"loginId"`
 	DisplayName       string `json:"displayName"`
+	Email             string `json:"email"`
+	Phone             string `json:"phone"`
 	Password          string `json:"password"`
 	RequestedRoleCode string `json:"requestedRoleCode"`
 }
 
 type renewLicenseInput struct {
 	LicenseCode string `json:"licenseCode"`
+}
+
+type pendingMemberSearchInput struct {
+	AcademyCode   string `json:"academyCode"`
+	ActorRoleCode string `json:"actorRoleCode"`
+	Field         string `json:"field"`
+	Query         string `json:"query"`
+}
+
+type approvePendingMemberInput struct {
+	AcademyCode   string `json:"academyCode"`
+	ActorRoleCode string `json:"actorRoleCode"`
+	LoginID       string `json:"loginId"`
 }
 
 type accountResponse struct {
@@ -65,6 +84,20 @@ type accountResponse struct {
 	DisplayName string `json:"displayName"`
 	LoginID     string `json:"loginId"`
 	RoleCode    string `json:"roleCode"`
+}
+
+type pendingMemberRecord struct {
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email,omitempty"`
+	LoginID     string `json:"loginId"`
+	RoleCode    string `json:"roleCode"`
+	CreatedAt   string `json:"createdAt"`
+}
+
+type pendingMembersResponse struct {
+	Status  string                `json:"status"`
+	Message string                `json:"message"`
+	Members []pendingMemberRecord `json:"members"`
 }
 
 type licenseRenewResponse struct {
@@ -89,6 +122,17 @@ type storedLicense struct {
 	academyCode sql.NullString
 	expiresAt   time.Time
 	statusCode  string
+}
+
+type pendingSearchField struct {
+	column string
+	label  string
+}
+
+var pendingSearchFields = map[string]pendingSearchField{
+	"displayName": {column: "DISPLAY_NAME", label: "display name"},
+	"email":       {column: "EMAIL", label: "email"},
+	"loginId":     {column: "LOGIN_ID", label: "login ID"},
 }
 
 func newAccountServiceFromEnv() (*oracleAccountService, error) {
@@ -163,6 +207,8 @@ func (s *oracleAccountService) RegisterMember(
 ) (accountResponse, error) {
 	input.LoginID = strings.TrimSpace(input.LoginID)
 	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	input.Email = strings.TrimSpace(input.Email)
+	input.Phone = strings.TrimSpace(input.Phone)
 	input.RequestedRoleCode = strings.ToUpper(strings.TrimSpace(input.RequestedRoleCode))
 
 	switch {
@@ -170,6 +216,8 @@ func (s *oracleAccountService) RegisterMember(
 		return accountResponse{}, fmt.Errorf("Please enter a login ID.")
 	case input.DisplayName == "":
 		return accountResponse{}, fmt.Errorf("Please enter a display name.")
+	case input.Phone == "":
+		return accountResponse{}, fmt.Errorf("Please enter a phone number.")
 	case input.Password == "":
 		return accountResponse{}, fmt.Errorf("Please enter a password.")
 	case input.RequestedRoleCode == "":
@@ -190,6 +238,8 @@ func (s *oracleAccountService) RegisterMember(
 	query := `
 INSERT INTO MAME_USERS (
     LOGIN_ID,
+    EMAIL,
+    PHONE,
     DISPLAY_NAME,
     PASSWORD_HASH,
     ROLE_CODE,
@@ -199,12 +249,15 @@ INSERT INTO MAME_USERS (
     :2,
     :3,
     :4,
+    :5,
     'PENDING'
 )`
 	if _, err := s.execWithReconnect(
 		ctx,
 		query,
 		input.LoginID,
+		nullIfEmpty(input.Email),
+		input.Phone,
 		input.DisplayName,
 		passwordHash,
 		input.RequestedRoleCode,
@@ -230,6 +283,8 @@ func (s *oracleAccountService) RegisterRoot(ctx context.Context, input rootRegis
 	input.AcademyName = strings.TrimSpace(input.AcademyName)
 	input.RootLoginID = strings.TrimSpace(input.RootLoginID)
 	input.RootDisplayName = strings.TrimSpace(input.RootDisplayName)
+	input.Email = strings.TrimSpace(input.Email)
+	input.Phone = strings.TrimSpace(input.Phone)
 
 	switch {
 	case input.LicenseCode == "":
@@ -240,6 +295,8 @@ func (s *oracleAccountService) RegisterRoot(ctx context.Context, input rootRegis
 		return accountResponse{}, fmt.Errorf("Please enter a root login ID.")
 	case input.RootDisplayName == "":
 		return accountResponse{}, fmt.Errorf("Please enter a root display name.")
+	case input.Phone == "":
+		return accountResponse{}, fmt.Errorf("Please enter a phone number.")
 	case input.Password == "":
 		return accountResponse{}, fmt.Errorf("Please enter a password.")
 	}
@@ -311,6 +368,8 @@ SELECT ACADEMY_CODE
 INSERT INTO MAME_USERS (
     ACADEMY_CODE,
     LOGIN_ID,
+    EMAIL,
+    PHONE,
     DISPLAY_NAME,
     PASSWORD_HASH,
     ROLE_CODE,
@@ -320,6 +379,8 @@ INSERT INTO MAME_USERS (
     :2,
     :3,
     :4,
+    :5,
+    :6,
     'ROOT',
     'ACTIVE'
 )`
@@ -328,6 +389,8 @@ INSERT INTO MAME_USERS (
 		createRoot,
 		academyCode,
 		input.RootLoginID,
+		nullIfEmpty(input.Email),
+		input.Phone,
 		input.RootDisplayName,
 		passwordHash,
 	); err != nil {
@@ -376,6 +439,131 @@ UPDATE MAME_LICENSES
 		DisplayName: input.RootDisplayName,
 		LoginID:     input.RootLoginID,
 		RoleCode:    "ROOT",
+	}, nil
+}
+
+func (s *oracleAccountService) SearchPendingMembers(
+	ctx context.Context,
+	input pendingMemberSearchInput,
+) (pendingMembersResponse, error) {
+	input.AcademyCode = strings.TrimSpace(input.AcademyCode)
+	input.ActorRoleCode = strings.ToUpper(strings.TrimSpace(input.ActorRoleCode))
+	input.Field = strings.TrimSpace(input.Field)
+	input.Query = strings.TrimSpace(input.Query)
+
+	if err := validatePendingModerationAccess(input.AcademyCode, input.ActorRoleCode); err != nil {
+		return pendingMembersResponse{}, err
+	}
+
+	if input.Field == "" {
+		return pendingMembersResponse{}, fmt.Errorf("Please choose a search field.")
+	}
+	if input.Query == "" {
+		return pendingMembersResponse{}, fmt.Errorf("Please enter a search value.")
+	}
+
+	field, ok := pendingSearchFields[input.Field]
+	if !ok {
+		return pendingMembersResponse{}, fmt.Errorf("Please choose a valid search field.")
+	}
+
+	query := fmt.Sprintf(`
+SELECT
+    LOGIN_ID,
+    DISPLAY_NAME,
+    EMAIL,
+    ROLE_CODE,
+    CREATED_AT
+FROM MAME_USERS
+WHERE STATUS_CODE = 'PENDING'
+  AND ACADEMY_CODE IS NULL
+  AND %s = :1
+ORDER BY CREATED_AT DESC`, field.column)
+
+	rows, err := s.db.QueryContext(ctx, query, input.Query)
+	if err != nil {
+		return pendingMembersResponse{}, fmt.Errorf("We couldn't search pending members right now. Please try again.")
+	}
+	defer rows.Close()
+
+	members := make([]pendingMemberRecord, 0, 4)
+	for rows.Next() {
+		var (
+			loginID     string
+			displayName string
+			email       sql.NullString
+			roleCode    string
+			createdAt   time.Time
+		)
+
+		if err := rows.Scan(&loginID, &displayName, &email, &roleCode, &createdAt); err != nil {
+			return pendingMembersResponse{}, fmt.Errorf("We couldn't search pending members right now. Please try again.")
+		}
+
+		members = append(members, pendingMemberRecord{
+			DisplayName: displayName,
+			Email:       nullStringValue(email),
+			LoginID:     loginID,
+			RoleCode:    roleCode,
+			CreatedAt:   createdAt.UTC().Format(time.RFC3339),
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return pendingMembersResponse{}, fmt.Errorf("We couldn't search pending members right now. Please try again.")
+	}
+
+	if len(members) == 0 {
+		return pendingMembersResponse{}, fmt.Errorf("No pending members matched that exact %s.", field.label)
+	}
+
+	return pendingMembersResponse{
+		Status:  "ok",
+		Message: "Pending members found.",
+		Members: members,
+	}, nil
+}
+
+func (s *oracleAccountService) ApprovePendingMember(
+	ctx context.Context,
+	input approvePendingMemberInput,
+) (accountResponse, error) {
+	input.AcademyCode = strings.TrimSpace(input.AcademyCode)
+	input.ActorRoleCode = strings.ToUpper(strings.TrimSpace(input.ActorRoleCode))
+	input.LoginID = strings.TrimSpace(input.LoginID)
+
+	if err := validatePendingModerationAccess(input.AcademyCode, input.ActorRoleCode); err != nil {
+		return accountResponse{}, err
+	}
+	if input.LoginID == "" {
+		return accountResponse{}, fmt.Errorf("Please choose a pending member.")
+	}
+
+	query := `
+UPDATE MAME_USERS
+   SET ACADEMY_CODE = :1,
+       STATUS_CODE = 'ACTIVE'
+ WHERE LOGIN_ID = :2
+   AND STATUS_CODE = 'PENDING'
+   AND ACADEMY_CODE IS NULL`
+	result, err := s.execWithReconnect(ctx, query, input.AcademyCode, input.LoginID)
+	if err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't approve that member right now. Please try again.")
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't approve that member right now. Please try again.")
+	}
+
+	if rowsAffected != 1 {
+		return accountResponse{}, fmt.Errorf("That pending member could not be found.")
+	}
+
+	return accountResponse{
+		Status:  "ok",
+		Message: "Pending member approved successfully.",
+		LoginID: input.LoginID,
 	}, nil
 }
 
@@ -607,6 +795,14 @@ func nullStringValue(value sql.NullString) string {
 	return value.String
 }
 
+func nullIfEmpty(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	return value
+}
+
 func isAccountUniqueConstraintError(err error, constraintName string) bool {
 	if err == nil {
 		return false
@@ -614,4 +810,17 @@ func isAccountUniqueConstraintError(err error, constraintName string) bool {
 
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "ora-00001") && strings.Contains(message, constraintName)
+}
+
+func validatePendingModerationAccess(academyCode, actorRoleCode string) error {
+	if academyCode == "" {
+		return fmt.Errorf("Please enter your academy code.")
+	}
+
+	switch actorRoleCode {
+	case "ROOT", "ADMIN":
+		return nil
+	default:
+		return fmt.Errorf("Only root or admin accounts can manage pending members.")
+	}
 }
