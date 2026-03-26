@@ -18,6 +18,7 @@ export function AccountSection({
   confirmPassword,
   currentSection,
   displayName,
+  email,
   isAuthenticated,
   isSubmitting,
   licenseCode,
@@ -25,16 +26,21 @@ export function AccountSection({
   onAcademyNameChange,
   onConfirmPasswordChange,
   onDisplayNameChange,
+  onEmailChange,
   onLicenseCodeChange,
   onLogin,
   onLoginIdChange,
   onLogout,
   onPasswordChange,
+  onPhoneChange,
   onRegister,
   onRegisterTypeChange,
   onRequestedRoleCodeChange,
+  unmountLoginContainer,
+  unmountProfileContainer,
   palette,
   password,
+  phone,
   requestedRoleCode,
   registerError,
   registerSuccess,
@@ -49,6 +55,7 @@ export function AccountSection({
   confirmPassword: string;
   currentSection: AccountSectionType;
   displayName: string;
+  email: string;
   isAuthenticated: boolean;
   isSubmitting: boolean;
   licenseCode: string;
@@ -56,16 +63,21 @@ export function AccountSection({
   onAcademyNameChange: (value: string) => void;
   onConfirmPasswordChange: (value: string) => void;
   onDisplayNameChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
   onLicenseCodeChange: (value: string) => void;
   onLogin: () => void;
   onLoginIdChange: (value: string) => void;
   onLogout: () => void;
   onPasswordChange: (value: string) => void;
+  onPhoneChange: (value: string) => void;
   onRegister: () => void;
   onRegisterTypeChange: (value: 'user' | 'root') => void;
   onRequestedRoleCodeChange: (value: 'STUDENT' | 'TEACHER' | 'ADMIN') => void;
+  unmountLoginContainer: boolean;
+  unmountProfileContainer: boolean;
   palette: DesktopShellPalette;
   password: string;
+  phone: string;
   requestedRoleCode: 'STUDENT' | 'TEACHER' | 'ADMIN';
   registerError: string | null;
   registerSuccess: string | null;
@@ -78,6 +90,7 @@ export function AccountSection({
     confirmPassword: string;
     createAccount: string;
     displayName: string;
+    email: string;
     guestHint: string;
     licenseCode: string;
     locked: string;
@@ -85,6 +98,7 @@ export function AccountSection({
     loginId: string;
     noAccount: string;
     password: string;
+    phone: string;
     profile: string;
     profileAcademy: string;
     profileBody: string;
@@ -117,6 +131,176 @@ export function AccountSection({
     userRegisterPending: string;
   };
 }) {
+  const formatPhoneNumber = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+
+    if (digits.length <= 3) {
+      return digits;
+    }
+
+    if (digits.length <= 7) {
+      return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    }
+
+    if (digits.length <= 10) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  };
+
+  const canSubmitMemberRegister =
+    !!loginId &&
+    !!displayName &&
+    !!phone &&
+    !!password &&
+    !!confirmPassword &&
+    password === confirmPassword;
+  const canSubmitRootRegister =
+    !!licenseCode &&
+    !!academyName &&
+    !!loginId &&
+    !!displayName &&
+    !!phone &&
+    !!password &&
+    !!confirmPassword &&
+    password === confirmPassword;
+
+  const handleRegisterSubmit = () => {
+    if (registerType === 'user' && canSubmitMemberRegister) {
+      onRegister();
+      return;
+    }
+
+    if (registerType === 'root' && canSubmitRootRegister) {
+      onRegister();
+    }
+  };
+
+  const requiredLabel = (label: string) => `${label} *`;
+  const loginMutedPalette = isAuthenticated
+    ? {...palette, text: palette.textMuted, textMuted: palette.textMuted}
+    : palette;
+  const profileActivePalette = isAuthenticated
+    ? {...palette, text: '#111111', textMuted: '#111111'}
+    : palette;
+  const loginSectionProps = {
+    pointerEvents: !isAuthenticated ? ('auto' as const) : ('none' as const),
+    style: {
+      opacity: !isAuthenticated ? 1 : 0,
+      maxHeight: !isAuthenticated ? undefined : 0,
+      overflow: 'hidden' as const,
+    },
+  };
+  const profileSectionProps = {
+    pointerEvents: isAuthenticated ? ('auto' as const) : ('none' as const),
+    style: {
+      opacity: isAuthenticated ? 1 : 0,
+      maxHeight: isAuthenticated ? undefined : 0,
+      overflow: 'hidden' as const,
+    },
+  };
+
+  const renderLoginCard = () => (
+    <Card palette={loginMutedPalette} title={texts.login}>
+      <BodyText palette={loginMutedPalette}>{texts.guestHint}</BodyText>
+      <FieldLabel palette={loginMutedPalette}>{texts.loginId}</FieldLabel>
+      <TextInput
+        {...windowsTextInputFocusProps}
+        autoCapitalize="none"
+        onChangeText={onLoginIdChange}
+        onSubmitEditing={onLogin}
+        placeholder="root-admin"
+        placeholderTextColor={palette.textMuted}
+        returnKeyType="done"
+        style={[
+          styles.input,
+          {
+            backgroundColor: palette.muted,
+            borderColor: palette.border,
+            color: loginMutedPalette.text,
+          },
+        ]}
+        value={loginId}
+      />
+      <FieldLabel palette={loginMutedPalette}>{texts.password}</FieldLabel>
+      <TextInput
+        {...windowsTextInputFocusProps}
+        onChangeText={onPasswordChange}
+        onSubmitEditing={onLogin}
+        placeholder="••••••••"
+        placeholderTextColor={palette.textMuted}
+        returnKeyType="done"
+        secureTextEntry
+        style={[
+          styles.input,
+          {
+            backgroundColor: palette.muted,
+            borderColor: palette.border,
+            color: loginMutedPalette.text,
+          },
+        ]}
+        value={password}
+      />
+      {authNotice ? (
+        <Card palette={loginMutedPalette} title={texts.loginNotice}>
+          <BodyText palette={loginMutedPalette}>{authNotice}</BodyText>
+        </Card>
+      ) : null}
+      {authError ? (
+        <Text style={styles.errorText}>{authError}</Text>
+      ) : null}
+      <View style={styles.optionRow}>
+        <ActionButton
+          backgroundColor={palette.primary}
+          isLoading={isSubmitting}
+          label={texts.signIn}
+          onPress={onLogin}
+          style={styles.actionButton}
+          textColor={palette.primaryText}
+          titleStyle={styles.actionText}
+        />
+      </View>
+    </Card>
+  );
+
+  const renderProfileCards = () => (
+    <>
+      {/* `profile` は独立セクションではない。login 画面内の補助コンテナとしてのみ表示する。 */}
+      <Card palette={profileActivePalette} title={texts.profile}>
+        <BodyText palette={profileActivePalette}>{texts.profileBody}</BodyText>
+        <FieldLabel palette={profileActivePalette}>{texts.profileAcademy}</FieldLabel>
+        <BodyStrong palette={profileActivePalette}>{academyName}</BodyStrong>
+        <FieldLabel palette={profileActivePalette}>{texts.academyCode}</FieldLabel>
+        <BodyStrong palette={profileActivePalette}>{academyCode}</BodyStrong>
+        <FieldLabel palette={profileActivePalette}>{texts.profileId}</FieldLabel>
+        <BodyStrong palette={profileActivePalette}>{loginId}</BodyStrong>
+        <FieldLabel palette={profileActivePalette}>{texts.displayName}</FieldLabel>
+        <BodyStrong palette={profileActivePalette}>{displayName}</BodyStrong>
+        <FieldLabel palette={profileActivePalette}>{texts.profileRole}</FieldLabel>
+        <BodyStrong palette={profileActivePalette}>{roleCode}</BodyStrong>
+      </Card>
+      <Card palette={profileActivePalette} title={texts.protectedControls}>
+        <BodyText palette={profileActivePalette}>
+          {isAuthenticated ? texts.protectedUnlocked : texts.locked}
+        </BodyText>
+        {isAuthenticated ? (
+          <View style={styles.optionRow}>
+            <ActionButton
+              backgroundColor={palette.soft}
+              isLoading={isSubmitting}
+              label={texts.signOut}
+              onPress={onLogout}
+              style={styles.actionButton}
+              textColor={palette.text}
+              titleStyle={styles.actionText}
+            />
+          </View>
+        ) : null}
+      </Card>
+    </>
+  );
+
   if (currentSection === 'register' && !isAuthenticated) {
     return (
       <ScrollView contentContainerStyle={styles.stack}>
@@ -143,13 +327,15 @@ export function AccountSection({
           <>
             <Card palette={palette} title={texts.registerTypeUser}>
               <BodyText palette={palette}>{texts.memberRegisterBody}</BodyText>
-              <FieldLabel palette={palette}>{texts.loginId}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.loginId)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 autoCapitalize="none"
                 onChangeText={onLoginIdChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="new-member"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 style={[
                   styles.input,
                   {
@@ -160,12 +346,14 @@ export function AccountSection({
                 ]}
                 value={loginId}
               />
-              <FieldLabel palette={palette}>{texts.displayName}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.displayName)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 onChangeText={onDisplayNameChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="New Member"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 style={[
                   styles.input,
                   {
@@ -175,6 +363,45 @@ export function AccountSection({
                   },
                 ]}
                 value={displayName}
+              />
+              <FieldLabel palette={palette}>{texts.email}</FieldLabel>
+              <TextInput
+                {...windowsTextInputFocusProps}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                onChangeText={onEmailChange}
+                onSubmitEditing={handleRegisterSubmit}
+                placeholder="name@example.com"
+                placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.muted,
+                    borderColor: palette.border,
+                    color: palette.text,
+                  },
+                ]}
+                value={email}
+              />
+              <FieldLabel palette={palette}>{requiredLabel(texts.phone)}</FieldLabel>
+              <TextInput
+                {...windowsTextInputFocusProps}
+                keyboardType="phone-pad"
+                onChangeText={value => onPhoneChange(formatPhoneNumber(value))}
+                onSubmitEditing={handleRegisterSubmit}
+                placeholder="010-0000-0000"
+                placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.muted,
+                    borderColor: palette.border,
+                    color: palette.text,
+                  },
+                ]}
+                value={phone}
               />
               <FieldLabel palette={palette}>{texts.memberRole}</FieldLabel>
               <View style={styles.optionRow}>
@@ -197,12 +424,14 @@ export function AccountSection({
                   palette={palette}
                 />
               </View>
-              <FieldLabel palette={palette}>{texts.password}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.password)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 onChangeText={onPasswordChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="••••••••"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 secureTextEntry
                 style={[
                   styles.input,
@@ -214,12 +443,14 @@ export function AccountSection({
                 ]}
                 value={password}
               />
-              <FieldLabel palette={palette}>{texts.confirmPassword}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.confirmPassword)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 onChangeText={onConfirmPasswordChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="••••••••"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 secureTextEntry
                 style={[
                   styles.input,
@@ -231,7 +462,9 @@ export function AccountSection({
                 ]}
                 value={confirmPassword}
               />
-              {registerError ? <Text style={styles.errorText}>{registerError}</Text> : null}
+              {registerError ? (
+                <Text style={styles.errorText}>{registerError}</Text>
+              ) : null}
               {registerSuccess ? (
                 <Text style={[styles.bodyText, {color: palette.text}]}>
                   {registerSuccess}
@@ -257,13 +490,15 @@ export function AccountSection({
           <>
             <Card palette={palette} title={texts.registerRoot}>
               <BodyText palette={palette}>{texts.registerRootBody}</BodyText>
-              <FieldLabel palette={palette}>{texts.licenseCode}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.licenseCode)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 autoCapitalize="characters"
                 onChangeText={onLicenseCodeChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="LICENSE-CODE"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 style={[
                   styles.input,
                   {
@@ -274,12 +509,14 @@ export function AccountSection({
                 ]}
                 value={licenseCode}
               />
-              <FieldLabel palette={palette}>{texts.academyName}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.academyName)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 onChangeText={onAcademyNameChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="My Academy"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 style={[
                   styles.input,
                   {
@@ -290,13 +527,15 @@ export function AccountSection({
                 ]}
                 value={academyName}
               />
-              <FieldLabel palette={palette}>{texts.rootLoginId}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.rootLoginId)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 autoCapitalize="none"
                 onChangeText={onLoginIdChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="root-admin"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 style={[
                   styles.input,
                   {
@@ -307,12 +546,14 @@ export function AccountSection({
                 ]}
                 value={loginId}
               />
-              <FieldLabel palette={palette}>{texts.displayName}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.displayName)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 onChangeText={onDisplayNameChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="Root Admin"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 style={[
                   styles.input,
                   {
@@ -323,12 +564,53 @@ export function AccountSection({
                 ]}
                 value={displayName}
               />
-              <FieldLabel palette={palette}>{texts.password}</FieldLabel>
+              <FieldLabel palette={palette}>{texts.email}</FieldLabel>
+              <TextInput
+                {...windowsTextInputFocusProps}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                onChangeText={onEmailChange}
+                onSubmitEditing={handleRegisterSubmit}
+                placeholder="root@example.com"
+                placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.muted,
+                    borderColor: palette.border,
+                    color: palette.text,
+                  },
+                ]}
+                value={email}
+              />
+              <FieldLabel palette={palette}>{requiredLabel(texts.phone)}</FieldLabel>
+              <TextInput
+                {...windowsTextInputFocusProps}
+                keyboardType="phone-pad"
+                onChangeText={value => onPhoneChange(formatPhoneNumber(value))}
+                onSubmitEditing={handleRegisterSubmit}
+                placeholder="010-0000-0000"
+                placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: palette.muted,
+                    borderColor: palette.border,
+                    color: palette.text,
+                  },
+                ]}
+                value={phone}
+              />
+              <FieldLabel palette={palette}>{requiredLabel(texts.password)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 onChangeText={onPasswordChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="••••••••"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 secureTextEntry
                 style={[
                   styles.input,
@@ -340,12 +622,14 @@ export function AccountSection({
                 ]}
                 value={password}
               />
-              <FieldLabel palette={palette}>{texts.confirmPassword}</FieldLabel>
+              <FieldLabel palette={palette}>{requiredLabel(texts.confirmPassword)}</FieldLabel>
               <TextInput
                 {...windowsTextInputFocusProps}
                 onChangeText={onConfirmPasswordChange}
+                onSubmitEditing={handleRegisterSubmit}
                 placeholder="••••••••"
                 placeholderTextColor={palette.textMuted}
+                returnKeyType="done"
                 secureTextEntry
                 style={[
                   styles.input,
@@ -357,7 +641,9 @@ export function AccountSection({
                 ]}
                 value={confirmPassword}
               />
-              {registerError ? <Text style={styles.errorText}>{registerError}</Text> : null}
+              {registerError ? (
+                <Text style={styles.errorText}>{registerError}</Text>
+              ) : null}
               {registerSuccess ? (
                 <Text style={[styles.bodyText, {color: palette.text}]}>
                   {registerSuccess}
@@ -384,104 +670,14 @@ export function AccountSection({
     );
   }
 
-  if (currentSection === 'profile' && isAuthenticated) {
-    return (
-      <ScrollView contentContainerStyle={styles.stack}>
-        <Card palette={palette} title={texts.profile}>
-          <BodyText palette={palette}>{texts.profileBody}</BodyText>
-          <FieldLabel palette={palette}>{texts.profileAcademy}</FieldLabel>
-          <BodyStrong palette={palette}>{academyName}</BodyStrong>
-          <FieldLabel palette={palette}>{texts.academyCode}</FieldLabel>
-          <BodyStrong palette={palette}>{academyCode}</BodyStrong>
-          <FieldLabel palette={palette}>{texts.profileId}</FieldLabel>
-          <BodyStrong palette={palette}>{loginId}</BodyStrong>
-          <FieldLabel palette={palette}>{texts.displayName}</FieldLabel>
-          <BodyStrong palette={palette}>{displayName}</BodyStrong>
-          <FieldLabel palette={palette}>{texts.profileRole}</FieldLabel>
-          <BodyStrong palette={palette}>{roleCode}</BodyStrong>
-        </Card>
-        <Card palette={palette} title={texts.protectedControls}>
-          <BodyText palette={palette}>{texts.protectedUnlocked}</BodyText>
-          <View style={styles.optionRow}>
-            <ActionButton
-              backgroundColor={palette.soft}
-              isLoading={isSubmitting}
-              label={texts.signOut}
-              onPress={onLogout}
-              style={styles.actionButton}
-              textColor={palette.text}
-              titleStyle={styles.actionText}
-            />
-          </View>
-        </Card>
-      </ScrollView>
-    );
-  }
-
   return (
     <ScrollView contentContainerStyle={styles.stack}>
-      <Card palette={palette} title={texts.login}>
-        <BodyText palette={palette}>{texts.guestHint}</BodyText>
-        <FieldLabel palette={palette}>{texts.loginId}</FieldLabel>
-        <TextInput
-          {...windowsTextInputFocusProps}
-          autoCapitalize="none"
-          onChangeText={onLoginIdChange}
-          placeholder="root-admin"
-          placeholderTextColor={palette.textMuted}
-          style={[
-            styles.input,
-            {
-              backgroundColor: palette.muted,
-              borderColor: palette.border,
-              color: palette.text,
-            },
-          ]}
-          value={loginId}
-        />
-        <FieldLabel palette={palette}>{texts.password}</FieldLabel>
-        <TextInput
-          {...windowsTextInputFocusProps}
-          onChangeText={onPasswordChange}
-          placeholder="••••••••"
-          placeholderTextColor={palette.textMuted}
-          secureTextEntry
-          style={[
-            styles.input,
-            {
-              backgroundColor: palette.muted,
-              borderColor: palette.border,
-              color: palette.text,
-            },
-          ]}
-          value={password}
-        />
-        {authNotice ? (
-          <Card palette={palette} title={texts.loginNotice}>
-            <BodyText palette={palette}>{authNotice}</BodyText>
-          </Card>
-        ) : null}
-        {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
-        <View style={styles.optionRow}>
-          <ActionButton
-            backgroundColor={palette.primary}
-            isLoading={isSubmitting}
-            label={texts.signIn}
-            onPress={onLogin}
-            style={styles.actionButton}
-            textColor={palette.primaryText}
-            titleStyle={styles.actionText}
-          />
-        </View>
-      </Card>
-      <Card palette={palette} title={texts.protectedSignin}>
-        <BodyText palette={palette}>
-          {isAuthenticated ? texts.unlocked : texts.locked}
-        </BodyText>
-        <BodyText palette={palette}>
-          {academyCode ? `${texts.academyCode}: ${academyCode}` : texts.noAccount}
-        </BodyText>
-      </Card>
+      {unmountLoginContainer ? null : (
+        <View {...loginSectionProps}>{renderLoginCard()}</View>
+      )}
+      {unmountProfileContainer ? null : (
+        <View {...profileSectionProps}>{renderProfileCards()}</View>
+      )}
     </ScrollView>
   );
 }

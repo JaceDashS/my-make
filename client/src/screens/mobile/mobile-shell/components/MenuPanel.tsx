@@ -172,11 +172,11 @@ export function MenuPanel({
         {isAuthenticated ? (
           <Pressable
             {...windowsPressableFocusProps}
-            onPress={() => onSelectSection('account', 'profile')}
+            onPress={() => onSelectSection('account', 'login')}
             style={styles.overlaySubItem}>
             <Text
               style={getSubItemTextStyle(
-                currentPage === 'account' && currentSection === 'profile',
+                currentPage === 'account' && currentSection === 'login',
               )}>
               {labels.profile}
             </Text>

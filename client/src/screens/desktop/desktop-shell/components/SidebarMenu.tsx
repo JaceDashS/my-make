@@ -9,6 +9,7 @@ import {SidebarSubItem} from './ui';
 
 export function SidebarMenu({
   animation,
+  disableConditionalVisibility,
   isOpen,
   isAuthenticated,
   labels,
@@ -19,6 +20,7 @@ export function SidebarMenu({
   section,
 }: {
   animation: Animated.Value;
+  disableConditionalVisibility: boolean;
   isOpen: boolean;
   isAuthenticated: boolean;
   labels: {
@@ -162,7 +164,7 @@ export function SidebarMenu({
                   opacity: accountAnimation,
                   maxHeight: accountAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, isAuthenticated ? 52 : 104],
+                    outputRange: [0, 104],
                   }),
                   transform: [
                     {
@@ -175,29 +177,20 @@ export function SidebarMenu({
                 },
               ]}>
               <View style={styles.sidebarSubmenu}>
-                {isAuthenticated ? (
+                <SidebarSubItem
+                  active={section === 'login'}
+                  label={isAuthenticated ? labels.profile : labels.login}
+                  onPress={() => onSectionChange('login')}
+                  palette={palette}
+                />
+                {!isAuthenticated || disableConditionalVisibility ? (
                   <SidebarSubItem
-                    active={section === 'profile'}
-                    label={labels.profile}
-                    onPress={() => onSectionChange('profile')}
+                    active={section === 'register'}
+                    label={labels.register}
+                    onPress={() => onSectionChange('register')}
                     palette={palette}
                   />
-                ) : (
-                  <>
-                    <SidebarSubItem
-                      active={section === 'login'}
-                      label={labels.login}
-                      onPress={() => onSectionChange('login')}
-                      palette={palette}
-                    />
-                    <SidebarSubItem
-                      active={section === 'register'}
-                      label={labels.register}
-                      onPress={() => onSectionChange('register')}
-                      palette={palette}
-                    />
-                  </>
-                )}
+                ) : null}
               </View>
             </Animated.View>
           </>

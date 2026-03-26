@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {Alert, ScrollView, Text, View} from 'react-native';
+import {Alert, Pressable, ScrollView, Text, View} from 'react-native';
 
 import {RUNTIME_CONFIG} from '../../../../../config/runtime/runtime-config';
 import {ActionButton} from '../../../../../shared/components/ActionButton';
@@ -7,28 +7,44 @@ import {HealthCheckButton} from '../../../../../shared/components/HealthCheckBut
 import {copyText} from '../../../../../shared/lib/clipboard';
 import {createLicense, initializeTables, type DevToolsResult} from '../../../../../shared/lib/devTools';
 import {getHealthCheckCandidates, type HealthCheckTarget} from '../../../../../shared/lib/healthCheck';
+import {windowsPressableFocusProps} from '../../../../../shared/ui/windowsFocusProps';
 import type {TargetState} from '../../../../shared/shell-model';
 import {BodyStrong, BodyText, Card} from '../../components/ui';
 import {desktopShellStyles as styles} from '../../config/styles';
 import type {DesktopShellPalette} from '../../model/types';
 
 export function DevHealthSection({
+  disableConditionalVisibility,
+  unmountLoginContainer,
+  unmountProfileContainer,
   labels,
   loadingTarget,
   onRunAll,
   onRunTarget,
+  onToggleDisableConditionalVisibility,
+  onToggleUnmountLoginContainer,
+  onToggleUnmountProfileContainer,
   palette,
   targetStates,
 }: {
+  disableConditionalVisibility: boolean;
+  unmountLoginContainer: boolean;
+  unmountProfileContainer: boolean;
   labels: {
     allChecks: string;
     allChecksHint: string;
     cloud: string;
     copyLicenseCode: string;
+    devDisableConditionalVisibility: string;
+    devDisableConditionalVisibilityHint: string;
     devHealth: string;
     devHealthBody: string;
     devLicenseCreate: string;
     devLicenseCreateHint: string;
+    devUnmountLoginContainer: string;
+    devUnmountLoginContainerHint: string;
+    devUnmountProfileContainer: string;
+    devUnmountProfileContainerHint: string;
     devResult: string;
     devTableInit: string;
     devTableInitHint: string;
@@ -41,6 +57,9 @@ export function DevHealthSection({
   loadingTarget: HealthCheckTarget | null;
   onRunAll: () => Promise<void>;
   onRunTarget: (target: HealthCheckTarget) => Promise<void>;
+  onToggleDisableConditionalVisibility: () => void;
+  onToggleUnmountLoginContainer: () => void;
+  onToggleUnmountProfileContainer: () => void;
   palette: DesktopShellPalette;
   targetStates: Record<HealthCheckTarget, TargetState>;
 }) {
@@ -88,6 +107,105 @@ export function DevHealthSection({
         <BodyStrong palette={palette}>
           {labels.env}: {RUNTIME_CONFIG.APP_ENV} / Host: {RUNTIME_CONFIG.DEV_HOST_IP}
         </BodyStrong>
+        <Pressable
+          {...windowsPressableFocusProps}
+          onPress={onToggleDisableConditionalVisibility}
+          style={styles.checkboxRow}>
+          <View
+            style={[
+              styles.checkboxBox,
+              {
+                backgroundColor: disableConditionalVisibility
+                  ? palette.primary
+                  : palette.soft,
+                borderColor: disableConditionalVisibility
+                  ? palette.primary
+                  : palette.border,
+              },
+            ]}>
+            <Text
+              style={[
+                styles.checkboxMark,
+                {
+                  color: disableConditionalVisibility
+                    ? palette.primaryText
+                    : palette.textMuted,
+                },
+              ]}>
+              {disableConditionalVisibility ? '✓' : ''}
+            </Text>
+          </View>
+          <View style={styles.checkboxTextWrap}>
+            <Text style={[styles.checkboxTitle, {color: palette.text}]}>
+              {labels.devDisableConditionalVisibility}
+            </Text>
+            <Text style={[styles.checkboxHint, {color: palette.textMuted}]}>
+              {labels.devDisableConditionalVisibilityHint}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          {...windowsPressableFocusProps}
+          onPress={onToggleUnmountLoginContainer}
+          style={styles.checkboxRow}>
+          <View
+            style={[
+              styles.checkboxBox,
+              {
+                backgroundColor: unmountLoginContainer ? palette.primary : palette.soft,
+                borderColor: unmountLoginContainer ? palette.primary : palette.border,
+              },
+            ]}>
+            <Text
+              style={[
+                styles.checkboxMark,
+                {
+                  color: unmountLoginContainer ? palette.primaryText : palette.textMuted,
+                },
+              ]}>
+              {unmountLoginContainer ? '✓' : ''}
+            </Text>
+          </View>
+          <View style={styles.checkboxTextWrap}>
+            <Text style={[styles.checkboxTitle, {color: palette.text}]}>
+              {labels.devUnmountLoginContainer}
+            </Text>
+            <Text style={[styles.checkboxHint, {color: palette.textMuted}]}>
+              {labels.devUnmountLoginContainerHint}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          {...windowsPressableFocusProps}
+          onPress={onToggleUnmountProfileContainer}
+          style={styles.checkboxRow}>
+          <View
+            style={[
+              styles.checkboxBox,
+              {
+                backgroundColor: unmountProfileContainer ? palette.primary : palette.soft,
+                borderColor: unmountProfileContainer ? palette.primary : palette.border,
+              },
+            ]}>
+            <Text
+              style={[
+                styles.checkboxMark,
+                {
+                  color: unmountProfileContainer ? palette.primaryText : palette.textMuted,
+                },
+              ]}>
+              {unmountProfileContainer ? '✓' : ''}
+            </Text>
+          </View>
+          <View style={styles.checkboxTextWrap}>
+            <Text style={[styles.checkboxTitle, {color: palette.text}]}>
+              {labels.devUnmountProfileContainer}
+            </Text>
+            <Text style={[styles.checkboxHint, {color: palette.textMuted}]}>
+              {labels.devUnmountProfileContainerHint}
+            </Text>
+          </View>
+        </Pressable>
       </Card>
       <ActionButton
         backgroundColor={palette.primary}
@@ -149,7 +267,9 @@ export function DevHealthSection({
             </BodyText>
           ) : null}
           {actionResult.error ? (
-            <Text style={styles.errorText}>{actionResult.error}</Text>
+            <Text style={styles.errorText}>
+              {actionResult.error}
+            </Text>
           ) : null}
         </Card>
       ) : null}
@@ -200,6 +320,11 @@ export function DevHealthSection({
                   ? `URL: ${result.url}\nStatus: ${result.status}`
                   : `Candidates: ${candidates.join(', ')}`}
               </Text>
+              {!result?.ok && result?.error ? (
+                <Text style={styles.errorText}>
+                  {result.error}
+                </Text>
+              ) : null}
             </View>
           </Card>
         );

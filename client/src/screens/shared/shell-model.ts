@@ -2,7 +2,9 @@ import type {HealthCheckResult, HealthCheckTarget} from '../../shared/lib/health
 
 export type AppPage = 'settings' | 'account';
 export type SettingsSection = 'general' | 'dev-health';
-export type AccountSection = 'login' | 'register' | 'profile';
+// `profile` はセクションとして作らないこと。
+// ログイン後も account > login の中で表示を切り替え、別セクション・別ルートへ分離しない。
+export type AccountSection = 'login' | 'register';
 export type LanguageMode = 'ja' | 'en';
 export type ThemeMode = 'light' | 'dark';
 

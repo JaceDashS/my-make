@@ -17,8 +17,12 @@ export function DevHealthSection({
   loadingTarget,
   onRunAll,
   onRunTarget,
+  onToggleUnmountLoginContainer,
+  onToggleUnmountProfileContainer,
   palette,
   targetStates,
+  unmountLoginContainer,
+  unmountProfileContainer,
 }: {
   labels: {
     allChecks: string;
@@ -29,6 +33,10 @@ export function DevHealthSection({
     devHealthBody: string;
     devLicenseCreate: string;
     devLicenseCreateHint: string;
+    devUnmountLoginContainer: string;
+    devUnmountLoginContainerHint: string;
+    devUnmountProfileContainer: string;
+    devUnmountProfileContainerHint: string;
     devResult: string;
     devTableInit: string;
     devTableInitHint: string;
@@ -41,8 +49,12 @@ export function DevHealthSection({
   loadingTarget: HealthCheckTarget | null;
   onRunAll: () => Promise<void>;
   onRunTarget: (target: HealthCheckTarget) => Promise<void>;
+  onToggleUnmountLoginContainer: () => void;
+  onToggleUnmountProfileContainer: () => void;
   palette: MobileShellPalette;
   targetStates: Record<HealthCheckTarget, TargetState>;
+  unmountLoginContainer: boolean;
+  unmountProfileContainer: boolean;
 }) {
   const [actionResult, setActionResult] = useState<DevToolsResult | null>(null);
   const [loadingAction, setLoadingAction] = useState<'tables' | 'license' | null>(
@@ -89,6 +101,26 @@ export function DevHealthSection({
           {labels.env}: {RUNTIME_CONFIG.APP_ENV} / Host: {RUNTIME_CONFIG.DEV_HOST_IP}
         </BodyStrong>
       </Card>
+      <ActionButton
+        backgroundColor={unmountLoginContainer ? palette.primary : palette.soft}
+        hint={labels.devUnmountLoginContainerHint}
+        label={labels.devUnmountLoginContainer}
+        onPress={onToggleUnmountLoginContainer}
+        style={styles.primaryAction}
+        textColor={unmountLoginContainer ? palette.primaryText : palette.text}
+        hintStyle={styles.primaryActionHint}
+        titleStyle={styles.primaryActionTitle}
+      />
+      <ActionButton
+        backgroundColor={unmountProfileContainer ? palette.primary : palette.soft}
+        hint={labels.devUnmountProfileContainerHint}
+        label={labels.devUnmountProfileContainer}
+        onPress={onToggleUnmountProfileContainer}
+        style={styles.primaryAction}
+        textColor={unmountProfileContainer ? palette.primaryText : palette.text}
+        hintStyle={styles.primaryActionHint}
+        titleStyle={styles.primaryActionTitle}
+      />
       <ActionButton
         backgroundColor={palette.primary}
         hint={labels.devTableInitHint}
@@ -149,7 +181,9 @@ export function DevHealthSection({
             </BodyText>
           ) : null}
           {actionResult.error ? (
-            <Text style={styles.errorText}>{actionResult.error}</Text>
+            <Text style={styles.errorText}>
+              {actionResult.error}
+            </Text>
           ) : null}
         </Card>
       ) : null}
@@ -199,6 +233,11 @@ export function DevHealthSection({
                   ? `URL: ${result.url}\nStatus: ${result.status}`
                   : `Candidates: ${candidates.join(', ')}`}
               </Text>
+              {!result?.ok && result?.error ? (
+                <Text style={styles.errorText}>
+                  {result.error}
+                </Text>
+              ) : null}
             </View>
           </Card>
         );

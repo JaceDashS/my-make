@@ -64,6 +64,8 @@ export function WindowsDesktopShell() {
   const [licenseCode, setLicenseCode] = useState('');
   const [loginId, setLoginId] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [requestedRoleCode, setRequestedRoleCode] = useState<'STUDENT' | 'TEACHER' | 'ADMIN'>(
@@ -75,6 +77,10 @@ export function WindowsDesktopShell() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
+  const [disableConditionalVisibility, setDisableConditionalVisibility] =
+    useState(false);
+  const [unmountLoginContainer, setUnmountLoginContainer] = useState(false);
+  const [unmountProfileContainer, setUnmountProfileContainer] = useState(false);
   const [authAction, setAuthAction] = useState<'login' | 'logout' | 'register' | null>(
     null,
   );
@@ -96,6 +102,8 @@ export function WindowsDesktopShell() {
       case 'Please enter a display name.':
         return t.requiredField;
       case 'Please enter a password.':
+        return t.requiredField;
+      case 'Please enter a phone number.':
         return t.requiredField;
       case 'Please choose a member role.':
       case 'Please choose a valid member role.':
@@ -157,17 +165,6 @@ export function WindowsDesktopShell() {
     }).start();
   }, [isSidebarOpen, sidebarAnimation]);
 
-  useEffect(() => {
-    if (isAuthenticated && page === 'account' && section !== 'profile') {
-      setSection('profile');
-      return;
-    }
-
-    if (!isAuthenticated && page === 'account' && section === 'profile') {
-      setSection('login');
-    }
-  }, [isAuthenticated, page, section]);
-
   const handleLogin = async () => {
     setAuthAction('login');
 
@@ -196,7 +193,6 @@ export function WindowsDesktopShell() {
       setAuthNotice(null);
       setRegisterSuccess(null);
       setPage('account');
-      setSection('profile');
     } finally {
       setAuthAction(null);
     }
@@ -204,14 +200,18 @@ export function WindowsDesktopShell() {
 
   const handleRegister = async () => {
     if (registerType === 'user') {
-      if (!loginId || !displayName || !password || !confirmPassword) {
-        setRegisterError(t.requiredField);
+      if (!loginId || !displayName || !phone || !password || !confirmPassword) {
+        setRegisterError(
+          t.requiredField,
+        );
         setRegisterSuccess(null);
         return;
       }
 
       if (password !== confirmPassword) {
-        setRegisterError(t.passwordMismatch);
+        setRegisterError(
+          t.passwordMismatch,
+        );
         setRegisterSuccess(null);
         return;
       }
@@ -221,7 +221,9 @@ export function WindowsDesktopShell() {
       try {
         const result = await registerMemberAccount({
           displayName,
+          email,
           loginId,
+          phone,
           password,
           requestedRoleCode,
         });
@@ -250,16 +252,21 @@ export function WindowsDesktopShell() {
       !academyName ||
       !loginId ||
       !displayName ||
+      !phone ||
       !password ||
       !confirmPassword
     ) {
-      setRegisterError(t.requiredField);
+      setRegisterError(
+        t.requiredField,
+      );
       setRegisterSuccess(null);
       return;
     }
 
     if (password !== confirmPassword) {
-      setRegisterError(t.passwordMismatch);
+      setRegisterError(
+        t.passwordMismatch,
+      );
       setRegisterSuccess(null);
       return;
     }
@@ -269,7 +276,9 @@ export function WindowsDesktopShell() {
     try {
       const result = await registerRootAccount({
         academyName,
+        email,
         licenseCode,
+        phone,
         password,
         rootDisplayName: displayName,
         rootLoginId: loginId,
@@ -297,7 +306,6 @@ export function WindowsDesktopShell() {
         `${t.registerSuccess}${result.academyCode ? ` (${result.academyCode})` : ''}`,
       );
       setPage('account');
-      setSection('profile');
       clearRegistrationFields();
     } finally {
       setAuthAction(null);
@@ -311,7 +319,6 @@ export function WindowsDesktopShell() {
     setAuthNotice(null);
     setSession(null);
     setPage('account');
-    setSection('login');
     setAuthAction(null);
   };
 
@@ -377,14 +384,15 @@ export function WindowsDesktopShell() {
     setLicenseCode('');
     setLoginId('');
     setDisplayName('');
+    setEmail('');
+    setPhone('');
     setPassword('');
     setConfirmPassword('');
     setRequestedRoleCode('STUDENT');
   };
 
-  const accountSection: AccountSectionType = isAuthenticated
-    ? 'profile'
-    : section === 'register'
+  const accountSection: AccountSectionType =
+    (disableConditionalVisibility || !isAuthenticated) && section === 'register'
       ? 'register'
       : 'login';
 
@@ -393,6 +401,7 @@ export function WindowsDesktopShell() {
       <View style={[styles.shell, {backgroundColor: p.appBg}]}>
         <SidebarMenu
           animation={sidebarAnimation}
+          disableConditionalVisibility={disableConditionalVisibility}
           isOpen={isSidebarOpen}
           isAuthenticated={isAuthenticated}
           labels={t}
@@ -438,6 +447,7 @@ export function WindowsDesktopShell() {
                   confirmPassword={confirmPassword}
                   currentSection={accountSection}
                   displayName={session?.displayName ?? displayName}
+                  email={email}
                   isAuthenticated={isAuthenticated}
                   isSubmitting={authAction !== null}
                   licenseCode={licenseCode}
@@ -445,16 +455,21 @@ export function WindowsDesktopShell() {
                   onAcademyNameChange={setAcademyName}
                   onConfirmPasswordChange={setConfirmPassword}
                   onDisplayNameChange={setDisplayName}
+                  onEmailChange={setEmail}
                   onLicenseCodeChange={setLicenseCode}
                   onLogin={handleLogin}
                   onLoginIdChange={setLoginId}
                   onLogout={handleLogout}
                   onPasswordChange={setPassword}
+                  onPhoneChange={setPhone}
                   onRegister={handleRegister}
                   onRegisterTypeChange={setRegisterType}
                   onRequestedRoleCodeChange={setRequestedRoleCode}
+                  unmountLoginContainer={unmountLoginContainer}
+                  unmountProfileContainer={unmountProfileContainer}
                   palette={p}
                   password={password}
+                  phone={phone}
                   registerError={registerError}
                   registerSuccess={registerSuccess}
                   registerType={registerType}
@@ -466,12 +481,24 @@ export function WindowsDesktopShell() {
 
               {page === 'settings' && section === 'dev-health' ? (
                 <DevHealthSection
+                  disableConditionalVisibility={disableConditionalVisibility}
                   labels={t}
                   loadingTarget={loadingTarget}
                   onRunAll={runAllHealthChecks}
                   onRunTarget={handleHealthCheck}
+                  onToggleDisableConditionalVisibility={() =>
+                    setDisableConditionalVisibility(value => !value)
+                  }
+                  onToggleUnmountLoginContainer={() =>
+                    setUnmountLoginContainer(value => !value)
+                  }
+                  onToggleUnmountProfileContainer={() =>
+                    setUnmountProfileContainer(value => !value)
+                  }
                   palette={p}
                   targetStates={targetStates}
+                  unmountLoginContainer={unmountLoginContainer}
+                  unmountProfileContainer={unmountProfileContainer}
                 />
               ) : null}
             </View>

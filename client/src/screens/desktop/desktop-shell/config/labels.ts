@@ -11,6 +11,15 @@ export const DESKTOP_SHELL_LABELS = {
     devHealth: '開発者オプション',
     devHealthBody:
       '現在のデスクトップクライアントから各サーバー接続を確認します。',
+    devDisableConditionalVisibility: '条件付き非表示を無効化',
+    devDisableConditionalVisibilityHint:
+      'チェックするとサインイン後も条件付きで隠れる項目を表示したままにします。',
+    devUnmountLoginContainer: 'ログインコンテナをアンマウント',
+    devUnmountLoginContainerHint:
+      'ログイントグルで非表示時に login コンテナをツリーから外します。',
+    devUnmountProfileContainer: 'プロフィールコンテナをアンマウント',
+    devUnmountProfileContainerHint:
+      'プロフィールトグルで非表示時に profile コンテナをツリーから外します。',
     devLicenseCreate: 'ライセンス生成',
     devLicenseCreateHint: '未割り当てライセンスを 1 件発行します。',
     devResult: '開発者アクション結果',
@@ -24,6 +33,7 @@ export const DESKTOP_SHELL_LABELS = {
     createAccount: 'アカウント作成',
     copyLicenseCode: 'ライセンスコードをコピー',
     displayName: '表示名',
+    email: 'メール',
     guestHint: '登録したアカウントでログインするとプロフィールと保護コントロールを確認できます。',
     invalid: 'アカウントIDまたはパスワードが正しくありません。',
     accountInactive: 'このアカウントは無効です。',
@@ -50,6 +60,7 @@ export const DESKTOP_SHELL_LABELS = {
     noAccount: 'まだ作成されたアカウントがありません。先に登録を完了してください。',
     password: 'パスワード',
     passwordSetupFailed: 'パスワードを準備できませんでした。しばらくしてからもう一度お試しください。',
+    phone: '携帯番号',
     profile: 'プロフィール',
     profileAcademy: '所属学園',
     profileBody: '現在サインインしているアカウント情報です。',
@@ -75,6 +86,10 @@ export const DESKTOP_SHELL_LABELS = {
     rootAlreadyExists: 'この学園にはすでに root アカウントがあります。',
     settings: '設定',
     signIn: 'サインイン',
+    testLogin: 'テストログイン',
+    testLoginBody: '一時ボタンでログイン状態とプロフィール遷移を手動確認します。',
+    testMoveToLogin: 'ログイン画面へ戻る',
+    testMoveToProfile: 'プロフィールへ移動',
     signOut: 'サインアウト',
     theme: 'テーマ',
     unlocked: 'サインイン済みのため保護設定を利用できます。',
@@ -99,6 +114,15 @@ export const DESKTOP_SHELL_LABELS = {
     devHealth: 'Developer Options',
     devHealthBody:
       'Check connectivity to each server from the desktop client.',
+    devDisableConditionalVisibility: 'Disable Conditional Hiding',
+    devDisableConditionalVisibilityHint:
+      'Keep conditionally hidden items visible even after sign-in.',
+    devUnmountLoginContainer: 'Unmount Login Container',
+    devUnmountLoginContainerHint:
+      'Remove the login container from the tree when its toggle hides it.',
+    devUnmountProfileContainer: 'Unmount Profile Container',
+    devUnmountProfileContainerHint:
+      'Remove the profile container from the tree when its toggle hides it.',
     devLicenseCreate: 'Create License',
     devLicenseCreateHint: 'Create one unassigned license.',
     devResult: 'Developer Action Result',
@@ -113,6 +137,7 @@ export const DESKTOP_SHELL_LABELS = {
     createAccount: 'Create Account',
     copyLicenseCode: 'Copy License Code',
     displayName: 'Display Name',
+    email: 'Email',
     guestHint:
       'Sign in with the account you created to view your profile and protected controls.',
     invalid: 'The account ID or password is incorrect.',
@@ -143,6 +168,7 @@ export const DESKTOP_SHELL_LABELS = {
     password: 'Password',
     passwordSetupFailed:
       'We could not prepare your password right now. Please try again.',
+    phone: 'Phone Number',
     profile: 'Profile',
     profileAcademy: 'Academy',
     profileBody: 'This is the account currently signed in.',
@@ -169,6 +195,10 @@ export const DESKTOP_SHELL_LABELS = {
     rootAlreadyExists: 'This academy already has a root account.',
     settings: 'Settings',
     signIn: 'Sign in',
+    testLogin: 'Test Login',
+    testLoginBody: 'Use the temporary buttons to verify signed-in state and profile navigation manually.',
+    testMoveToLogin: 'Back to Login',
+    testMoveToProfile: 'Go to Profile',
     signOut: 'Sign out',
     theme: 'Theme',
     unlocked: 'Protected settings are available because you are signed in.',
