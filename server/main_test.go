@@ -37,6 +37,10 @@ func (s *stubDevToolsService) CreateLicense(context.Context) (devToolsResponse, 
 type stubAccountService struct {
 	registerMemberResult accountResponse
 	registerMemberErr    error
+	searchPendingResult  pendingMembersResponse
+	searchPendingErr     error
+	approvePendingResult accountResponse
+	approvePendingErr    error
 	loginResult          accountResponse
 	loginErr             error
 	registerRootResult   accountResponse
@@ -55,6 +59,14 @@ func (s *stubAccountService) RegisterMember(context.Context, memberRegisterInput
 
 func (s *stubAccountService) RegisterRoot(context.Context, rootRegisterInput) (accountResponse, error) {
 	return s.registerRootResult, s.registerRootErr
+}
+
+func (s *stubAccountService) SearchPendingMembers(context.Context, pendingMemberSearchInput) (pendingMembersResponse, error) {
+	return s.searchPendingResult, s.searchPendingErr
+}
+
+func (s *stubAccountService) ApprovePendingMember(context.Context, approvePendingMemberInput) (accountResponse, error) {
+	return s.approvePendingResult, s.approvePendingErr
 }
 
 func (s *stubAccountService) RenewLicense(context.Context, renewLicenseInput) (licenseRenewResponse, error) {
@@ -373,6 +385,166 @@ func TestLoginRouteReturnsAccountPayload(t *testing.T) {
 
 	if body.LoginID != "root-admin" {
 		t.Fatalf("expected login ID root-admin, got %q", body.LoginID)
+	}
+
+	foundCookie := false
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == sessionCookieName && cookie.Value != "" {
+			foundCookie = true
+		}
+	}
+	if !foundCookie {
+		t.Fatal("expected session cookie to be set on login")
+	}
+}
+
+func TestSessionRouteReturnsStoredSession(t *testing.T) {
+	application := &app{
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:      "ok",
+		Message:     "Signed in successfully.",
+		AcademyCode: "abc123def456",
+		AcademyName: "My Academy",
+		DisplayName: "Root Admin",
+		LoginID:     "root-admin",
+		RoleCode:    "ROOT",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/accounts/session", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body accountResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if body.LoginID != "root-admin" {
+		t.Fatalf("expected session login ID root-admin, got %q", body.LoginID)
+	}
+}
+
+func TestLogoutRouteClearsSessionCookie(t *testing.T) {
+	application := &app{
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:  "ok",
+		LoginID: "root-admin",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/accounts/logout", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	cleared := false
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == sessionCookieName && cookie.MaxAge < 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Fatal("expected logout to clear session cookie")
+	}
+}
+
+func TestSearchPendingMembersRouteReturnsMatches(t *testing.T) {
+	application := &app{
+		accounts: &stubAccountService{
+			searchPendingResult: pendingMembersResponse{
+				Status:  "ok",
+				Message: "Pending members found.",
+				Members: []pendingMemberRecord{
+					{
+						DisplayName: "Pending User",
+						LoginID:     "pending-user",
+						RoleCode:    "STUDENT",
+						CreatedAt:   "2026-03-24T00:00:00Z",
+					},
+				},
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/members/pending/search", strings.NewReader(`{
+  "academyCode":"abc123def456",
+  "actorRoleCode":"ROOT",
+  "field":"loginId",
+  "query":"pending-user"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body pendingMembersResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(body.Members) != 1 || body.Members[0].LoginID != "pending-user" {
+		t.Fatalf("expected pending-user in response, got %+v", body.Members)
+	}
+}
+
+func TestApprovePendingMemberRouteReturnsApprovedLoginID(t *testing.T) {
+	application := &app{
+		accounts: &stubAccountService{
+			approvePendingResult: accountResponse{
+				Status:  "ok",
+				Message: "Pending member approved successfully.",
+				LoginID: "pending-user",
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/members/pending/approve", strings.NewReader(`{
+  "academyCode":"abc123def456",
+  "actorRoleCode":"ROOT",
+  "loginId":"pending-user"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body accountResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if body.LoginID != "pending-user" {
+		t.Fatalf("expected approved login ID pending-user, got %q", body.LoginID)
 	}
 }
 
