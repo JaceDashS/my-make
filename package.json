@@ -14,6 +14,7 @@
     "client:start:reset": "npm --prefix client run start -- --reset-cache",
     "client:metro:kill": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\"",
     "android:clean": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location client/android; ./gradlew.bat clean\"",
+    "android:emulator": "node ./scripts/run-android-emulator.js",
     "android:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"adb uninstall com.mymakeclient; exit 0\"",
     "android:install": "npm --prefix client run android",
     "android:fresh": "npm run client:metro:kill && npm run sync:runtime-config:dev && npm run android:clean && npm run android:uninstall && npm run client:start:reset",
