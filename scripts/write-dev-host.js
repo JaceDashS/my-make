@@ -2,7 +2,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const outputPath = path.join(__dirname, '..', 'client', 'dev-host.ts');
+const outputPath = path.join(
+  __dirname,
+  '..',
+  'client',
+  'src',
+  'config',
+  'runtime',
+  'dev-host.ts',
+);
 
 function isPrivateIPv4(address) {
   return (
@@ -39,4 +47,4 @@ const hostIp = detectHostIp();
 const fileContents = `export const DEV_HOST_IP = '${hostIp}';\n`;
 
 fs.writeFileSync(outputPath, fileContents, 'utf8');
-console.log(`dev host written to client/dev-host.ts: ${hostIp}`);
+console.log(`dev host written to client/src/config/runtime/dev-host.ts: ${hostIp}`);
