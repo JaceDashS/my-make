@@ -1,6 +1,6 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {Animated, Pressable, Text, View} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   getHealthCheckCandidates,
@@ -9,12 +9,16 @@ import {
   type HealthCheckTarget,
 } from '../../shared/lib/healthCheck';
 import {
+  fetchAccountProfile,
   loginAccount,
+  logoutAccount,
   registerMemberAccount,
   registerRootAccount,
+  type AccountApiResult,
 } from '../../shared/lib/accountApi';
-import {sendClientRuntimeLog} from '../../shared/lib/clientLogs';
-import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
+import { sendClientRuntimeLog } from '../../shared/lib/clientLogs';
+import { windowsPressableFocusProps } from '../../shared/ui/windowsFocusProps';
+import { MembersHomeScreen } from '../../domains/members/MembersHomeScreen';
 import {
   INITIAL_TARGET_STATE,
   type AppPage,
@@ -22,14 +26,14 @@ import {
   type LanguageMode,
   type ThemeMode,
 } from '../shared/shell-model';
-import {getMobileShellLabels} from './mobile-shell/config/labels';
-import {MenuPanel} from './mobile-shell/components/MenuPanel';
-import {AccountSection} from './mobile-shell/pages/account/AccountSection';
-import {DevHealthSection} from './mobile-shell/pages/settings/DevHealthSection';
-import {GeneralSection} from './mobile-shell/pages/settings/GeneralSection';
-import {mobileShellStyles as styles} from './mobile-shell/config/styles';
-import {getMobileShellPalette} from './mobile-shell/config/theme';
-import type {MobileMenuSection} from './mobile-shell/model/types';
+import { getMobileShellLabels } from './mobile-shell/config/labels';
+import { MenuPanel } from './mobile-shell/components/MenuPanel';
+import { AccountSection } from './mobile-shell/pages/account/AccountSection';
+import { DevHealthSection } from './mobile-shell/pages/settings/DevHealthSection';
+import { GeneralSection } from './mobile-shell/pages/settings/GeneralSection';
+import { mobileShellStyles as styles } from './mobile-shell/config/styles';
+import { getMobileShellPalette } from './mobile-shell/config/theme';
+import type { MobileMenuSection } from './mobile-shell/model/types';
 
 function nowLabel() {
   return `${Date.now()}`;
@@ -44,6 +48,10 @@ function getDefaultSection(nextPage: AppPage): MobileMenuSection | undefined {
     return 'login';
   }
 
+  if (nextPage === 'members') {
+    return 'pending-approval';
+  }
+
   return undefined;
 }
 
@@ -52,7 +60,11 @@ export function MobileAppShell() {
     academyCode: string;
     academyName: string;
     displayName: string;
+    email: string;
+    expiresAt: string;
+    licenseCode: string;
     loginId: string;
+    phone: string;
     roleCode: string;
   } | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -69,18 +81,18 @@ export function MobileAppShell() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [requestedRoleCode, setRequestedRoleCode] = useState<'STUDENT' | 'TEACHER' | 'ADMIN'>(
-    'STUDENT',
-  );
+  const [requestedRoleCode, setRequestedRoleCode] = useState<
+    'STUDENT' | 'TEACHER' | 'ADMIN'
+  >('STUDENT');
   const [registerType, setRegisterType] = useState<'user' | 'root'>('user');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
-  const [authAction, setAuthAction] = useState<'login' | 'logout' | 'register' | null>(
-    null,
-  );
+  const [authAction, setAuthAction] = useState<
+    'login' | 'logout' | 'register' | null
+  >(null);
   const [loadingTarget, setLoadingTarget] = useState<HealthCheckTarget | null>(
     null,
   );
@@ -151,22 +163,96 @@ export function MobileAppShell() {
       case 'We could not prepare your password right now. Please try again.':
         return t.passwordSetupFailed;
       case 'We could not sign you in right now. Please try again.':
-      case 'We couldn\'t complete sign-in right now. Please try again.':
+      case "We couldn't complete sign-in right now. Please try again.":
         return t.signInFailed;
       case 'We could not complete registration right now. Please try again.':
-      case 'We couldn\'t create your member account right now. Please try again.':
-      case 'We couldn\'t create the root account right now. Please try again.':
-      case 'We couldn\'t complete root registration right now. Please try again.':
-      case 'We couldn\'t finish registration right now. Please try again.':
-      case 'We couldn\'t assign the license right now. Please try again.':
-      case 'We couldn\'t confirm the license assignment right now. Please try again.':
-      case 'We couldn\'t assign that license. Please check the license and try again.':
-      case 'We couldn\'t start registration right now. Please try again.':
+      case "We couldn't create your member account right now. Please try again.":
+      case "We couldn't create the root account right now. Please try again.":
+      case "We couldn't complete root registration right now. Please try again.":
+      case "We couldn't finish registration right now. Please try again.":
+      case "We couldn't assign the license right now. Please try again.":
+      case "We couldn't confirm the license assignment right now. Please try again.":
+      case "We couldn't assign that license. Please check the license and try again.":
+      case "We couldn't start registration right now. Please try again.":
         return t.registrationBusy;
       default:
         return message ?? t.invalid;
     }
   };
+
+  const applyProfile = (profile: AccountApiResult) => {
+    const nextSession = {
+      academyCode: profile.academyCode ?? '',
+      academyName: profile.academyName ?? '',
+      displayName: profile.displayName ?? '',
+      email: profile.email ?? '',
+      expiresAt: profile.expiresAt ?? '',
+      licenseCode: profile.licenseCode ?? '',
+      loginId: profile.loginId ?? '',
+      phone: profile.phone ?? '',
+      roleCode: profile.roleCode ?? '',
+    };
+
+    setSession(nextSession);
+    setAcademyCode(nextSession.academyCode);
+    setAcademyName(nextSession.academyName);
+    setDisplayName(nextSession.displayName);
+    setEmail(nextSession.email);
+    setLicenseCode(nextSession.licenseCode);
+    setLoginId(nextSession.loginId);
+    setPhone(nextSession.phone);
+    setIsAuthenticated(true);
+  };
+
+  const clearProfile = () => {
+    setSession(null);
+    setIsAuthenticated(false);
+    setAcademyCode('');
+    setAcademyName('');
+    setDisplayName('');
+    setEmail('');
+    setLicenseCode('');
+    setLoginId('');
+    setPhone('');
+  };
+
+  const loadProfile = async () => {
+    const result = await fetchAccountProfile();
+    if (result.status !== 'ok') {
+      throw new Error(
+        result.error ?? result.message ?? 'No active session was found.',
+      );
+    }
+
+    applyProfile(result);
+    return result;
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    fetchAccountProfile()
+      .then(result => {
+        if (!active || result.status !== 'ok') {
+          return;
+        }
+
+        applyProfile(result);
+        setAuthError(null);
+        setAuthNotice(null);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        clearProfile();
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     // 上部バーは固定し、トグルアイコンだけを自然に切り替える。
@@ -238,7 +324,7 @@ export function MobileAppShell() {
     appendAuthDebugLog(
       'login:start',
       `loginId=${loginId || '(empty)'} passwordLength=${password.length}`,
-      {loginId, passwordLength: password.length},
+      { loginId, passwordLength: password.length },
     );
 
     try {
@@ -256,28 +342,27 @@ export function MobileAppShell() {
         setIsAuthenticated(false);
         setAuthNotice(null);
         setAuthError(localizeAccountError(result.error));
-        appendAuthDebugLog('login:error', result.error ?? result.message ?? 'unknown', {
-          loginId,
-          error: result.error ?? result.message ?? 'unknown',
-        });
+        appendAuthDebugLog(
+          'login:error',
+          result.error ?? result.message ?? 'unknown',
+          {
+            loginId,
+            error: result.error ?? result.message ?? 'unknown',
+          },
+        );
         return;
       }
 
-      setSession({
-        academyCode: result.academyCode ?? academyCode,
-        academyName: result.academyName ?? '',
-        displayName: result.displayName ?? '',
-        loginId: result.loginId ?? loginId,
-        roleCode: result.roleCode ?? 'ROOT',
-      });
-      setIsAuthenticated(true);
+      await loadProfile();
       setAuthError(null);
       setAuthNotice(null);
       setRegisterSuccess(null);
       setPage('account');
       appendAuthDebugLog(
         'login:success',
-        `academyCode=${result.academyCode ?? ''} roleCode=${result.roleCode ?? ''}`,
+        `academyCode=${result.academyCode ?? ''} roleCode=${
+          result.roleCode ?? ''
+        }`,
         {
           loginId: result.loginId ?? loginId,
           academyCode: result.academyCode ?? '',
@@ -296,7 +381,9 @@ export function MobileAppShell() {
       setIsAuthenticated(false);
       setAuthNotice(null);
       setAuthError(
-        localizeAccountError(error instanceof Error ? error.message : String(error)),
+        localizeAccountError(
+          error instanceof Error ? error.message : String(error),
+        ),
       );
     } finally {
       setAuthAction(null);
@@ -306,17 +393,13 @@ export function MobileAppShell() {
   const handleRegister = async () => {
     if (registerType === 'user') {
       if (!loginId || !displayName || !phone || !password || !confirmPassword) {
-        setRegisterError(
-          t.requiredField,
-        );
+        setRegisterError(t.requiredField);
         setRegisterSuccess(null);
         return;
       }
 
       if (password !== confirmPassword) {
-        setRegisterError(
-          t.passwordMismatch,
-        );
+        setRegisterError(t.passwordMismatch);
         setRegisterSuccess(null);
         return;
       }
@@ -334,7 +417,9 @@ export function MobileAppShell() {
         });
 
         if (result.status !== 'ok') {
-          setRegisterError(localizeAccountError(result.error) ?? t.memberRegisterBody);
+          setRegisterError(
+            localizeAccountError(result.error) ?? t.memberRegisterBody,
+          );
           setRegisterSuccess(null);
           return;
         }
@@ -361,17 +446,13 @@ export function MobileAppShell() {
       !password ||
       !confirmPassword
     ) {
-      setRegisterError(
-        t.requiredField,
-      );
+      setRegisterError(t.requiredField);
       setRegisterSuccess(null);
       return;
     }
 
     if (password !== confirmPassword) {
-      setRegisterError(
-        t.passwordMismatch,
-      );
+      setRegisterError(t.passwordMismatch);
       setRegisterSuccess(null);
       return;
     }
@@ -390,25 +471,21 @@ export function MobileAppShell() {
       });
 
       if (result.status !== 'ok') {
-        setRegisterError(localizeAccountError(result.error) ?? t.registrationBusy);
+        setRegisterError(
+          localizeAccountError(result.error) ?? t.registrationBusy,
+        );
         setRegisterSuccess(null);
         return;
       }
 
-      setSession({
-        academyCode: result.academyCode ?? '',
-        academyName: result.academyName ?? academyName,
-        displayName: result.displayName ?? displayName,
-        loginId: result.loginId ?? loginId,
-        roleCode: result.roleCode ?? 'ROOT',
-      });
-      setAcademyCode(result.academyCode ?? '');
-      setIsAuthenticated(true);
+      await loadProfile();
       setAuthError(null);
       setAuthNotice(null);
       setRegisterError(null);
       setRegisterSuccess(
-        `${t.registerSuccess}${result.academyCode ? ` (${result.academyCode})` : ''}`,
+        `${t.registerSuccess}${
+          result.academyCode ? ` (${result.academyCode})` : ''
+        }`,
       );
       setPage('account');
       setSection('login');
@@ -418,14 +495,18 @@ export function MobileAppShell() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setAuthAction('logout');
-    setIsAuthenticated(false);
-    setAuthError(null);
-    setAuthNotice(null);
-    setSession(null);
-    setPage('account');
-    setAuthAction(null);
+
+    try {
+      await logoutAccount();
+    } finally {
+      clearProfile();
+      setAuthError(null);
+      setAuthNotice(null);
+      setPage('account');
+      setAuthAction(null);
+    }
   };
 
   const handleHealthCheck = async (target: HealthCheckTarget) => {
@@ -477,18 +558,18 @@ export function MobileAppShell() {
     }
   };
 
-  const accountSection: AccountSectionType = section === 'register' && !isAuthenticated
-    ? 'register'
-    : 'login';
+  const accountSection: AccountSectionType =
+    section === 'register' && !isAuthenticated ? 'register' : 'login';
 
   return (
-    <SafeAreaView style={[styles.safeArea, {backgroundColor: p.appBg}]}>
-      <View style={[styles.screen, {backgroundColor: p.appBg}]}>
-        <View style={[styles.topBar, {borderBottomColor: p.border}]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: p.appBg }]}>
+      <View style={[styles.screen, { backgroundColor: p.appBg }]}>
+        <View style={[styles.topBar, { borderBottomColor: p.border }]}>
           <Pressable
             {...windowsPressableFocusProps}
             onPress={() => setIsMenuOpen(v => !v)}
-            style={[styles.menuButton, {backgroundColor: p.soft}]}>
+            style={[styles.menuButton, { backgroundColor: p.soft }]}
+          >
             <View style={styles.menuIconFrame}>
               <Animated.Text
                 style={[
@@ -515,7 +596,8 @@ export function MobileAppShell() {
                       },
                     ],
                   },
-                ]}>
+                ]}
+              >
                 ☰
               </Animated.Text>
               <Animated.Text
@@ -540,13 +622,18 @@ export function MobileAppShell() {
                       },
                     ],
                   },
-                ]}>
+                ]}
+              >
                 ×
               </Animated.Text>
             </View>
           </Pressable>
-          <Text style={[styles.topBarTitle, {color: p.text}]}>
-            {page === 'settings' ? t.settings : t.account}
+          <Text style={[styles.topBarTitle, { color: p.text }]}>
+            {page === 'settings'
+              ? t.settings
+              : page === 'members'
+              ? t.members
+              : t.account}
           </Text>
         </View>
 
@@ -594,11 +681,11 @@ export function MobileAppShell() {
               confirmPassword={confirmPassword}
               currentSection={accountSection}
               displayName={session?.displayName ?? displayName}
-              email={email}
+              email={session?.email ?? email}
               isAuthenticated={isAuthenticated}
               isSubmitting={authAction !== null}
-              licenseCode={licenseCode}
-              loginId={loginId}
+              licenseCode={session?.licenseCode ?? licenseCode}
+              loginId={session?.loginId ?? loginId}
               onAcademyNameChange={setAcademyName}
               onConfirmPasswordChange={setConfirmPassword}
               onDisplayNameChange={setDisplayName}
@@ -614,13 +701,27 @@ export function MobileAppShell() {
               onRequestedRoleCodeChange={setRequestedRoleCode}
               palette={p}
               password={password}
-              phone={phone}
+              phone={session?.phone ?? phone}
               registerError={registerError}
               registerSuccess={registerSuccess}
               registerType={registerType}
               requestedRoleCode={requestedRoleCode}
               roleCode={session?.roleCode ?? 'ROOT'}
               texts={t}
+            />
+          ) : null}
+
+          {!isMenuOpen &&
+          page === 'members' &&
+          section === 'pending-approval' ? (
+            <MembersHomeScreen
+              academyCode={session?.academyCode ?? academyCode}
+              academyName={session?.academyName ?? academyName}
+              displayName={session?.displayName ?? displayName}
+              isAuthenticated={isAuthenticated}
+              loginId={session?.loginId ?? loginId}
+              palette={p}
+              roleCode={session?.roleCode ?? ''}
             />
           ) : null}
         </View>

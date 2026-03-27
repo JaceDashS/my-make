@@ -1,7 +1,7 @@
-import {Platform} from 'react-native';
+import { Platform } from 'react-native';
 
-import {RUNTIME_CONFIG} from '../../config/runtime/runtime-config';
-import {unique} from './unique';
+import { RUNTIME_CONFIG } from '../../config/runtime/runtime-config';
+import { unique } from './unique';
 
 const EMULATOR_HOST = '10.0.2.2';
 const LOCALHOST_HOST = 'localhost';
@@ -16,8 +16,10 @@ export type AccountApiResult = {
   academyCode?: string;
   academyName?: string;
   displayName?: string;
+  email?: string;
   loginId?: string;
   roleCode?: string;
+  phone?: string;
   expiresAt?: string;
   licenseCode?: string;
 };
@@ -49,12 +51,20 @@ function buildCandidates(path: string) {
   return unique([devHostUrl, localhostUrl, loopbackUrl]);
 }
 
-async function requestWithXhr(url: string, payload: string, timeoutMs: number) {
+async function requestWithXhr(
+  method: 'GET' | 'POST',
+  url: string,
+  payload: string | null,
+  timeoutMs: number,
+) {
   return new Promise<RequestResult>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.open(method, url, true);
+    xhr.withCredentials = true;
+    if (payload !== null) {
+      xhr.setRequestHeader('Content-Type', 'application/json');
+    }
     xhr.timeout = timeoutMs;
 
     xhr.onload = () => {
@@ -72,21 +82,22 @@ async function requestWithXhr(url: string, payload: string, timeoutMs: number) {
   });
 }
 
-async function postJson(
+async function requestJson(
+  method: 'GET' | 'POST',
   path: string,
-  payload: Record<string, string>,
+  payload: Record<string, string> | null,
   timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 ) {
   const candidates = buildCandidates(path);
-  const body = JSON.stringify(payload);
+  const body = payload ? JSON.stringify(payload) : null;
   let lastError = 'Unknown error';
 
   for (const url of candidates) {
     try {
       const response =
         Platform.OS === 'windows'
-          ? await requestWithXhr(url, body, timeoutMs)
-          : await fetchWithTimeout(url, body, timeoutMs);
+          ? await requestWithXhr(method, url, body, timeoutMs)
+          : await fetchWithTimeout(method, url, body, timeoutMs);
       const parsed = JSON.parse(response.body) as AccountApiResult;
 
       if (response.status >= 200 && response.status < 300) {
@@ -108,15 +119,17 @@ async function postJson(
 }
 
 async function fetchWithTimeout(
+  method: 'GET' | 'POST',
   url: string,
-  body: string,
+  body: string | null,
   timeoutMs: number,
 ): Promise<RequestResult> {
   const response = await Promise.race([
     fetch(url, {
-      body,
-      headers: {'Content-Type': 'application/json'},
-      method: 'POST',
+      body: body ?? undefined,
+      credentials: 'include',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      method,
     }),
     new Promise<never>((_, reject) => {
       setTimeout(() => reject(createTimeoutError(timeoutMs)), timeoutMs);
@@ -129,11 +142,16 @@ async function fetchWithTimeout(
   };
 }
 
-export function loginAccount(payload: {
-  loginId: string;
-  password: string;
-}) {
-  return postJson(RUNTIME_CONFIG.CLIENT_ACCOUNT_LOGIN_PATH, payload);
+export function loginAccount(payload: { loginId: string; password: string }) {
+  return requestJson('POST', RUNTIME_CONFIG.CLIENT_ACCOUNT_LOGIN_PATH, payload);
+}
+
+export function fetchAccountProfile() {
+  return requestJson('GET', RUNTIME_CONFIG.CLIENT_ACCOUNT_PROFILE_PATH, null);
+}
+
+export function logoutAccount() {
+  return requestJson('POST', RUNTIME_CONFIG.CLIENT_ACCOUNT_LOGOUT_PATH, {});
 }
 
 export function registerMemberAccount(payload: {
@@ -144,7 +162,8 @@ export function registerMemberAccount(payload: {
   password: string;
   requestedRoleCode: string;
 }) {
-  return postJson(
+  return requestJson(
+    'POST',
     RUNTIME_CONFIG.CLIENT_ACCOUNT_MEMBER_REGISTER_PATH,
     payload,
     LONG_REQUEST_TIMEOUT_MS,
@@ -160,15 +179,17 @@ export function registerRootAccount(payload: {
   rootDisplayName: string;
   rootLoginId: string;
 }) {
-  return postJson(
+  return requestJson(
+    'POST',
     RUNTIME_CONFIG.CLIENT_ACCOUNT_ROOT_REGISTER_PATH,
     payload,
     LONG_REQUEST_TIMEOUT_MS,
   );
 }
 
-export function renewLicense(payload: {licenseCode: string}) {
-  return postJson(
+export function renewLicense(payload: { licenseCode: string }) {
+  return requestJson(
+    'POST',
     RUNTIME_CONFIG.CLIENT_LICENSE_RENEW_PATH,
     payload,
     LONG_REQUEST_TIMEOUT_MS,

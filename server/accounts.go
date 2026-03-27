@@ -15,13 +15,14 @@ import (
 )
 
 const (
-	constraintAccountsLoginID   = "uq_maimei_accounts_login_id"
-	constraintAcademiesName     = "uq_maimei_academies_name"
-	constraintStaffRootAcademy  = "uq_maimei_staff_root_per_academy"
+	constraintAccountsLoginID  = "uq_maimei_accounts_login_id"
+	constraintAcademiesName    = "uq_maimei_academies_name"
+	constraintStaffRootAcademy = "uq_maimei_staff_root_per_academy"
 )
 
 type accountService interface {
 	Login(ctx context.Context, input loginInput) (accountResponse, error)
+	GetProfile(ctx context.Context, loginID string) (profileResponse, error)
 	RegisterMember(ctx context.Context, input memberRegisterInput) (accountResponse, error)
 	RegisterRoot(ctx context.Context, input rootRegisterInput) (accountResponse, error)
 	SearchPendingMembers(ctx context.Context, input pendingMemberSearchInput) (pendingMembersResponse, error)
@@ -87,6 +88,20 @@ type accountResponse struct {
 	RoleCode    string `json:"roleCode"`
 }
 
+type profileResponse struct {
+	Status      string `json:"status"`
+	Message     string `json:"message"`
+	AcademyCode string `json:"academyCode,omitempty"`
+	AcademyName string `json:"academyName,omitempty"`
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email,omitempty"`
+	Phone       string `json:"phone,omitempty"`
+	LoginID     string `json:"loginId"`
+	RoleCode    string `json:"roleCode"`
+	LicenseCode string `json:"licenseCode,omitempty"`
+	ExpiresAt   string `json:"expiresAt,omitempty"`
+}
+
 type pendingMemberRecord struct {
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email,omitempty"`
@@ -113,11 +128,15 @@ type storedAccount struct {
 	academyName  sql.NullString
 	academyState sql.NullString
 	displayName  string
+	email        sql.NullString
 	detailStatus string
 	loginID      string
 	passwordHash string
+	phone        sql.NullString
 	roleCode     string
 	statusCode   string
+	licenseCode  sql.NullString
+	expiresAt    sql.NullTime
 }
 
 type storedLicense struct {
@@ -206,6 +225,57 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 		LoginID:     account.loginID,
 		RoleCode:    account.roleCode,
 	}, nil
+}
+
+func (s *oracleAccountService) GetProfile(ctx context.Context, loginID string) (profileResponse, error) {
+	loginID = strings.TrimSpace(loginID)
+	if loginID == "" {
+		return profileResponse{}, fmt.Errorf("No active session was found.")
+	}
+
+	account, err := s.fetchAccount(ctx, loginID)
+	if err != nil {
+		return profileResponse{}, err
+	}
+
+	effectiveStatusCode := account.statusCode
+	if account.detailStatus != "" {
+		effectiveStatusCode = account.detailStatus
+	}
+
+	switch effectiveStatusCode {
+	case "PENDING":
+		return profileResponse{}, fmt.Errorf("Your account is waiting for approval.")
+	case "HOLD":
+		return profileResponse{}, fmt.Errorf("Your account is currently on hold.")
+	case "INACTIVE":
+		return profileResponse{}, fmt.Errorf("Your account is inactive.")
+	case "ACTIVE":
+	default:
+		return profileResponse{}, fmt.Errorf("Your account is unavailable right now.")
+	}
+
+	if account.academyCode.Valid && account.academyState.Valid && account.academyState.String != "ACTIVE" {
+		return profileResponse{}, fmt.Errorf("Your academy is currently inactive.")
+	}
+
+	response := profileResponse{
+		Status:      "ok",
+		Message:     "Profile loaded successfully.",
+		AcademyCode: nullStringValue(account.academyCode),
+		AcademyName: nullStringValue(account.academyName),
+		DisplayName: account.displayName,
+		Email:       nullStringValue(account.email),
+		Phone:       nullStringValue(account.phone),
+		LoginID:     account.loginID,
+		RoleCode:    account.roleCode,
+		LicenseCode: nullStringValue(account.licenseCode),
+	}
+	if account.expiresAt.Valid {
+		response.ExpiresAt = account.expiresAt.Time.UTC().Format(time.RFC3339)
+	}
+
+	return response, nil
 }
 
 func (s *oracleAccountService) RegisterMember(
@@ -727,11 +797,25 @@ SELECT
     a.ACADEMY_NAME,
     a.STATUS_CODE,
     COALESCE(stf.DISPLAY_NAME, tch.DISPLAY_NAME, stu.DISPLAY_NAME),
+    COALESCE(stf.EMAIL, tch.EMAIL, stu.EMAIL),
     COALESCE(stf.STATUS_CODE, tch.STATUS_CODE, stu.STATUS_CODE),
     acc.LOGIN_ID,
     acc.PASSWORD_HASH,
+    COALESCE(stf.PHONE, tch.PHONE, stu.PHONE),
     acc.ROLE_CODE,
-    acc.STATUS_CODE
+    acc.STATUS_CODE,
+    (
+        SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
+        FROM MAIMEI_LICENSES lic
+        WHERE lic.ACADEMY_CODE = COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE)
+          AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+    ),
+    (
+        SELECT MAX(lic.EXPIRES_AT)
+        FROM MAIMEI_LICENSES lic
+        WHERE lic.ACADEMY_CODE = COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE)
+          AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+    )
 FROM MAIMEI_ACCOUNTS acc
 LEFT JOIN MAIMEI_STAFF stf
   ON stf.STAFF_ID = acc.STAFF_ID
@@ -750,11 +834,15 @@ WHERE acc.LOGIN_ID = :1`
 			&account.academyName,
 			&account.academyState,
 			&account.displayName,
+			&account.email,
 			&account.detailStatus,
 			&account.loginID,
 			&account.passwordHash,
+			&account.phone,
 			&account.roleCode,
 			&account.statusCode,
+			&account.licenseCode,
+			&account.expiresAt,
 		)
 	}
 

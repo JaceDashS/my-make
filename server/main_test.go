@@ -37,6 +37,8 @@ func (s *stubDevToolsService) CreateLicense(context.Context) (devToolsResponse, 
 type stubAccountService struct {
 	registerMemberResult accountResponse
 	registerMemberErr    error
+	profileResult        profileResponse
+	profileErr           error
 	searchPendingResult  pendingMembersResponse
 	searchPendingErr     error
 	approvePendingResult accountResponse
@@ -51,6 +53,10 @@ type stubAccountService struct {
 
 func (s *stubAccountService) Login(context.Context, loginInput) (accountResponse, error) {
 	return s.loginResult, s.loginErr
+}
+
+func (s *stubAccountService) GetProfile(context.Context, string) (profileResponse, error) {
+	return s.profileResult, s.profileErr
 }
 
 func (s *stubAccountService) RegisterMember(context.Context, memberRegisterInput) (accountResponse, error) {
@@ -310,6 +316,16 @@ func TestRootRegisterRouteReturnsAcademyCode(t *testing.T) {
 	if body.AcademyCode != "abc123def456" {
 		t.Fatalf("expected academy code abc123def456, got %q", body.AcademyCode)
 	}
+
+	foundCookie := false
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == sessionCookieName && cookie.Value != "" {
+			foundCookie = true
+		}
+	}
+	if !foundCookie {
+		t.Fatal("expected session cookie to be set on root register")
+	}
 }
 
 func TestMemberRegisterRouteReturnsPendingRole(t *testing.T) {
@@ -407,7 +423,7 @@ func TestSessionRouteReturnsStoredSession(t *testing.T) {
 		Status:      "ok",
 		Message:     "Signed in successfully.",
 		AcademyCode: "abc123def456",
-				AcademyName: "My Academy",
+		AcademyName: "My Academy",
 		DisplayName: "Root Admin",
 		LoginID:     "root-admin",
 		RoleCode:    "ROOT",
@@ -433,6 +449,57 @@ func TestSessionRouteReturnsStoredSession(t *testing.T) {
 
 	if body.LoginID != "root-admin" {
 		t.Fatalf("expected session login ID root-admin, got %q", body.LoginID)
+	}
+}
+
+func TestProfileRouteReturnsStoredProfile(t *testing.T) {
+	application := &app{
+		accounts: &stubAccountService{
+			profileResult: profileResponse{
+				Status:      "ok",
+				Message:     "Profile loaded successfully.",
+				AcademyCode: "abc123def456",
+				AcademyName: "My Academy",
+				DisplayName: "Root Admin",
+				Email:       "root@example.com",
+				Phone:       "010-1234-5678",
+				LoginID:     "root-admin",
+				RoleCode:    "ROOT",
+				LicenseCode: "LICENSE001",
+				ExpiresAt:   "2027-03-24T00:00:00Z",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:  "ok",
+		LoginID: "root-admin",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/accounts/profile", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body profileResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if body.LoginID != "root-admin" {
+		t.Fatalf("expected profile login ID root-admin, got %q", body.LoginID)
+	}
+	if body.Email != "root@example.com" {
+		t.Fatalf("expected profile email root@example.com, got %q", body.Email)
 	}
 }
 

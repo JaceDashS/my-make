@@ -83,6 +83,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/health", a.handleHealth)
 	mux.HandleFunc("/api/accounts/login", a.handleLogin)
 	mux.HandleFunc("/api/accounts/session", a.handleSession)
+	mux.HandleFunc("/api/accounts/profile", a.handleProfile)
 	mux.HandleFunc("/api/accounts/logout", a.handleLogout)
 	mux.HandleFunc("/api/accounts/member-register", a.handleMemberRegister)
 	mux.HandleFunc("/api/accounts/root-register", a.handleRootRegister)
@@ -229,6 +230,39 @@ func (a *app) handleSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, account)
 }
 
+func (a *app) handleProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowedError(w, r.Method)
+		return
+	}
+
+	if a.accounts == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "profile", "oracle account service is not configured")
+		return
+	}
+
+	token, ok := readSessionCookie(r)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "profile", "No active session was found.")
+		return
+	}
+
+	account, ok := a.ensureSessionManager().Get(token)
+	if !ok {
+		clearSessionCookie(w)
+		writeAPIError(w, http.StatusUnauthorized, "profile", "No active session was found.")
+		return
+	}
+
+	result, err := a.accounts.GetProfile(r.Context(), account.LoginID)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "profile", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeMethodNotAllowedError(w, r.Method)
@@ -289,6 +323,12 @@ func (a *app) handleRootRegister(w http.ResponseWriter, r *http.Request) {
 		"loginId":     result.LoginID,
 		"roleCode":    result.RoleCode,
 	})
+	token, err := a.ensureSessionManager().Create(result)
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "session", "We couldn't create a server session right now. Please try again.")
+		return
+	}
+	setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, result)
 }
 
