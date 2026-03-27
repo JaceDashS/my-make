@@ -13,6 +13,7 @@ import {
   registerMemberAccount,
   registerRootAccount,
 } from '../../shared/lib/accountApi';
+import {sendClientRuntimeLog} from '../../shared/lib/clientLogs';
 import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
 import {
   INITIAL_TARGET_STATE,
@@ -75,10 +76,9 @@ export function MobileAppShell() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [authDebugLogs, setAuthDebugLogs] = useState<string[]>([]);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
-  const [unmountLoginContainer, setUnmountLoginContainer] = useState(false);
-  const [unmountProfileContainer, setUnmountProfileContainer] = useState(false);
   const [authAction, setAuthAction] = useState<'login' | 'logout' | 'register' | null>(
     null,
   );
@@ -90,6 +90,17 @@ export function MobileAppShell() {
 
   const t = getMobileShellLabels(language);
   const p = getMobileShellPalette(theme);
+
+  const appendAuthDebugLog = (message: string) => {
+    const entry = `[${new Date().toISOString()}] ${message}`;
+    setAuthDebugLogs(current => [...current.slice(-11), entry]);
+    console.log(`[account-debug] ${entry}`);
+    sendClientRuntimeLog({
+      channel: 'accounts',
+      event: 'mobile-auth-debug',
+      payload: {message: entry},
+    }).catch(() => undefined);
+  };
 
   const localizeAccountError = (message?: string | null) => {
     switch (message) {
@@ -221,17 +232,22 @@ export function MobileAppShell() {
 
   const handleLogin = async () => {
     setAuthAction('login');
+    appendAuthDebugLog(
+      `login:start loginId=${loginId || '(empty)'} passwordLength=${password.length}`,
+    );
 
     try {
       const result = await loginAccount({
         loginId,
         password,
       });
+      appendAuthDebugLog(`login:response ${JSON.stringify(result)}`);
 
       if (result.status !== 'ok') {
         setIsAuthenticated(false);
         setAuthNotice(null);
         setAuthError(localizeAccountError(result.error));
+        appendAuthDebugLog(`login:error ${result.error ?? result.message ?? 'unknown'}`);
         return;
       }
 
@@ -247,6 +263,18 @@ export function MobileAppShell() {
       setAuthNotice(null);
       setRegisterSuccess(null);
       setPage('account');
+      appendAuthDebugLog(
+        `login:success academyCode=${result.academyCode ?? ''} roleCode=${result.roleCode ?? ''}`,
+      );
+    } catch (error) {
+      appendAuthDebugLog(
+        `login:exception ${error instanceof Error ? error.message : String(error)}`,
+      );
+      setIsAuthenticated(false);
+      setAuthNotice(null);
+      setAuthError(
+        localizeAccountError(error instanceof Error ? error.message : String(error)),
+      );
     } finally {
       setAuthAction(null);
     }
@@ -529,22 +557,15 @@ export function MobileAppShell() {
               loadingTarget={loadingTarget}
               onRunAll={runAllHealthChecks}
               onRunTarget={handleHealthCheck}
-              onToggleUnmountLoginContainer={() =>
-                setUnmountLoginContainer(value => !value)
-              }
-              onToggleUnmountProfileContainer={() =>
-                setUnmountProfileContainer(value => !value)
-              }
               palette={p}
               targetStates={targetStates}
-              unmountLoginContainer={unmountLoginContainer}
-              unmountProfileContainer={unmountProfileContainer}
             />
           ) : null}
 
           {!isMenuOpen && page === 'account' ? (
             <AccountSection
               authError={authError}
+              authDebugLogs={authDebugLogs}
               authNotice={authNotice}
               academyCode={session?.academyCode ?? academyCode}
               academyName={session?.academyName ?? academyName}
@@ -567,10 +588,8 @@ export function MobileAppShell() {
               onPasswordChange={setPassword}
               onPhoneChange={setPhone}
               onRegister={handleRegister}
-                  onRegisterTypeChange={handleRegisterTypeChange}
+              onRegisterTypeChange={handleRegisterTypeChange}
               onRequestedRoleCodeChange={setRequestedRoleCode}
-              unmountLoginContainer={unmountLoginContainer}
-              unmountProfileContainer={unmountProfileContainer}
               palette={p}
               password={password}
               phone={phone}

@@ -14,6 +14,7 @@ export function AccountSection({
   academyCode,
   academyName,
   authError,
+  authDebugLogs,
   authNotice,
   confirmPassword,
   currentSection,
@@ -36,8 +37,6 @@ export function AccountSection({
   onRegister,
   onRegisterTypeChange,
   onRequestedRoleCodeChange,
-  unmountLoginContainer,
-  unmountProfileContainer,
   palette,
   password,
   phone,
@@ -51,6 +50,7 @@ export function AccountSection({
   academyCode: string;
   academyName: string;
   authError: string | null;
+  authDebugLogs: string[];
   authNotice: string | null;
   confirmPassword: string;
   currentSection: AccountSectionType;
@@ -73,8 +73,6 @@ export function AccountSection({
   onRegister: () => void;
   onRegisterTypeChange: (value: 'user' | 'root') => void;
   onRequestedRoleCodeChange: (value: 'STUDENT' | 'TEACHER' | 'ADMIN') => void;
-  unmountLoginContainer: boolean;
-  unmountProfileContainer: boolean;
   palette: MobileShellPalette;
   password: string;
   phone: string;
@@ -86,6 +84,7 @@ export function AccountSection({
   texts: {
     academyCode: string;
     academyName: string;
+    debugLog: string;
     loginNotice: string;
     confirmPassword: string;
     createAccount: string;
@@ -248,6 +247,15 @@ export function AccountSection({
       ) : null}
       {authError ? (
         <Text style={styles.errorText}>{authError}</Text>
+      ) : null}
+      {authDebugLogs.length ? (
+        <Card palette={loginMutedPalette} title={texts.debugLog}>
+          {authDebugLogs.map(entry => (
+            <BodyText key={entry} palette={loginMutedPalette}>
+              {entry}
+            </BodyText>
+          ))}
+        </Card>
       ) : null}
       <View style={styles.optionRow}>
         <ActionButton
@@ -668,12 +676,8 @@ export function AccountSection({
 
   return (
     <ScrollView contentContainerStyle={styles.stack}>
-      {unmountLoginContainer ? null : (
-        <View {...loginSectionProps}>{renderLoginCard()}</View>
-      )}
-      {unmountProfileContainer ? null : (
-        <View {...profileSectionProps}>{renderProfileCards()}</View>
-      )}
+      <View {...loginSectionProps}>{renderLoginCard()}</View>
+      <View {...profileSectionProps}>{renderProfileCards()}</View>
     </ScrollView>
   );
 }

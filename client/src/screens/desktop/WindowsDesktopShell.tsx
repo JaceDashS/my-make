@@ -75,6 +75,7 @@ export function WindowsDesktopShell() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [authDebugLogs, setAuthDebugLogs] = useState<string[]>([]);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
   const [disableConditionalVisibility, setDisableConditionalVisibility] =
@@ -92,6 +93,11 @@ export function WindowsDesktopShell() {
 
   const t = getDesktopShellLabels(language);
   const p = getDesktopShellPalette(theme);
+
+  const appendAuthDebugLog = (message: string) => {
+    const entry = `[${new Date().toISOString()}] ${message}`;
+    setAuthDebugLogs(current => [...current.slice(-11), entry]);
+  };
 
   const localizeAccountError = (message?: string | null) => {
     switch (message) {
@@ -167,17 +173,22 @@ export function WindowsDesktopShell() {
 
   const handleLogin = async () => {
     setAuthAction('login');
+    appendAuthDebugLog(
+      `login:start loginId=${loginId || '(empty)'} passwordLength=${password.length}`,
+    );
 
     try {
       const result = await loginAccount({
         loginId,
         password,
       });
+      appendAuthDebugLog(`login:response ${JSON.stringify(result)}`);
 
       if (result.status !== 'ok') {
         setIsAuthenticated(false);
         setAuthNotice(null);
         setAuthError(localizeAccountError(result.error));
+        appendAuthDebugLog(`login:error ${result.error ?? result.message ?? 'unknown'}`);
         return;
       }
 
@@ -193,6 +204,18 @@ export function WindowsDesktopShell() {
       setAuthNotice(null);
       setRegisterSuccess(null);
       setPage('account');
+      appendAuthDebugLog(
+        `login:success academyCode=${result.academyCode ?? ''} roleCode=${result.roleCode ?? ''}`,
+      );
+    } catch (error) {
+      appendAuthDebugLog(
+        `login:exception ${error instanceof Error ? error.message : String(error)}`,
+      );
+      setIsAuthenticated(false);
+      setAuthNotice(null);
+      setAuthError(
+        localizeAccountError(error instanceof Error ? error.message : String(error)),
+      );
     } finally {
       setAuthAction(null);
     }
@@ -473,6 +496,7 @@ export function WindowsDesktopShell() {
                   academyCode={session?.academyCode ?? academyCode}
                   academyName={session?.academyName ?? academyName}
                   authError={authError}
+                  authDebugLogs={authDebugLogs}
                   authNotice={authNotice}
                   confirmPassword={confirmPassword}
                   currentSection={accountSection}

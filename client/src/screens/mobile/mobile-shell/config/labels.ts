@@ -29,6 +29,7 @@ export const MOBILE_SHELL_LABELS = {
     confirmPassword: 'パスワード確認',
     createAccount: 'アカウント作成',
     copyLicenseCode: 'ライセンスコードをコピー',
+    debugLog: 'デバッグログ',
     displayName: '表示名',
     email: 'メール',
     guestHint: '登録したアカウントでログインするとプロフィールと保護コントロールを確認できます。',
@@ -127,6 +128,7 @@ export const MOBILE_SHELL_LABELS = {
     confirmPassword: 'Confirm Password',
     createAccount: 'Create Account',
     copyLicenseCode: 'Copy License Code',
+    debugLog: 'Debug Log',
     displayName: 'Display Name',
     email: 'Email',
     guestHint:
