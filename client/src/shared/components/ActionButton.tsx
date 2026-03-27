@@ -142,6 +142,7 @@ export function ActionButton({
 const styles = StyleSheet.create({
   pressable: {
     alignSelf: 'stretch',
+    margin: 6,
   },
   surface: {
     borderRadius: 18,

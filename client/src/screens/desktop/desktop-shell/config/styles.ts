@@ -46,7 +46,7 @@ export const desktopShellStyles = StyleSheet.create({
   bodyText: {fontSize: 14, lineHeight: 22},
   bodyStrong: {fontSize: 14, fontWeight: '700', lineHeight: 22},
   fieldLabel: {fontSize: 13, fontWeight: '700', marginTop: 14, marginBottom: 8},
-  optionRow: {flexDirection: 'row', gap: 10},
+  optionRow: {flexDirection: 'row', margin: -6, marginTop: 6},
   optionChip: {
     paddingHorizontal: 16,
     paddingVertical: 12,
