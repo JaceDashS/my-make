@@ -216,7 +216,7 @@ func TestInitializeTablesRouteReturnsJSON(t *testing.T) {
 			initializeResult: devToolsResponse{
 				Status:     "ok",
 				Message:    "Managed tables have been initialized.",
-				Migrations: []string{"000_create_mame_academies.oracle.sql"},
+				Migrations: []string{"000_create_maimei_academies.oracle.sql"},
 			},
 		},
 	}
@@ -407,7 +407,7 @@ func TestSessionRouteReturnsStoredSession(t *testing.T) {
 		Status:      "ok",
 		Message:     "Signed in successfully.",
 		AcademyCode: "abc123def456",
-		AcademyName: "My Academy",
+				AcademyName: "My Academy",
 		DisplayName: "Root Admin",
 		LoginID:     "root-admin",
 		RoleCode:    "ROOT",
