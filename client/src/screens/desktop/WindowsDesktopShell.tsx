@@ -306,6 +306,7 @@ export function WindowsDesktopShell() {
         `${t.registerSuccess}${result.academyCode ? ` (${result.academyCode})` : ''}`,
       );
       setPage('account');
+      setSection('login');
       clearRegistrationFields();
     } finally {
       setAuthAction(null);
@@ -372,6 +373,14 @@ export function WindowsDesktopShell() {
   };
 
   const handlePageChange = (nextPage: AppPage) => {
+    if (nextPage === 'account') {
+      clearRegistrationFields();
+      setAuthError(null);
+      setAuthNotice(null);
+      setRegisterError(null);
+      setRegisterSuccess(null);
+    }
+
     setPage(nextPage);
     const resolvedSection = getDefaultSection(nextPage);
     if (resolvedSection) {
@@ -391,6 +400,27 @@ export function WindowsDesktopShell() {
     setRequestedRoleCode('STUDENT');
   };
 
+  const handleAccountSectionChange = (nextSection: DesktopMenuSection) => {
+    if (nextSection === 'login' || nextSection === 'register') {
+      clearRegistrationFields();
+      setAuthError(null);
+      setAuthNotice(null);
+      setRegisterError(null);
+      setRegisterSuccess(null);
+    }
+
+    setSection(nextSection);
+  };
+
+  const handleRegisterTypeChange = (nextRegisterType: 'user' | 'root') => {
+    clearRegistrationFields();
+    setRegisterType(nextRegisterType);
+    setAuthError(null);
+    setAuthNotice(null);
+    setRegisterError(null);
+    setRegisterSuccess(null);
+  };
+
   const accountSection: AccountSectionType =
     (disableConditionalVisibility || !isAuthenticated) && section === 'register'
       ? 'register'
@@ -406,7 +436,7 @@ export function WindowsDesktopShell() {
           isAuthenticated={isAuthenticated}
           labels={t}
           onPageChange={handlePageChange}
-          onSectionChange={setSection}
+          onSectionChange={handleAccountSectionChange}
           page={page}
           palette={p}
           section={section}
@@ -463,7 +493,7 @@ export function WindowsDesktopShell() {
                   onPasswordChange={setPassword}
                   onPhoneChange={setPhone}
                   onRegister={handleRegister}
-                  onRegisterTypeChange={setRegisterType}
+                  onRegisterTypeChange={handleRegisterTypeChange}
                   onRequestedRoleCodeChange={setRequestedRoleCode}
                   unmountLoginContainer={unmountLoginContainer}
                   unmountProfileContainer={unmountProfileContainer}

@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	constraintUsersLoginID     = "uq_mame_users_login_id"
-	constraintUsersRootAcademy = "uq_mame_users_root_per_academy"
+	constraintAccountsLoginID   = "uq_maimei_accounts_login_id"
+	constraintAcademiesName     = "uq_maimei_academies_name"
+	constraintStaffRootAcademy  = "uq_maimei_staff_root_per_academy"
 )
 
 type accountService interface {
@@ -112,6 +113,7 @@ type storedAccount struct {
 	academyName  sql.NullString
 	academyState sql.NullString
 	displayName  string
+	detailStatus string
 	loginID      string
 	passwordHash string
 	roleCode     string
@@ -132,7 +134,7 @@ type pendingSearchField struct {
 var pendingSearchFields = map[string]pendingSearchField{
 	"displayName": {column: "DISPLAY_NAME", label: "display name"},
 	"email":       {column: "EMAIL", label: "email"},
-	"loginId":     {column: "LOGIN_ID", label: "login ID"},
+	"phone":       {column: "PHONE", label: "phone number"},
 }
 
 func newAccountServiceFromEnv() (*oracleAccountService, error) {
@@ -169,7 +171,12 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 		return accountResponse{}, fmt.Errorf("The login ID or password is incorrect.")
 	}
 
-	switch account.statusCode {
+	effectiveStatusCode := account.statusCode
+	if account.detailStatus != "" {
+		effectiveStatusCode = account.detailStatus
+	}
+
+	switch effectiveStatusCode {
 	case "PENDING":
 		return accountResponse{}, fmt.Errorf("Your account is waiting for approval.")
 	case "HOLD":
@@ -185,7 +192,7 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 		return accountResponse{}, fmt.Errorf("Your academy is currently inactive.")
 	}
 
-	update := `UPDATE MAME_USERS SET LAST_LOGIN_AT = SYSTIMESTAMP WHERE LOGIN_ID = :1`
+	update := `UPDATE MAIMEI_ACCOUNTS SET LAST_LOGIN_AT = SYSTIMESTAMP WHERE LOGIN_ID = :1`
 	if _, err := s.execWithReconnect(ctx, update, input.LoginID); err != nil {
 		return accountResponse{}, fmt.Errorf("We couldn't complete sign-in right now. Please try again.")
 	}
@@ -225,9 +232,9 @@ func (s *oracleAccountService) RegisterMember(
 	}
 
 	switch input.RequestedRoleCode {
-	case "ADMIN", "TEACHER", "STUDENT":
+	case "STUDENT":
 	default:
-		return accountResponse{}, fmt.Errorf("Please choose a valid member role.")
+		return accountResponse{}, fmt.Errorf("Only student registration is available right now.")
 	}
 
 	passwordHash, err := hashPassword(input.Password)
@@ -235,39 +242,79 @@ func (s *oracleAccountService) RegisterMember(
 		return accountResponse{}, fmt.Errorf("We couldn't prepare your password right now. Please try again.")
 	}
 
-	query := `
-INSERT INTO MAME_USERS (
-    LOGIN_ID,
+	tx, err := s.beginTxWithReconnect(ctx)
+	if err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't start member registration right now. Please try again.")
+	}
+
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var studentID int64
+	if err := tx.QueryRowContext(ctx, `SELECT MAIMEI_STUDENTS_SEQ.NEXTVAL FROM DUAL`).Scan(&studentID); err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't prepare your member account right now. Please try again.")
+	}
+
+	createStudent := `
+INSERT INTO MAIMEI_STUDENTS (
+    STUDENT_ID,
     EMAIL,
     PHONE,
     DISPLAY_NAME,
-    PASSWORD_HASH,
-    ROLE_CODE,
     STATUS_CODE
 ) VALUES (
     :1,
     :2,
     :3,
     :4,
-    :5,
     'PENDING'
 )`
-	if _, err := s.execWithReconnect(
+	if _, err := tx.ExecContext(
 		ctx,
-		query,
-		input.LoginID,
+		createStudent,
+		studentID,
 		nullIfEmpty(input.Email),
 		input.Phone,
 		input.DisplayName,
-		passwordHash,
-		input.RequestedRoleCode,
 	); err != nil {
-		if isAccountUniqueConstraintError(err, constraintUsersLoginID) {
+		return accountResponse{}, fmt.Errorf("We couldn't create your member profile right now. Please try again.")
+	}
+
+	createAccount := `
+INSERT INTO MAIMEI_ACCOUNTS (
+    LOGIN_ID,
+    PASSWORD_HASH,
+    ROLE_CODE,
+    STATUS_CODE,
+    STUDENT_ID
+) VALUES (
+    :1,
+    :2,
+    'STUDENT',
+    'HOLD',
+    :3
+)`
+	if _, err := tx.ExecContext(
+		ctx,
+		createAccount,
+		input.LoginID,
+		passwordHash,
+		studentID,
+	); err != nil {
+		if isAccountUniqueConstraintError(err, constraintAccountsLoginID) {
 			return accountResponse{}, fmt.Errorf("That login ID is already in use. Please choose another one.")
 		}
 
 		return accountResponse{}, fmt.Errorf("We couldn't create your member account right now. Please try again.")
 	}
+
+	if err := tx.Commit(); err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't complete member registration right now. Please try again.")
+	}
+	tx = nil
 
 	return accountResponse{
 		Status:      "ok",
@@ -341,7 +388,7 @@ func (s *oracleAccountService) RegisterRoot(ctx context.Context, input rootRegis
 
 	var academyCode string
 	createAcademy := `
-INSERT INTO MAME_ACADEMIES (
+INSERT INTO MAIMEI_ACADEMIES (
     ACADEMY_NAME,
     STATUS_CODE
 ) VALUES (
@@ -353,25 +400,33 @@ INSERT INTO MAME_ACADEMIES (
 		createAcademy,
 		input.AcademyName,
 	); err != nil {
+		if isAccountUniqueConstraintError(err, constraintAcademiesName) {
+			return accountResponse{}, fmt.Errorf("That academy name is already in use. Please choose another one.")
+		}
+
 		return accountResponse{}, fmt.Errorf("We couldn't create the academy right now. Please try again.")
 	}
 
 	readAcademyCode := `
 SELECT ACADEMY_CODE
-  FROM MAME_ACADEMIES
+  FROM MAIMEI_ACADEMIES
  WHERE ACADEMY_NAME = :1`
 	if err := tx.QueryRowContext(ctx, readAcademyCode, input.AcademyName).Scan(&academyCode); err != nil {
 		return accountResponse{}, fmt.Errorf("We couldn't finish registration right now. Please try again.")
 	}
 
-	createRoot := `
-INSERT INTO MAME_USERS (
+	var staffID int64
+	if err := tx.QueryRowContext(ctx, `SELECT MAIMEI_STAFF_SEQ.NEXTVAL FROM DUAL`).Scan(&staffID); err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't prepare the root account right now. Please try again.")
+	}
+
+	createRootStaff := `
+INSERT INTO MAIMEI_STAFF (
+    STAFF_ID,
     ACADEMY_CODE,
-    LOGIN_ID,
     EMAIL,
     PHONE,
     DISPLAY_NAME,
-    PASSWORD_HASH,
     ROLE_CODE,
     STATUS_CODE
 ) VALUES (
@@ -380,32 +435,55 @@ INSERT INTO MAME_USERS (
     :3,
     :4,
     :5,
-    :6,
     'ROOT',
     'ACTIVE'
 )`
 	if _, err := tx.ExecContext(
 		ctx,
-		createRoot,
+		createRootStaff,
+		staffID,
 		academyCode,
-		input.RootLoginID,
 		nullIfEmpty(input.Email),
 		input.Phone,
 		input.RootDisplayName,
-		passwordHash,
 	); err != nil {
-		if isAccountUniqueConstraintError(err, constraintUsersLoginID) {
-			return accountResponse{}, fmt.Errorf("That login ID is already in use. Please choose another one.")
-		}
-		if isAccountUniqueConstraintError(err, constraintUsersRootAcademy) {
+		if isAccountUniqueConstraintError(err, constraintStaffRootAcademy) {
 			return accountResponse{}, fmt.Errorf("This academy already has a root account.")
+		}
+
+		return accountResponse{}, fmt.Errorf("We couldn't create the root profile right now. Please try again.")
+	}
+
+	createRootAccount := `
+INSERT INTO MAIMEI_ACCOUNTS (
+    LOGIN_ID,
+    PASSWORD_HASH,
+    ROLE_CODE,
+    STATUS_CODE,
+    STAFF_ID
+) VALUES (
+    :1,
+    :2,
+    'ROOT',
+    'ACTIVE',
+    :3
+)`
+	if _, err := tx.ExecContext(
+		ctx,
+		createRootAccount,
+		input.RootLoginID,
+		passwordHash,
+		staffID,
+	); err != nil {
+		if isAccountUniqueConstraintError(err, constraintAccountsLoginID) {
+			return accountResponse{}, fmt.Errorf("That login ID is already in use. Please choose another one.")
 		}
 
 		return accountResponse{}, fmt.Errorf("We couldn't create the root account right now. Please try again.")
 	}
 
 	assignLicense := `
-UPDATE MAME_LICENSES
+UPDATE MAIMEI_LICENSES
    SET ACADEMY_CODE = :1,
        STATUS_CODE = 'ACTIVE'
  WHERE LICENSE_CODE = :2
@@ -469,16 +547,19 @@ func (s *oracleAccountService) SearchPendingMembers(
 
 	query := fmt.Sprintf(`
 SELECT
-    LOGIN_ID,
-    DISPLAY_NAME,
-    EMAIL,
-    ROLE_CODE,
-    CREATED_AT
-FROM MAME_USERS
-WHERE STATUS_CODE = 'PENDING'
-  AND ACADEMY_CODE IS NULL
-  AND %s = :1
-ORDER BY CREATED_AT DESC`, field.column)
+    a.LOGIN_ID,
+    s.DISPLAY_NAME,
+    s.EMAIL,
+    a.ROLE_CODE,
+    s.CREATED_AT
+FROM MAIMEI_STUDENTS s
+JOIN MAIMEI_ACCOUNTS a
+  ON a.STUDENT_ID = s.STUDENT_ID
+WHERE s.STATUS_CODE = 'PENDING'
+  AND s.ACADEMY_CODE IS NULL
+  AND a.ROLE_CODE = 'STUDENT'
+  AND s.%s = :1
+ORDER BY s.CREATED_AT DESC`, field.column)
 
 	rows, err := s.db.QueryContext(ctx, query, input.Query)
 	if err != nil {
@@ -539,14 +620,30 @@ func (s *oracleAccountService) ApprovePendingMember(
 		return accountResponse{}, fmt.Errorf("Please choose a pending member.")
 	}
 
-	query := `
-UPDATE MAME_USERS
+	tx, err := s.beginTxWithReconnect(ctx)
+	if err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't start approval right now. Please try again.")
+	}
+
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	approveStudent := `
+UPDATE MAIMEI_STUDENTS
    SET ACADEMY_CODE = :1,
        STATUS_CODE = 'ACTIVE'
- WHERE LOGIN_ID = :2
+ WHERE STUDENT_ID = (
+     SELECT STUDENT_ID
+       FROM MAIMEI_ACCOUNTS
+      WHERE LOGIN_ID = :2
+        AND ROLE_CODE = 'STUDENT'
+ )
    AND STATUS_CODE = 'PENDING'
    AND ACADEMY_CODE IS NULL`
-	result, err := s.execWithReconnect(ctx, query, input.AcademyCode, input.LoginID)
+	result, err := tx.ExecContext(ctx, approveStudent, input.AcademyCode, input.LoginID)
 	if err != nil {
 		return accountResponse{}, fmt.Errorf("We couldn't approve that member right now. Please try again.")
 	}
@@ -559,6 +656,21 @@ UPDATE MAME_USERS
 	if rowsAffected != 1 {
 		return accountResponse{}, fmt.Errorf("That pending member could not be found.")
 	}
+
+	activateAccount := `
+UPDATE MAIMEI_ACCOUNTS
+   SET STATUS_CODE = 'ACTIVE'
+ WHERE LOGIN_ID = :1
+   AND ROLE_CODE = 'STUDENT'
+   AND STATUS_CODE = 'HOLD'`
+	if _, err := tx.ExecContext(ctx, activateAccount, input.LoginID); err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't approve that member right now. Please try again.")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return accountResponse{}, fmt.Errorf("We couldn't complete approval right now. Please try again.")
+	}
+	tx = nil
 
 	return accountResponse{
 		Status:  "ok",
@@ -589,7 +701,7 @@ func (s *oracleAccountService) RenewLicense(ctx context.Context, input renewLice
 
 	nextExpiresAt := license.expiresAt.Add(defaultLicenseDuration)
 	query := `
-UPDATE MAME_LICENSES
+UPDATE MAIMEI_LICENSES
    SET EXPIRES_AT = :1,
        STATUS_CODE = CASE
            WHEN STATUS_CODE = 'SUSPENDED' THEN 'SUSPENDED'
@@ -611,18 +723,25 @@ UPDATE MAME_LICENSES
 func (s *oracleAccountService) fetchAccount(ctx context.Context, loginID string) (storedAccount, error) {
 	query := `
 SELECT
-    u.ACADEMY_CODE,
+    COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE),
     a.ACADEMY_NAME,
     a.STATUS_CODE,
-    u.DISPLAY_NAME,
-    u.LOGIN_ID,
-    u.PASSWORD_HASH,
-    u.ROLE_CODE,
-    u.STATUS_CODE
-FROM MAME_USERS u
-LEFT JOIN MAME_ACADEMIES a
-  ON a.ACADEMY_CODE = u.ACADEMY_CODE
-WHERE u.LOGIN_ID = :1`
+    COALESCE(stf.DISPLAY_NAME, tch.DISPLAY_NAME, stu.DISPLAY_NAME),
+    COALESCE(stf.STATUS_CODE, tch.STATUS_CODE, stu.STATUS_CODE),
+    acc.LOGIN_ID,
+    acc.PASSWORD_HASH,
+    acc.ROLE_CODE,
+    acc.STATUS_CODE
+FROM MAIMEI_ACCOUNTS acc
+LEFT JOIN MAIMEI_STAFF stf
+  ON stf.STAFF_ID = acc.STAFF_ID
+LEFT JOIN MAIMEI_TEACHERS tch
+  ON tch.TEACHER_ID = acc.TEACHER_ID
+LEFT JOIN MAIMEI_STUDENTS stu
+  ON stu.STUDENT_ID = acc.STUDENT_ID
+LEFT JOIN MAIMEI_ACADEMIES a
+  ON a.ACADEMY_CODE = COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE)
+WHERE acc.LOGIN_ID = :1`
 
 	var account storedAccount
 	scan := func(db *sql.DB) error {
@@ -631,6 +750,7 @@ WHERE u.LOGIN_ID = :1`
 			&account.academyName,
 			&account.academyState,
 			&account.displayName,
+			&account.detailStatus,
 			&account.loginID,
 			&account.passwordHash,
 			&account.roleCode,
@@ -655,7 +775,7 @@ SELECT
     ACADEMY_CODE,
     EXPIRES_AT,
     STATUS_CODE
-FROM MAME_LICENSES
+FROM MAIMEI_LICENSES
 WHERE LICENSE_CODE = :1`
 
 	var license storedLicense

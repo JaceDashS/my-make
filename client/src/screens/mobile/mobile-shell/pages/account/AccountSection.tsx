@@ -116,8 +116,8 @@ export function AccountSection({
     protectedUnlocked: string;
     register: string;
     registerBody: string;
-    registerCta: string;
-    registerHint: string;
+    registerCta?: string;
+    registerHint?: string;
     registerRoot: string;
     registerRootBody: string;
     registerSuccess: string;
@@ -128,7 +128,6 @@ export function AccountSection({
     signIn: string;
     signOut: string;
     unlocked: string;
-    userRegisterPending: string;
   };
 }) {
   const formatPhoneNumber = (value: string) => {
@@ -299,7 +298,9 @@ export function AccountSection({
 
   if (currentSection === 'register' && !isAuthenticated) {
     return (
-      <ScrollView contentContainerStyle={styles.stack}>
+      <ScrollView
+        key={`register-${registerType}`}
+        contentContainerStyle={styles.stack}>
         <Card palette={palette} title={texts.register}>
           <BodyText palette={palette}>{texts.registerBody}</BodyText>
           <FieldLabel palette={palette}>{texts.registerType}</FieldLabel>
@@ -478,9 +479,6 @@ export function AccountSection({
                 />
               </View>
             </Card>
-            <Card palette={palette} title={texts.registerCta}>
-              <BodyText palette={palette}>{texts.userRegisterPending}</BodyText>
-            </Card>
           </>
         ) : (
           <>
@@ -657,9 +655,11 @@ export function AccountSection({
                 />
               </View>
             </Card>
-            <Card palette={palette} title={texts.registerCta}>
-              <BodyText palette={palette}>{texts.registerHint}</BodyText>
-            </Card>
+            {texts.registerHint ? (
+              <Card palette={palette} title={texts.registerCta ?? ''}>
+                <BodyText palette={palette}>{texts.registerHint ?? ''}</BodyText>
+              </Card>
+            ) : null}
           </>
         )}
       </ScrollView>

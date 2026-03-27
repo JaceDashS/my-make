@@ -165,6 +165,14 @@ export function MobileAppShell() {
 
   const choosePage = (nextPage: AppPage, nextSection?: MobileMenuSection) => {
     // モバイルは項目選択後にメニューを閉じて本文へ戻す。
+    if (nextPage === 'account') {
+      clearRegistrationFields();
+      setAuthError(null);
+      setAuthNotice(null);
+      setRegisterError(null);
+      setRegisterSuccess(null);
+    }
+
     setPage(nextPage);
     const resolvedSection = nextSection ?? getDefaultSection(nextPage);
     if (resolvedSection) {
@@ -175,6 +183,14 @@ export function MobileAppShell() {
 
   const choosePageGroup = (nextPage: AppPage) => {
     // 上位ページ選択時はメニューを閉じず、配下セクションの展開だけ切り替える。
+    if (nextPage === 'account') {
+      clearRegistrationFields();
+      setAuthError(null);
+      setAuthNotice(null);
+      setRegisterError(null);
+      setRegisterSuccess(null);
+    }
+
     setPage(nextPage);
     const resolvedSection = getDefaultSection(nextPage);
     if (resolvedSection) {
@@ -192,6 +208,15 @@ export function MobileAppShell() {
     setPassword('');
     setConfirmPassword('');
     setRequestedRoleCode('STUDENT');
+  };
+
+  const handleRegisterTypeChange = (nextRegisterType: 'user' | 'root') => {
+    clearRegistrationFields();
+    setRegisterType(nextRegisterType);
+    setAuthError(null);
+    setAuthNotice(null);
+    setRegisterError(null);
+    setRegisterSuccess(null);
   };
 
   const handleLogin = async () => {
@@ -335,6 +360,7 @@ export function MobileAppShell() {
         `${t.registerSuccess}${result.academyCode ? ` (${result.academyCode})` : ''}`,
       );
       setPage('account');
+      setSection('login');
       clearRegistrationFields();
     } finally {
       setAuthAction(null);
@@ -541,7 +567,7 @@ export function MobileAppShell() {
               onPasswordChange={setPassword}
               onPhoneChange={setPhone}
               onRegister={handleRegister}
-              onRegisterTypeChange={setRegisterType}
+                  onRegisterTypeChange={handleRegisterTypeChange}
               onRequestedRoleCodeChange={setRequestedRoleCode}
               unmountLoginContainer={unmountLoginContainer}
               unmountProfileContainer={unmountProfileContainer}
