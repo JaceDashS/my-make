@@ -14,7 +14,6 @@ export function AccountSection({
   academyCode,
   academyName,
   authError,
-  authDebugLogs,
   authNotice,
   confirmPassword,
   currentSection,
@@ -52,7 +51,6 @@ export function AccountSection({
   academyCode: string;
   academyName: string;
   authError: string | null;
-  authDebugLogs: string[];
   authNotice: string | null;
   confirmPassword: string;
   currentSection: AccountSectionType;
@@ -88,7 +86,6 @@ export function AccountSection({
   texts: {
     academyCode: string;
     academyName: string;
-    debugLog: string;
     loginNotice: string;
     confirmPassword: string;
     createAccount: string;
@@ -251,15 +248,6 @@ export function AccountSection({
       ) : null}
       {authError ? (
         <Text style={styles.errorText}>{authError}</Text>
-      ) : null}
-      {authDebugLogs.length ? (
-        <Card palette={loginMutedPalette} title={texts.debugLog}>
-          {authDebugLogs.map(entry => (
-            <BodyText key={entry} palette={loginMutedPalette}>
-              {entry}
-            </BodyText>
-          ))}
-        </Card>
       ) : null}
       <View style={styles.optionRow}>
         <ActionButton

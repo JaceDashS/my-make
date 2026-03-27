@@ -76,7 +76,6 @@ export function MobileAppShell() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
-  const [authDebugLogs, setAuthDebugLogs] = useState<string[]>([]);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
   const [authAction, setAuthAction] = useState<'login' | 'logout' | 'register' | null>(
@@ -91,14 +90,18 @@ export function MobileAppShell() {
   const t = getMobileShellLabels(language);
   const p = getMobileShellPalette(theme);
 
-  const appendAuthDebugLog = (message: string) => {
-    const entry = `[${new Date().toISOString()}] ${message}`;
-    setAuthDebugLogs(current => [...current.slice(-11), entry]);
-    console.log(`[account-debug] ${entry}`);
+  const appendAuthDebugLog = (
+    event: string,
+    message: string,
+    payload: Record<string, unknown> = {},
+  ) => {
     sendClientRuntimeLog({
       channel: 'accounts',
-      event: 'mobile-auth-debug',
-      payload: {message: entry},
+      event,
+      payload: {
+        message,
+        ...payload,
+      },
     }).catch(() => undefined);
   };
 
@@ -233,7 +236,9 @@ export function MobileAppShell() {
   const handleLogin = async () => {
     setAuthAction('login');
     appendAuthDebugLog(
-      `login:start loginId=${loginId || '(empty)'} passwordLength=${password.length}`,
+      'login:start',
+      `loginId=${loginId || '(empty)'} passwordLength=${password.length}`,
+      {loginId, passwordLength: password.length},
     );
 
     try {
@@ -241,13 +246,20 @@ export function MobileAppShell() {
         loginId,
         password,
       });
-      appendAuthDebugLog(`login:response ${JSON.stringify(result)}`);
+      appendAuthDebugLog('login:response', JSON.stringify(result), {
+        status: result.status,
+        roleCode: result.roleCode ?? '',
+        academyCode: result.academyCode ?? '',
+      });
 
       if (result.status !== 'ok') {
         setIsAuthenticated(false);
         setAuthNotice(null);
         setAuthError(localizeAccountError(result.error));
-        appendAuthDebugLog(`login:error ${result.error ?? result.message ?? 'unknown'}`);
+        appendAuthDebugLog('login:error', result.error ?? result.message ?? 'unknown', {
+          loginId,
+          error: result.error ?? result.message ?? 'unknown',
+        });
         return;
       }
 
@@ -264,11 +276,22 @@ export function MobileAppShell() {
       setRegisterSuccess(null);
       setPage('account');
       appendAuthDebugLog(
-        `login:success academyCode=${result.academyCode ?? ''} roleCode=${result.roleCode ?? ''}`,
+        'login:success',
+        `academyCode=${result.academyCode ?? ''} roleCode=${result.roleCode ?? ''}`,
+        {
+          loginId: result.loginId ?? loginId,
+          academyCode: result.academyCode ?? '',
+          roleCode: result.roleCode ?? '',
+        },
       );
     } catch (error) {
       appendAuthDebugLog(
-        `login:exception ${error instanceof Error ? error.message : String(error)}`,
+        'login:exception',
+        error instanceof Error ? error.message : String(error),
+        {
+          loginId,
+          error: error instanceof Error ? error.message : String(error),
+        },
       );
       setIsAuthenticated(false);
       setAuthNotice(null);
@@ -565,7 +588,6 @@ export function MobileAppShell() {
           {!isMenuOpen && page === 'account' ? (
             <AccountSection
               authError={authError}
-              authDebugLogs={authDebugLogs}
               authNotice={authNotice}
               academyCode={session?.academyCode ?? academyCode}
               academyName={session?.academyName ?? academyName}

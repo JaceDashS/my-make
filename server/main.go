@@ -480,11 +480,7 @@ func (a *app) handleClientLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logServerRuntime("client-logs", "accepted", map[string]any{
-		"channel":  entry.Channel,
-		"event":    entry.Event,
-		"platform": entry.Platform,
-	})
+	logClientRuntime(entry)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ok",
 	})

@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,6 +21,15 @@ type serverRuntimeLogEntry struct {
 
 var serverRuntimeLogWriteMu sync.Mutex
 
+const (
+	ansiReset  = "\x1b[0m"
+	ansiGreen  = "\x1b[32m"
+	ansiBlue   = "\x1b[34m"
+	ansiCyan   = "\x1b[36m"
+	ansiYellow = "\x1b[33m"
+	ansiRed    = "\x1b[31m"
+)
+
 func logServerRuntime(channel, event string, payload map[string]any) {
 	entry := serverRuntimeLogEntry{
 		Channel:   channel,
@@ -27,11 +38,54 @@ func logServerRuntime(channel, event string, payload map[string]any) {
 		Timestamp: time.Now().Format(time.RFC3339Nano),
 	}
 
-	log.Printf("[server-runtime] %s %s %v", channel, event, payload)
+	logRuntimeEntry("server", channel, event, payload)
 
 	if err := appendServerRuntimeLog(entry); err != nil {
-		log.Printf("[server-runtime] write-failed %v", err)
+		log.Printf("%s[server/runtime]%s write-failed %v", ansiRed, ansiReset, err)
 	}
+}
+
+func logClientRuntime(entry clientLogEntry) {
+	logRuntimeEntry("client", fmt.Sprintf("%s/%s", entry.Platform, entry.Channel), entry.Event, entry.Payload)
+}
+
+func logRuntimeEntry(kind, channel, event string, payload map[string]any) {
+	label := fmt.Sprintf("[%s/%s]", kind, channel)
+	log.Printf("%s%s%s %s %s", runtimeColor(kind, channel), label, ansiReset, event, formatRuntimePayload(payload))
+}
+
+func runtimeColor(kind, channel string) string {
+	switch {
+	case kind == "client" && strings.HasPrefix(channel, "windows/"):
+		return ansiBlue
+	case kind == "client" && strings.HasPrefix(channel, "android/"):
+		return ansiCyan
+	case kind == "client":
+		return ansiYellow
+	case strings.Contains(channel, "error") || strings.Contains(channel, "failed"):
+		return ansiRed
+	default:
+		return ansiGreen
+	}
+}
+
+func formatRuntimePayload(payload map[string]any) string {
+	if len(payload) == 0 {
+		return "{}"
+	}
+
+	keys := make([]string, 0, len(payload))
+	for key := range payload {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", key, payload[key]))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func appendServerRuntimeLog(entry serverRuntimeLogEntry) error {
