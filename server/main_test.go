@@ -37,12 +37,14 @@ func (s *stubDevToolsService) CreateLicense(context.Context) (devToolsResponse, 
 type stubAccountService struct {
 	registerMemberResult accountResponse
 	registerMemberErr    error
+	lastRegisterMember   memberRegisterInput
 	profileResult        profileResponse
 	profileErr           error
 	searchPendingResult  pendingMembersResponse
 	searchPendingErr     error
 	approvePendingResult accountResponse
 	approvePendingErr    error
+	lastApprovePending   approvePendingMemberInput
 	loginResult          accountResponse
 	loginErr             error
 	registerRootResult   accountResponse
@@ -59,7 +61,8 @@ func (s *stubAccountService) GetProfile(context.Context, string) (profileRespons
 	return s.profileResult, s.profileErr
 }
 
-func (s *stubAccountService) RegisterMember(context.Context, memberRegisterInput) (accountResponse, error) {
+func (s *stubAccountService) RegisterMember(_ context.Context, input memberRegisterInput) (accountResponse, error) {
+	s.lastRegisterMember = input
 	return s.registerMemberResult, s.registerMemberErr
 }
 
@@ -71,7 +74,8 @@ func (s *stubAccountService) SearchPendingMembers(context.Context, pendingMember
 	return s.searchPendingResult, s.searchPendingErr
 }
 
-func (s *stubAccountService) ApprovePendingMember(context.Context, approvePendingMemberInput) (accountResponse, error) {
+func (s *stubAccountService) ApprovePendingMember(_ context.Context, input approvePendingMemberInput) (accountResponse, error) {
+	s.lastApprovePending = input
 	return s.approvePendingResult, s.approvePendingErr
 }
 
@@ -366,6 +370,65 @@ func TestMemberRegisterRouteReturnsPendingRole(t *testing.T) {
 	}
 }
 
+func TestMemberRegisterRouteSupportsTeacherAndAdminPendingRoles(t *testing.T) {
+	tests := []struct {
+		name string
+		role string
+	}{
+		{name: "teacher", role: "TEACHER"},
+		{name: "admin", role: "ADMIN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stub := &stubAccountService{
+				registerMemberResult: accountResponse{
+					Status:      "ok",
+					Message:     "Member registration submitted. Approval is required.",
+					DisplayName: "New Member",
+					LoginID:     "new-member",
+					RoleCode:    tt.role,
+				},
+			}
+			application := &app{accounts: stub}
+
+			req := httptest.NewRequest(http.MethodPost, "/api/accounts/member-register", strings.NewReader(`{
+  "loginId":"new-member",
+  "displayName":"New Member",
+  "email":"new-member@example.com",
+  "phone":"010-1234-5678",
+  "password":"secret",
+  "requestedRoleCode":"`+tt.role+`"
+}`))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			application.routes().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+			}
+
+			var body accountResponse
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+
+			if body.RoleCode != tt.role {
+				t.Fatalf("expected role %s, got %q", tt.role, body.RoleCode)
+			}
+
+			if stub.lastRegisterMember.RequestedRoleCode != tt.role {
+				t.Fatalf("expected requested role %s to reach service, got %q", tt.role, stub.lastRegisterMember.RequestedRoleCode)
+			}
+
+			if stub.lastRegisterMember.LoginID != "new-member" {
+				t.Fatalf("expected login ID new-member to reach service, got %q", stub.lastRegisterMember.LoginID)
+			}
+		})
+	}
+}
+
 func TestLoginRouteReturnsAccountPayload(t *testing.T) {
 	application := &app{
 		accounts: &stubAccountService{
@@ -612,6 +675,61 @@ func TestApprovePendingMemberRouteReturnsApprovedLoginID(t *testing.T) {
 
 	if body.LoginID != "pending-user" {
 		t.Fatalf("expected approved login ID pending-user, got %q", body.LoginID)
+	}
+}
+
+func TestApprovePendingMemberRouteSupportsTeacherAndAdminApprovals(t *testing.T) {
+	tests := []struct {
+		name string
+		role string
+	}{
+		{name: "teacher", role: "TEACHER"},
+		{name: "admin", role: "ADMIN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stub := &stubAccountService{
+				approvePendingResult: accountResponse{
+					Status:   "ok",
+					Message:  "Pending member approved successfully.",
+					LoginID:  "pending-user",
+					RoleCode: tt.role,
+				},
+			}
+			application := &app{accounts: stub}
+
+			req := httptest.NewRequest(http.MethodPost, "/api/members/pending/approve", strings.NewReader(`{
+  "academyCode":"abc123def456",
+  "actorRoleCode":"ROOT",
+  "loginId":"pending-user"
+}`))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			application.routes().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+			}
+
+			var body accountResponse
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+
+			if body.RoleCode != tt.role {
+				t.Fatalf("expected approved role %s, got %q", tt.role, body.RoleCode)
+			}
+
+			if stub.lastApprovePending.LoginID != "pending-user" {
+				t.Fatalf("expected login ID pending-user to reach service, got %q", stub.lastApprovePending.LoginID)
+			}
+
+			if stub.lastApprovePending.ActorRoleCode != "ROOT" {
+				t.Fatalf("expected actor role ROOT to reach service, got %q", stub.lastApprovePending.ActorRoleCode)
+			}
+		})
 	}
 }
 
