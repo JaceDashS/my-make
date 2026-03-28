@@ -180,7 +180,7 @@ func describeAPIError(status int, operation, raw string) apiErrorDetails {
 		details.Code = "members/pending/no-match"
 		details.Title = "No pending members matched the search."
 		details.Detail = raw
-		details.Action = "Adjust the exact-match search value and try again."
+		details.Action = "Adjust the search value and try again."
 		details.Retryable = false
 	case lowerRaw == "no active session was found.":
 		details.Code = "account/session/not-found"

@@ -7,6 +7,10 @@ import {
 } from '../../shared/lib/pendingMembersApi';
 import type { LanguageMode } from '../../screens/shared/shell-model';
 import { buildProfileSlots, buildSlots, TABLE_PAGE_SIZE } from './pendingApprovalModel';
+import {
+  normalizePendingSearchQuery,
+  validatePendingSearchQuery,
+} from './pendingApprovalSearchValidation';
 import type {
   ChartViewState,
   ProfileSlotSource,
@@ -118,11 +122,13 @@ export function usePendingApproval({
   };
 
   const runSearchValidation = () => {
+    const normalizedQuery = normalizePendingSearchQuery(field, query);
+
     logPendingApprovalEvent('search:validate:start', {
       academyCode,
       canManageMembers,
       field,
-      hasQuery: Boolean(query.trim()),
+      hasQuery: Boolean(normalizedQuery),
       roleCode,
     });
 
@@ -147,28 +153,32 @@ export function usePendingApproval({
       return 'invalid-role';
     }
 
-    if (!query.trim()) {
-      logPendingApprovalEvent('search:validate:missing-query', {
+    const validationMessage = validatePendingSearchQuery(
+      field,
+      query,
+      language,
+    );
+    if (validationMessage) {
+      logPendingApprovalEvent('search:validate:invalid-query', {
         field,
+        normalizedQuery,
+        validationMessage,
       });
       pendingResultRef.current = null;
       setSearchView({
-        errorMessage:
-          language === 'ja'
-            ? '検索キーワードを入力してください。'
-            : 'Enter a search value first.',
+        errorMessage: validationMessage,
         noticeMessage: '',
       });
       setChartView({
         memberCount: 0,
         slots: buildSlots([]),
       });
-      return 'missing-query';
+      return 'invalid-query';
     }
 
     logPendingApprovalEvent('search:validate:passed', {
       field,
-      query: query.trim(),
+      query: normalizedQuery,
     });
     setSearchView(current => ({
       ...current,
@@ -179,10 +189,12 @@ export function usePendingApproval({
   };
 
   const runSearchRequest = async () => {
+    const normalizedQuery = normalizePendingSearchQuery(field, query);
+
     logPendingApprovalEvent('search:request:start', {
       academyCode,
       field,
-      query: query.trim(),
+      query: normalizedQuery,
       roleCode,
     });
     setIsSearching(true);
@@ -197,7 +209,7 @@ export function usePendingApproval({
         academyCode,
         actorRoleCode: roleCode,
         field,
-        query: query.trim(),
+        query: normalizedQuery,
       });
 
       if (result.status !== 'ok') {

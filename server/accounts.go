@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -150,8 +151,10 @@ type storedLicense struct {
 }
 
 type pendingSearchField struct {
-	column string
-	label  string
+	column          string
+	label           string
+	matchExpression string
+	normalizeValue  func(string) string
 }
 
 type pendingSearchRoleSpec struct {
@@ -179,9 +182,21 @@ type pendingMemberRoleSpec struct {
 }
 
 var pendingSearchFields = map[string]pendingSearchField{
-	"displayName": {column: "DISPLAY_NAME", label: "display name"},
-	"email":       {column: "EMAIL", label: "email"},
-	"phone":       {column: "PHONE", label: "phone number"},
+	"displayName": {
+		column:          "DISPLAY_NAME",
+		label:           "display name",
+		matchExpression: "LOWER(%s.%s) LIKE '%%' || LOWER(:1) || '%%'",
+	},
+	"email": {
+		column:          "EMAIL",
+		label:           "email",
+		matchExpression: "LOWER(%s.%s) LIKE '%%' || LOWER(:1) || '%%'",
+	},
+	"phone": {
+		column:          "PHONE",
+		label:           "phone number",
+		matchExpression: "REPLACE(%s.%s, '-', '') LIKE '%%' || REPLACE(:1, '-', '') || '%%'",
+	},
 }
 
 var pendingSearchRoleSpecs = []pendingSearchRoleSpec{
@@ -780,6 +795,11 @@ func registerPendingMember(
 func buildPendingMembersSearchQuery(field pendingSearchField) string {
 	selectBlocks := make([]string, 0, len(pendingSearchRoleSpecs))
 	for _, spec := range pendingSearchRoleSpecs {
+		matchExpression := fmt.Sprintf(
+			field.matchExpression,
+			spec.alias,
+			field.column,
+		)
 		selectBlocks = append(selectBlocks, fmt.Sprintf(`
     SELECT
         a.LOGIN_ID AS login_id,
@@ -795,7 +815,7 @@ func buildPendingMembersSearchQuery(field pendingSearchField) string {
       AND %[1]s.ACADEMY_CODE IS NULL
       AND a.ROLE_CODE = '%[4]s'
       AND a.STATUS_CODE = 'HOLD'%[5]s
-      AND %[1]s.%[6]s = :1`, spec.alias, spec.profileTable, spec.accountFKColumn, spec.roleCode, spec.extraWhereSQL, field.column))
+      AND %s`, spec.alias, spec.profileTable, spec.accountFKColumn, spec.roleCode, spec.extraWhereSQL, matchExpression))
 	}
 
 	return fmt.Sprintf(`
@@ -870,6 +890,11 @@ func (s *oracleAccountService) SearchPendingMembers(
 		return pendingMembersResponse{}, fmt.Errorf("Please choose a valid search field.")
 	}
 
+	input.Query = normalizePendingSearchQuery(input.Field, input.Query)
+	if err := validatePendingSearchQuery(input.Field, input.Query); err != nil {
+		return pendingMembersResponse{}, err
+	}
+
 	query := buildPendingMembersSearchQuery(field)
 
 	rows, err := s.db.QueryContext(ctx, query, input.Query)
@@ -884,7 +909,7 @@ func (s *oracleAccountService) SearchPendingMembers(
 	}
 
 	if len(members) == 0 {
-		return pendingMembersResponse{}, fmt.Errorf("No pending members matched that exact %s.", field.label)
+		return pendingMembersResponse{}, fmt.Errorf("No pending members matched that %s.", field.label)
 	}
 
 	return pendingMembersResponse{
@@ -1302,4 +1327,85 @@ func validatePendingModerationAccess(academyCode, actorRoleCode string) error {
 	default:
 		return fmt.Errorf("Only root or admin accounts can manage pending members.")
 	}
+}
+
+func normalizePendingSearchQuery(field, query string) string {
+	trimmed := strings.TrimSpace(query)
+	if field != "phone" {
+		return trimmed
+	}
+
+	digits := make([]rune, 0, len(trimmed))
+	for _, char := range trimmed {
+		if char >= '0' && char <= '9' {
+			digits = append(digits, char)
+		}
+	}
+
+	if len(digits) == 0 {
+		return ""
+	}
+
+	if string(digits[:minInt(len(digits), 2)]) == "02" {
+		switch {
+		case len(digits) <= 2:
+			return string(digits)
+		case len(digits) <= 5:
+			return fmt.Sprintf("%s-%s", string(digits[:2]), string(digits[2:]))
+		case len(digits) <= 9:
+			return fmt.Sprintf(
+				"%s-%s-%s",
+				string(digits[:2]),
+				string(digits[2:5]),
+				string(digits[5:]),
+			)
+		default:
+			return fmt.Sprintf(
+				"%s-%s-%s",
+				string(digits[:2]),
+				string(digits[2:6]),
+				string(digits[6:]),
+			)
+		}
+	}
+
+	switch {
+	case len(digits) <= 3:
+		return string(digits)
+	case len(digits) <= 7:
+		return fmt.Sprintf("%s-%s", string(digits[:3]), string(digits[3:]))
+	case len(digits) <= 10:
+		return fmt.Sprintf(
+			"%s-%s-%s",
+			string(digits[:3]),
+			string(digits[3:6]),
+			string(digits[6:]),
+		)
+	default:
+		return fmt.Sprintf(
+			"%s-%s-%s",
+			string(digits[:3]),
+			string(digits[3:7]),
+			string(digits[7:]),
+		)
+	}
+}
+
+func validatePendingSearchQuery(field, query string) error {
+	switch field {
+	case "displayName":
+		if utf8.RuneCountInString(strings.TrimSpace(query)) < 2 {
+			return fmt.Errorf("Name search requires at least two characters.")
+		}
+	}
+
+	return nil
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+
+	return right
 }

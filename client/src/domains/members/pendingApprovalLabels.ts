@@ -26,7 +26,7 @@ export const MEMBERS_LABELS = {
     name: '名前',
     next: '次へ',
     notice:
-      '電話番号、氏名、メールアドレスで承認待ちメンバーを検索できます。塾に未所属の申請者のみ表示されます。',
+      '電話番号, 名前, メールは完全一致でなくても部分一致で検索できます。名前は 2 文字以上入力したときだけ検索できます。塾に未所属の申請者のみ表示されます。',
     page: 'ページ',
     pending: '承認待ち',
     phone: '電話番号',
@@ -46,7 +46,7 @@ export const MEMBERS_LABELS = {
     name: 'Name',
     next: 'Next',
     notice:
-      'Search pending members by phone, name, or email. Only applicants without academy affiliation appear here.',
+      'Phone, name, and email searches support partial matches. Name searches still require at least two characters. Only applicants without academy affiliation appear here.',
     page: 'Page',
     pending: 'Pending',
     phone: 'Phone',
