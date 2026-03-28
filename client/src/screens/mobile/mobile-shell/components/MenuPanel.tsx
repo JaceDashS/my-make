@@ -23,6 +23,8 @@ export function MenuPanel({
     devHealth: string;
     general: string;
     login: string;
+    members: string;
+    pendingApproval: string;
     profile: string;
     register: string;
     settings: string;
@@ -31,8 +33,14 @@ export function MenuPanel({
   onSelectSection: (page: AppPage, section: MobileMenuSection) => void;
   palette: MobileShellPalette;
 }) {
-  const [expandedGroup, setExpandedGroup] = useState<'settings' | 'account' | null>(
-    currentPage === 'settings' || currentPage === 'account' ? currentPage : null,
+  const [expandedGroup, setExpandedGroup] = useState<
+    'settings' | 'account' | 'members' | null
+  >(
+    currentPage === 'settings' ||
+      currentPage === 'account' ||
+      currentPage === 'members'
+      ? currentPage
+      : null,
   );
   const settingsAnimation = useRef(
     new Animated.Value(currentPage === 'settings' ? 1 : 0),
@@ -40,10 +48,17 @@ export function MenuPanel({
   const accountAnimation = useRef(
     new Animated.Value(currentPage === 'account' ? 1 : 0),
   ).current;
+  const membersAnimation = useRef(
+    new Animated.Value(currentPage === 'members' ? 1 : 0),
+  ).current;
 
   useEffect(() => {
     // 現在表示中のページに合わせて、対応するメニュー群だけを初期展開する。
-    if (currentPage === 'settings' || currentPage === 'account') {
+    if (
+      currentPage === 'settings' ||
+      currentPage === 'account' ||
+      currentPage === 'members'
+    ) {
       setExpandedGroup(currentPage);
       return;
     }
@@ -62,8 +77,13 @@ export function MenuPanel({
         toValue: expandedGroup === 'account' ? 1 : 0,
         useNativeDriver: false,
       }),
+      Animated.timing(membersAnimation, {
+        duration: 180,
+        toValue: expandedGroup === 'members' ? 1 : 0,
+        useNativeDriver: false,
+      }),
     ]).start();
-  }, [accountAnimation, expandedGroup, settingsAnimation]);
+  }, [accountAnimation, expandedGroup, membersAnimation, settingsAnimation]);
 
   const getSubItemTextStyle = (active: boolean) => [
     styles.overlaySubItemText,
@@ -207,6 +227,50 @@ export function MenuPanel({
             </Pressable>
           </>
         )}
+      </Animated.View>
+      <Pressable
+        {...windowsPressableFocusProps}
+        onPress={() => onSelectGroup('members')}
+        style={[
+          styles.overlayItem,
+          styles.overlayItemSpaced,
+          {backgroundColor: palette.sidebarItem},
+        ]}>
+        <Text style={getTopLevelTextStyle(currentPage === 'members')}>
+          {labels.members}
+        </Text>
+      </Pressable>
+      <Animated.View
+        pointerEvents={expandedGroup === 'members' ? 'auto' : 'none'}
+        style={[
+          styles.overlaySubmenu,
+          {
+            opacity: membersAnimation,
+            maxHeight: membersAnimation.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 58],
+            }),
+            transform: [
+              {
+                translateY: membersAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-8, 0],
+                }),
+              },
+            ],
+          },
+        ]}>
+        <Pressable
+          {...windowsPressableFocusProps}
+          onPress={() => onSelectSection('members', 'pending-approval')}
+          style={styles.overlaySubItem}>
+          <Text
+            style={getSubItemTextStyle(
+              currentPage === 'members' && currentSection === 'pending-approval',
+            )}>
+            {labels.pendingApproval}
+          </Text>
+        </Pressable>
       </Animated.View>
     </View>
   );

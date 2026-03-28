@@ -719,6 +719,7 @@ export function MobileAppShell() {
               academyName={session?.academyName ?? academyName}
               displayName={session?.displayName ?? displayName}
               isAuthenticated={isAuthenticated}
+              language={language}
               loginId={session?.loginId ?? loginId}
               palette={p}
               roleCode={session?.roleCode ?? ''}

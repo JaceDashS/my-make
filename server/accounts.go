@@ -105,6 +105,7 @@ type profileResponse struct {
 type pendingMemberRecord struct {
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email,omitempty"`
+	Phone       string `json:"phone,omitempty"`
 	LoginID     string `json:"loginId"`
 	RoleCode    string `json:"roleCode"`
 	CreatedAt   string `json:"createdAt"`
@@ -620,6 +621,7 @@ SELECT
     a.LOGIN_ID,
     s.DISPLAY_NAME,
     s.EMAIL,
+    s.PHONE,
     a.ROLE_CODE,
     s.CREATED_AT
 FROM MAIMEI_STUDENTS s
@@ -643,17 +645,19 @@ ORDER BY s.CREATED_AT DESC`, field.column)
 			loginID     string
 			displayName string
 			email       sql.NullString
+			phone       sql.NullString
 			roleCode    string
 			createdAt   time.Time
 		)
 
-		if err := rows.Scan(&loginID, &displayName, &email, &roleCode, &createdAt); err != nil {
+		if err := rows.Scan(&loginID, &displayName, &email, &phone, &roleCode, &createdAt); err != nil {
 			return pendingMembersResponse{}, fmt.Errorf("We couldn't search pending members right now. Please try again.")
 		}
 
 		members = append(members, pendingMemberRecord{
 			DisplayName: displayName,
 			Email:       nullStringValue(email),
+			Phone:       nullStringValue(phone),
 			LoginID:     loginID,
 			RoleCode:    roleCode,
 			CreatedAt:   createdAt.UTC().Format(time.RFC3339),

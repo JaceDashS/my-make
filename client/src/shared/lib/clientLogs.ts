@@ -8,6 +8,8 @@ const LOCALHOST_HOST = 'localhost';
 const LOOPBACK_HOST = '127.0.0.1';
 const DEFAULT_TIMEOUT_MS = 3000;
 const CLIENT_LOGS_PATH = '/api/dev-tools/client-logs';
+const RELAY_PORT = 8090;
+const RELAY_LOGS_PATH = '/logs';
 
 export type ClientRuntimeLogInput = {
   channel: string;
@@ -41,6 +43,12 @@ function buildCandidates(path: string) {
   return unique([devHostUrl, localhostUrl, loopbackUrl]);
 }
 
+function buildRelayCandidates() {
+  const relayLocalUrl = `http://${LOCALHOST_HOST}:${RELAY_PORT}${RELAY_LOGS_PATH}`;
+  const relayLoopbackUrl = `http://${LOOPBACK_HOST}:${RELAY_PORT}${RELAY_LOGS_PATH}`;
+  return unique([relayLocalUrl, relayLoopbackUrl]);
+}
+
 function createEntry(input: ClientRuntimeLogInput): ClientLogEntry {
   return {
     channel: input.channel,
@@ -71,9 +79,13 @@ async function postJson(url: string, body: string) {
 export async function sendClientRuntimeLog(input: ClientRuntimeLogInput) {
   const entry = createEntry(input);
   const body = JSON.stringify(entry);
+  const candidates =
+    Platform.OS === 'windows'
+      ? unique([...buildRelayCandidates(), ...buildCandidates(CLIENT_LOGS_PATH)])
+      : buildCandidates(CLIENT_LOGS_PATH);
   let lastError: Error | null = null;
 
-  for (const url of buildCandidates(CLIENT_LOGS_PATH)) {
+  for (const url of candidates) {
     try {
       await postJson(url, body);
       return;

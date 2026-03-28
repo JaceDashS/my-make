@@ -28,6 +28,8 @@ export function SidebarMenu({
     devHealth: string;
     general: string;
     login: string;
+    members: string;
+    pendingApproval: string;
     profile: string;
     register: string;
     settings: string;
@@ -44,6 +46,9 @@ export function SidebarMenu({
   const accountAnimation = useRef(
     new Animated.Value(page === 'account' ? 1 : 0),
   ).current;
+  const membersAnimation = useRef(
+    new Animated.Value(page === 'members' ? 1 : 0),
+  ).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -57,8 +62,13 @@ export function SidebarMenu({
         toValue: page === 'account' ? 1 : 0,
         useNativeDriver: false,
       }),
+      Animated.timing(membersAnimation, {
+        duration: 180,
+        toValue: page === 'members' ? 1 : 0,
+        useNativeDriver: false,
+      }),
     ]).start();
-  }, [accountAnimation, page, settingsAnimation]);
+  }, [accountAnimation, membersAnimation, page, settingsAnimation]);
 
   const getTopLevelTextStyle = () => [
     styles.sidebarItemLabel,
@@ -191,6 +201,45 @@ export function SidebarMenu({
                     palette={palette}
                   />
                 ) : null}
+              </View>
+            </Animated.View>
+            <Pressable
+              {...windowsPressableFocusProps}
+              onPress={() => onPageChange('members')}
+              style={[
+                styles.sidebarItem,
+                styles.sidebarItemSpaced,
+                {backgroundColor: palette.sidebarItem},
+            ]}>
+              <Text style={getTopLevelTextStyle()}>{labels.members}</Text>
+            </Pressable>
+            <Animated.View
+              pointerEvents={page === 'members' ? 'auto' : 'none'}
+              style={[
+                styles.sidebarSubmenuAnimated,
+                {
+                  opacity: membersAnimation,
+                  maxHeight: membersAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 64],
+                  }),
+                  transform: [
+                    {
+                      translateY: membersAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-8, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}>
+              <View style={styles.sidebarSubmenu}>
+                <SidebarSubItem
+                  active={section === 'pending-approval'}
+                  label={labels.pendingApproval}
+                  onPress={() => onSectionChange('pending-approval')}
+                  palette={palette}
+                />
               </View>
             </Animated.View>
           </>

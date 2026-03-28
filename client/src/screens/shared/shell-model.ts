@@ -1,10 +1,11 @@
 import type {HealthCheckResult, HealthCheckTarget} from '../../shared/lib/healthCheck';
 
-export type AppPage = 'settings' | 'account';
+export type AppPage = 'settings' | 'account' | 'members';
 export type SettingsSection = 'general' | 'dev-health';
 // `profile` はセクションとして作らないこと。
 // ログイン後も account > login の中で表示を切り替え、別セクション・別ルートへ分離しない。
 export type AccountSection = 'login' | 'register';
+export type MembersSection = 'pending-approval';
 export type LanguageMode = 'ja' | 'en';
 export type ThemeMode = 'light' | 'dark';
 

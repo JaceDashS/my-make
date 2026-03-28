@@ -655,6 +655,7 @@ export function WindowsDesktopShell() {
                   compact
                   displayName={session?.displayName ?? displayName}
                   isAuthenticated={isAuthenticated}
+                  language={language}
                   loginId={session?.loginId ?? loginId}
                   palette={p}
                   roleCode={session?.roleCode ?? ''}

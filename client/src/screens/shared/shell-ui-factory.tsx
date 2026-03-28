@@ -1,5 +1,5 @@
 import React from 'react';
-import {Pressable, Text, View} from 'react-native';
+import {Pressable, StyleProp, Text, TextStyle, View} from 'react-native';
 
 import {windowsPressableFocusProps} from '../../shared/ui/windowsFocusProps';
 
@@ -89,28 +89,34 @@ export function createShellUi<Palette extends CommonShellPalette>(styles: Common
   function BodyText({
     children,
     palette,
+    style,
   }: React.PropsWithChildren<{
     palette: Palette;
+    style?: StyleProp<TextStyle>;
   }>) {
-    return <Text style={[styles.bodyText, {color: palette.textMuted}]}>{children}</Text>;
+    return <Text style={[styles.bodyText, {color: palette.textMuted}, style]}>{children}</Text>;
   }
 
   function BodyStrong({
     children,
     palette,
+    style,
   }: React.PropsWithChildren<{
     palette: Palette;
+    style?: StyleProp<TextStyle>;
   }>) {
-    return <Text style={[styles.bodyStrong, {color: palette.text}]}>{children}</Text>;
+    return <Text style={[styles.bodyStrong, {color: palette.text}, style]}>{children}</Text>;
   }
 
   function FieldLabel({
     children,
     palette,
+    style,
   }: React.PropsWithChildren<{
     palette: Palette;
+    style?: StyleProp<TextStyle>;
   }>) {
-    return <Text style={[styles.fieldLabel, {color: palette.text}]}>{children}</Text>;
+    return <Text style={[styles.fieldLabel, {color: palette.text}, style]}>{children}</Text>;
   }
 
   return {

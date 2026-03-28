@@ -51,6 +51,8 @@ export const DESKTOP_SHELL_LABELS = {
     loginNotice: 'ログイン案内',
     login: 'ログイン',
     loginId: 'ログインID',
+    members: 'メンバー',
+    pendingApproval: '承認待ち',
     memberRegisterBody: 'Member アカウントを申請すると、root または admin の承認後に利用できます。',
     memberRegisterSuccess: 'Member 登録申請を送信しました。承認後にログインできます。',
     memberRole: '希望権限',
@@ -154,6 +156,8 @@ export const DESKTOP_SHELL_LABELS = {
     loginNotice: 'Login Notice',
     login: 'Login',
     loginId: 'Login ID',
+    members: 'Members',
+    pendingApproval: 'Pending Approval',
     memberRegisterBody:
       'Submit a member account request and sign in after a root or admin approves it.',
     memberRegisterSuccess:

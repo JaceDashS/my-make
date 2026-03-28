@@ -1,8 +1,9 @@
 import React from 'react';
-import {ScrollView, Text, TextInput, View} from 'react-native';
+import {Pressable, ScrollView, Text, TextInput, View} from 'react-native';
 
 import {ActionButton} from '../../../../../shared/components/ActionButton';
 import {
+  windowsPressableFocusProps,
   windowsTextInputFocusProps,
 } from '../../../../../shared/ui/windowsFocusProps';
 import {BodyStrong, BodyText, Card, FieldLabel, OptionChip} from '../../components/ui';
@@ -259,21 +260,197 @@ export function AccountSection({
     </Card>
   );
 
+  const editableFields = {
+    academyName: {label: texts.academyName, value: academyName, onChange: onAcademyNameChange},
+    displayName: {label: texts.displayName, value: displayName, onChange: onDisplayNameChange},
+    email: {label: texts.email, value: email, onChange: onEmailChange},
+    phone: {label: texts.phone, value: phone, onChange: onPhoneChange},
+    loginId: {label: texts.profileId, value: loginId, onChange: onLoginIdChange},
+    licenseCode: {label: texts.licenseCode, value: licenseCode, onChange: onLicenseCodeChange},
+  } as const;
+  type EditableFieldKey = keyof typeof editableFields;
+  const [editingField, setEditingField] = React.useState<EditableFieldKey | null>(null);
+  const [draftValue, setDraftValue] = React.useState('');
+
+  const startEditingField = (field: EditableFieldKey) => {
+    setEditingField(field);
+    setDraftValue(editableFields[field].value);
+  };
+
+  const cancelEditingField = () => {
+    setEditingField(null);
+    setDraftValue('');
+  };
+
+  const commitEditingField = () => {
+    if (!editingField) {
+      return;
+    }
+
+    const nextValue =
+      editingField === 'phone' ? formatPhoneNumber(draftValue) : draftValue.trim();
+    editableFields[editingField].onChange(nextValue);
+    cancelEditingField();
+  };
+
+  const renderProfileField = ({
+    editable = false,
+    fieldKey,
+    label,
+    value,
+  }: {
+    editable?: boolean;
+    fieldKey?: EditableFieldKey;
+    label: string;
+    value: string;
+  }) => {
+    const isEditing = editable && fieldKey != null && editingField === fieldKey;
+
+    return (
+      <View>
+        <View style={styles.profileFieldHeader}>
+          <View style={styles.profileFieldRow}>
+            <FieldLabel
+              palette={profileActivePalette}
+              style={styles.profileFieldLabel}>
+              {label}
+            </FieldLabel>
+            {!isEditing ? (
+              <BodyStrong palette={profileActivePalette} style={styles.profileFieldValue}>
+                {value || '-'}
+              </BodyStrong>
+            ) : null}
+          </View>
+          {editable && fieldKey != null ? (
+            <Pressable
+              {...windowsPressableFocusProps}
+              onPress={() => startEditingField(fieldKey)}
+              style={[
+                styles.profileIconButton,
+                {
+                  backgroundColor: palette.muted,
+                  borderColor: palette.border,
+                },
+              ]}>
+              <Text
+                style={[
+                  styles.profileIconButtonText,
+                  {color: profileActivePalette.text},
+                ]}>
+                ✎
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {isEditing ? (
+          <View style={styles.profileFieldEditor}>
+            <TextInput
+              {...windowsTextInputFocusProps}
+              autoCapitalize={fieldKey === 'email' || fieldKey === 'loginId' ? 'none' : 'sentences'}
+              keyboardType={fieldKey === 'email' ? 'email-address' : fieldKey === 'phone' ? 'phone-pad' : 'default'}
+              onChangeText={setDraftValue}
+              onSubmitEditing={commitEditingField}
+              placeholder={label}
+              placeholderTextColor={palette.textMuted}
+              returnKeyType="done"
+              style={[
+                styles.input,
+                styles.profileFieldInput,
+                {
+                  backgroundColor: palette.muted,
+                  borderColor: palette.border,
+                  color: profileActivePalette.text,
+                },
+              ]}
+              value={draftValue}
+            />
+            <View style={styles.profileFieldActions}>
+              <Pressable
+                {...windowsPressableFocusProps}
+                onPress={commitEditingField}
+                style={[
+                  styles.profileActionButton,
+                  {
+                    backgroundColor: palette.primary,
+                    borderColor: palette.primary,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.profileActionButtonText,
+                    {color: palette.primaryText},
+                  ]}>
+                  Save
+                </Text>
+              </Pressable>
+              <Pressable
+                {...windowsPressableFocusProps}
+                onPress={cancelEditingField}
+                style={[
+                  styles.profileActionButton,
+                  {
+                    backgroundColor: palette.muted,
+                    borderColor: palette.border,
+                  },
+                ]}>
+                <Text
+                  style={[
+                    styles.profileActionButtonText,
+                    {color: profileActivePalette.text},
+                  ]}>
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
   const renderProfileCards = () => (
     <>
       {/* `profile` は独立セクションではない。login 画面内の補助コンテナとしてのみ表示する。 */}
       <Card palette={profileActivePalette} title={texts.profile}>
         <BodyText palette={profileActivePalette}>{texts.profileBody}</BodyText>
-        <FieldLabel palette={profileActivePalette}>{texts.profileAcademy}</FieldLabel>
-        <BodyStrong palette={profileActivePalette}>{academyName}</BodyStrong>
-        <FieldLabel palette={profileActivePalette}>{texts.academyCode}</FieldLabel>
-        <BodyStrong palette={profileActivePalette}>{academyCode}</BodyStrong>
-        <FieldLabel palette={profileActivePalette}>{texts.profileId}</FieldLabel>
-        <BodyStrong palette={profileActivePalette}>{loginId}</BodyStrong>
-        <FieldLabel palette={profileActivePalette}>{texts.displayName}</FieldLabel>
-        <BodyStrong palette={profileActivePalette}>{displayName}</BodyStrong>
-        <FieldLabel palette={profileActivePalette}>{texts.profileRole}</FieldLabel>
-        <BodyStrong palette={profileActivePalette}>{roleCode}</BodyStrong>
+        {renderProfileField({
+          editable: true,
+          fieldKey: 'academyName',
+          label: texts.profileAcademy,
+          value: academyName,
+        })}
+        {renderProfileField({label: texts.academyCode, value: academyCode})}
+        {renderProfileField({
+          editable: true,
+          fieldKey: 'loginId',
+          label: texts.profileId,
+          value: loginId,
+        })}
+        {renderProfileField({
+          editable: true,
+          fieldKey: 'displayName',
+          label: texts.displayName,
+          value: displayName,
+        })}
+        {renderProfileField({
+          editable: true,
+          fieldKey: 'email',
+          label: texts.email,
+          value: email,
+        })}
+        {renderProfileField({
+          editable: true,
+          fieldKey: 'phone',
+          label: texts.phone,
+          value: phone,
+        })}
+        {renderProfileField({
+          editable: true,
+          fieldKey: 'licenseCode',
+          label: texts.licenseCode,
+          value: licenseCode,
+        })}
+        {renderProfileField({label: texts.profileRole, value: roleCode})}
       </Card>
       <Card palette={profileActivePalette} title={texts.protectedControls}>
         <BodyText palette={profileActivePalette}>{texts.protectedUnlocked}</BodyText>

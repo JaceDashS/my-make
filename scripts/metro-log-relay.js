@@ -19,6 +19,14 @@ function colorize(text, ...styles) {
 
 function colorForChannel(channel) {
   switch (channel) {
+    case 'client/windows/members':
+      return [ANSI.bold, ANSI.cyan];
+    case 'client/android/members':
+      return [ANSI.bold, ANSI.green];
+    case 'client/windows/accounts':
+      return [ANSI.bold, ANSI.blue];
+    case 'client/android/accounts':
+      return [ANSI.bold, ANSI.yellow];
     case 'WindowsDesktopShell':
       return [ANSI.bold, ANSI.cyan];
     case 'AccountSection':
