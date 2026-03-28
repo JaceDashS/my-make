@@ -133,6 +133,7 @@ export function MobileAppShell() {
       case 'Please choose a valid member role.':
         return t.memberRoleInvalid;
       case 'That login ID is already in use. Please choose another one.':
+      case 'That email address is already in use. Please choose another one.':
         return t.duplicateLoginId;
       case 'This academy already has a root account.':
         return t.rootAlreadyExists;
@@ -167,6 +168,7 @@ export function MobileAppShell() {
         return t.signInFailed;
       case 'We could not complete registration right now. Please try again.':
       case "We couldn't create your member account right now. Please try again.":
+      case "We couldn't create your member registration right now. Please try again.":
       case "We couldn't create the root account right now. Please try again.":
       case "We couldn't complete root registration right now. Please try again.":
       case "We couldn't finish registration right now. Please try again.":

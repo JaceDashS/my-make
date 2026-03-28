@@ -85,7 +85,7 @@ async function requestWithXhr(
 async function requestJson(
   method: 'GET' | 'POST',
   path: string,
-  payload: Record<string, string> | null,
+  payload: Record<string, string | undefined> | null,
   timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 ) {
   const candidates = buildCandidates(path);
@@ -155,6 +155,7 @@ export function logoutAccount() {
 }
 
 export function registerMemberAccount(payload: {
+  academyCode?: string;
   displayName: string;
   email: string;
   loginId: string;
