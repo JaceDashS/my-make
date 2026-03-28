@@ -1,4 +1,4 @@
-import type {LanguageMode} from '../../../shared/shell-model';
+import type { LanguageMode } from '../../../shared/shell-model';
 
 export const MOBILE_SHELL_LABELS = {
   ja: {
@@ -9,8 +9,7 @@ export const MOBILE_SHELL_LABELS = {
     allChecksHint: 'ローカル、Docker、クラウドの順で確認します。',
     cloud: 'クラウドサーバー',
     devHealth: '開発者オプション',
-    devHealthBody:
-      '現在のモバイルクライアントから各サーバー接続を確認します。',
+    devHealthBody: '現在のモバイルクライアントから各サーバー接続を確認します。',
     devUnmountLoginContainer: 'ログインコンテナをアンマウント',
     devUnmountLoginContainerHint:
       'ログイントグルで非表示時に login コンテナをツリーから外します。',
@@ -21,7 +20,11 @@ export const MOBILE_SHELL_LABELS = {
     devLicenseCreateHint: '未割り当てライセンスを 1 件発行します。',
     devResult: '開発者アクション結果',
     devTableInit: 'テーブル初期化',
-    devTableInitHint: '管理対象テーブルを再作成し、マイグレーションを順に適用します。',
+    devTableInitHint:
+      '管理対象テーブルを再作成し、マイグレーションを順に適用します。',
+    devTableInitAndSeed: 'テーブル初期化とテストデータ注入',
+    devTableInitAndSeedHint:
+      'テーブルを初期化したあと、Test Academy のテストデータをまとめて投入します。',
     dark: 'ダーク',
     docker: 'Dockerサーバー',
     env: '環境',
@@ -32,14 +35,17 @@ export const MOBILE_SHELL_LABELS = {
     debugLog: 'デバッグログ',
     displayName: '表示名',
     email: 'メール',
-    guestHint: '登録したアカウントでログインするとプロフィールと保護コントロールを確認できます。',
+    guestHint:
+      '登録したアカウントでログインするとプロフィールと保護コントロールを確認できます。',
     invalid: 'アカウントIDまたはパスワードが正しくありません。',
     accountInactive: 'このアカウントは無効です。',
     accountOnHold: 'このアカウントは現在保留中です。',
     accountPending: 'このアカウントは承認待ちです。',
     academyInactive: '所属塾は現在利用できません。',
-    academyCreateFailed: '塾を作成できませんでした。しばらくしてからもう一度お試しください。',
-    duplicateLoginId: 'このログインIDは既に使用されています。別のIDを入力してください。',
+    academyCreateFailed:
+      '塾を作成できませんでした。しばらくしてからもう一度お試しください。',
+    duplicateLoginId:
+      'このログインIDは既に使用されています。別のIDを入力してください。',
     language: '言語',
     lastChecked: '最終確認',
     light: 'ライト',
@@ -50,16 +56,20 @@ export const MOBILE_SHELL_LABELS = {
     loginId: 'ログインID',
     members: 'メンバー',
     pendingApproval: '承認待ち',
-    memberRegisterBody: 'Member アカウントを申請すると、root または admin の承認後に利用できます。',
-    memberRegisterSuccess: 'Member 登録申請を送信しました。承認後にログインできます。',
+    memberRegisterBody:
+      'Member アカウントを申請すると、root または admin の承認後に利用できます。',
+    memberRegisterSuccess:
+      'Member 登録申請を送信しました。承認後にログインできます。',
     memberRole: '希望権限',
     memberRoleAdmin: 'Admin',
     memberRoleStudent: 'Student',
     memberRoleTeacher: 'Teacher',
     memberRoleInvalid: '有効な権限を選択してください。',
-    noAccount: 'まだ作成されたアカウントがありません。先に登録を完了してください。',
+    noAccount:
+      'まだ作成されたアカウントがありません。先に登録を完了してください。',
     password: 'パスワード',
-    passwordSetupFailed: 'パスワードを準備できませんでした。しばらくしてからもう一度お試しください。',
+    passwordSetupFailed:
+      'パスワードを準備できませんでした。しばらくしてからもう一度お試しください。',
     phone: '携帯番号',
     profile: 'プロフィール',
     profileAcademy: '所属塾',
@@ -71,21 +81,24 @@ export const MOBILE_SHELL_LABELS = {
     protectedSignin: '保護設定にサインイン',
     protectedUnlocked: '現在のアカウントで保護設定を利用できます。',
     registerRoot: 'Root 登録',
-    registerRootBody: 'ライセンス、塾情報、root アカウント情報をまとめて登録します。',
+    registerRootBody:
+      'ライセンス、塾情報、root アカウント情報をまとめて登録します。',
     registerType: '登録タイプ',
     registerTypeUser: 'Member',
     registerTypeRoot: 'Root',
     register: '登録',
     registerBody: '登録タイプを選んで必要な情報を入力します。',
     registerSuccess: 'Root アカウントを作成しました。',
-    registrationBusy: '現在登録を完了できません。しばらくしてからもう一度お試しください。',
+    registrationBusy:
+      '現在登録を完了できません。しばらくしてからもう一度お試しください。',
     result: '結果',
     rootLoginId: 'root ログインID',
     rootAlreadyExists: 'この塾にはすでに root アカウントがあります。',
     settings: '設定',
     signIn: 'サインイン',
     testLogin: 'テストログイン',
-    testLoginBody: '一時ボタンでログイン状態とプロフィール遷移を手動確認します。',
+    testLoginBody:
+      '一時ボタンでログイン状態とプロフィール遷移を手動確認します。',
     testMoveToLogin: 'ログイン画面へ戻る',
     testMoveToProfile: 'プロフィールへ移動',
     signOut: 'サインアウト',
@@ -99,7 +112,8 @@ export const MOBILE_SHELL_LABELS = {
     licenseRenewUnavailable: 'ライセンスは有効期限前のみ延長できます。',
     requiredField: 'すべての項目を入力してください。',
     passwordMismatch: 'パスワードが一致しません。',
-    signInFailed: '現在サインインできません。しばらくしてからもう一度お試しください。',
+    signInFailed:
+      '現在サインインできません。しばらくしてからもう一度お試しください。',
   },
   en: {
     academyCode: 'Academy Code',
@@ -109,8 +123,7 @@ export const MOBILE_SHELL_LABELS = {
     allChecksHint: 'Run local, Docker, and cloud checks in sequence.',
     cloud: 'Cloud Server',
     devHealth: 'Developer Options',
-    devHealthBody:
-      'Check connectivity to each server from the mobile client.',
+    devHealthBody: 'Check connectivity to each server from the mobile client.',
     devUnmountLoginContainer: 'Unmount Login Container',
     devUnmountLoginContainerHint:
       'Remove the login container from the tree when its toggle hides it.',
@@ -123,6 +136,9 @@ export const MOBILE_SHELL_LABELS = {
     devTableInit: 'Initialize Tables',
     devTableInitHint:
       'Recreate the managed tables and apply migrations in order.',
+    devTableInitAndSeed: 'Initialize and Inject Test Data',
+    devTableInitAndSeedHint:
+      'Recreate the tables and then load the fixed Test Academy dataset.',
     dark: 'Dark',
     docker: 'Docker Server',
     env: 'Env',
@@ -140,8 +156,10 @@ export const MOBILE_SHELL_LABELS = {
     accountOnHold: 'This account is currently on hold.',
     accountPending: 'This account is pending approval.',
     academyInactive: 'The academy for this account is inactive.',
-    academyCreateFailed: 'We could not create the academy right now. Please try again.',
-    duplicateLoginId: 'That login ID is already in use. Please choose another one.',
+    academyCreateFailed:
+      'We could not create the academy right now. Please try again.',
+    duplicateLoginId:
+      'That login ID is already in use. Please choose another one.',
     language: 'Language',
     lastChecked: 'Last checked',
     light: 'Light',
@@ -174,7 +192,8 @@ export const MOBILE_SHELL_LABELS = {
     protectedControls: 'Protected controls',
     protectedLocked: 'Locked until you sign in.',
     protectedSignin: 'Sign in to protected settings',
-    protectedUnlocked: 'Protected settings are available for the current account.',
+    protectedUnlocked:
+      'Protected settings are available for the current account.',
     registerRoot: 'Root Register',
     registerRootBody:
       'Register the license, academy details, and root account in one flow.',
@@ -184,25 +203,29 @@ export const MOBILE_SHELL_LABELS = {
     register: 'Register',
     registerBody: 'Choose a register type and enter the required information.',
     registerSuccess: 'Your root account has been created.',
-    registrationBusy: 'We could not complete registration right now. Please try again.',
+    registrationBusy:
+      'We could not complete registration right now. Please try again.',
     result: 'Result',
     rootLoginId: 'Root Login ID',
     rootAlreadyExists: 'This academy already has a root account.',
     settings: 'Settings',
     signIn: 'Sign in',
     testLogin: 'Test Login',
-    testLoginBody: 'Use the temporary buttons to verify signed-in state and profile navigation manually.',
+    testLoginBody:
+      'Use the temporary buttons to verify signed-in state and profile navigation manually.',
     testMoveToLogin: 'Back to Login',
     testMoveToProfile: 'Go to Profile',
     signOut: 'Sign out',
     theme: 'Theme',
     unlocked: 'Protected settings are available because you are signed in.',
     licenseCode: 'License Code',
-    licenseAssigned: 'This license has already been assigned to another academy.',
+    licenseAssigned:
+      'This license has already been assigned to another academy.',
     licenseExpired: 'This license has expired.',
     licenseNotFound: 'That license code could not be found.',
     licenseUnavailable: 'This license is not available for registration.',
-    licenseRenewUnavailable: 'This license can only be renewed before it expires.',
+    licenseRenewUnavailable:
+      'This license can only be renewed before it expires.',
     requiredField: 'Fill in all fields.',
     passwordMismatch: 'Passwords do not match.',
     signInFailed: 'We could not sign you in right now. Please try again.',

@@ -1,7 +1,7 @@
-import {Platform} from 'react-native';
+import { Platform } from 'react-native';
 
-import {RUNTIME_CONFIG} from '../../config/runtime/runtime-config';
-import {unique} from './unique';
+import { RUNTIME_CONFIG } from '../../config/runtime/runtime-config';
+import { unique } from './unique';
 
 const EMULATOR_HOST = '10.0.2.2';
 const LOCALHOST_HOST = 'localhost';
@@ -9,8 +9,13 @@ const LOOPBACK_HOST = '127.0.0.1';
 const REQUEST_TIMEOUT_MS = 60000;
 
 export type DevToolsResult = {
+  academyName?: string;
   message: string;
   migrations?: string[];
+  pendingAdmins?: number;
+  pendingStudents?: number;
+  pendingTeachers?: number;
+  rootLoginId?: string;
   status: string;
   error?: string;
   licenseCode?: string;
@@ -71,7 +76,7 @@ async function postJson(url: string) {
   }
 
   const response = await Promise.race([
-    fetch(url, {method: 'POST'}),
+    fetch(url, { method: 'POST' }),
     new Promise<never>((_, reject) => {
       setTimeout(() => reject(createTimeoutError()), REQUEST_TIMEOUT_MS);
     }),
@@ -112,6 +117,10 @@ async function runDevToolsAction(path: string): Promise<DevToolsResult> {
 
 export function initializeTables() {
   return runDevToolsAction(RUNTIME_CONFIG.CLIENT_DEV_INIT_TABLES_PATH);
+}
+
+export function initializeAndInjectTestData() {
+  return runDevToolsAction(RUNTIME_CONFIG.CLIENT_DEV_INIT_AND_SEED_PATH);
 }
 
 export function createLicense() {

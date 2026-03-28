@@ -1,16 +1,24 @@
-import React, {useState} from 'react';
-import {Alert, ScrollView, Text, View} from 'react-native';
+import React, { useState } from 'react';
+import { Alert, ScrollView, Text, View } from 'react-native';
 
-import {RUNTIME_CONFIG} from '../../../../../config/runtime/runtime-config';
-import {ActionButton} from '../../../../../shared/components/ActionButton';
-import {HealthCheckButton} from '../../../../../shared/components/HealthCheckButton';
-import {copyText} from '../../../../../shared/lib/clipboard';
-import {createLicense, initializeTables, type DevToolsResult} from '../../../../../shared/lib/devTools';
-import {getHealthCheckCandidates, type HealthCheckTarget} from '../../../../../shared/lib/healthCheck';
-import type {TargetState} from '../../../../shared/shell-model';
-import {BodyStrong, BodyText, Card} from '../../components/ui';
-import {mobileShellStyles as styles} from '../../config/styles';
-import type {MobileShellPalette} from '../../model/types';
+import { RUNTIME_CONFIG } from '../../../../../config/runtime/runtime-config';
+import { ActionButton } from '../../../../../shared/components/ActionButton';
+import { HealthCheckButton } from '../../../../../shared/components/HealthCheckButton';
+import { copyText } from '../../../../../shared/lib/clipboard';
+import {
+  createLicense,
+  initializeAndInjectTestData,
+  initializeTables,
+  type DevToolsResult,
+} from '../../../../../shared/lib/devTools';
+import {
+  getHealthCheckCandidates,
+  type HealthCheckTarget,
+} from '../../../../../shared/lib/healthCheck';
+import type { TargetState } from '../../../../shared/shell-model';
+import { BodyStrong, BodyText, Card } from '../../components/ui';
+import { mobileShellStyles as styles } from '../../config/styles';
+import type { MobileShellPalette } from '../../model/types';
 
 export function DevHealthSection({
   labels,
@@ -32,11 +40,19 @@ export function DevHealthSection({
     devResult: string;
     devTableInit: string;
     devTableInitHint: string;
+    devTableInitAndSeed: string;
+    devTableInitAndSeedHint: string;
     docker: string;
     env: string;
     lastChecked: string;
     local: string;
+    licenseCode: string;
     result: string;
+    academyName: string;
+    rootLoginId: string;
+    memberRoleStudent: string;
+    memberRoleTeacher: string;
+    memberRoleAdmin: string;
   };
   loadingTarget: HealthCheckTarget | null;
   onRunAll: () => Promise<void>;
@@ -45,9 +61,9 @@ export function DevHealthSection({
   targetStates: Record<HealthCheckTarget, TargetState>;
 }) {
   const [actionResult, setActionResult] = useState<DevToolsResult | null>(null);
-  const [loadingAction, setLoadingAction] = useState<'tables' | 'license' | null>(
-    null,
-  );
+  const [loadingAction, setLoadingAction] = useState<
+    'tables' | 'seed' | 'license' | null
+  >(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const resetTargetMessage = (target: HealthCheckTarget) => {
@@ -61,14 +77,17 @@ export function DevHealthSection({
   };
 
   const runDeveloperAction = async (
-    action: 'tables' | 'license',
+    action: 'tables' | 'seed' | 'license',
     runner: () => Promise<DevToolsResult>,
   ) => {
     setLoadingAction(action);
     setCopyMessage(null);
-    const result = await runner();
-    setActionResult(result);
-    setLoadingAction(null);
+    try {
+      const result = await runner();
+      setActionResult(result);
+    } finally {
+      setLoadingAction(null);
+    }
   };
 
   const copyLicenseCode = async (licenseCode: string) => {
@@ -86,7 +105,8 @@ export function DevHealthSection({
       <Card palette={palette} title={labels.devHealth}>
         <BodyText palette={palette}>{labels.devHealthBody}</BodyText>
         <BodyStrong palette={palette}>
-          {labels.env}: {RUNTIME_CONFIG.APP_ENV} / Host: {RUNTIME_CONFIG.DEV_HOST_IP}
+          {labels.env}: {RUNTIME_CONFIG.APP_ENV} / Host:{' '}
+          {RUNTIME_CONFIG.DEV_HOST_IP}
         </BodyStrong>
       </Card>
       <ActionButton
@@ -99,6 +119,21 @@ export function DevHealthSection({
         }}
         style={styles.primaryAction}
         textColor={palette.primaryText}
+        hintStyle={styles.primaryActionHint}
+        titleStyle={styles.primaryActionTitle}
+      />
+      <ActionButton
+        backgroundColor={palette.soft}
+        hint={labels.devTableInitAndSeedHint}
+        isLoading={loadingAction === 'seed'}
+        label={labels.devTableInitAndSeed}
+        onPress={() => {
+          runDeveloperAction('seed', initializeAndInjectTestData).catch(
+            () => undefined,
+          );
+        }}
+        style={styles.primaryAction}
+        textColor={palette.text}
         hintStyle={styles.primaryActionHint}
         titleStyle={styles.primaryActionTitle}
       />
@@ -118,9 +153,21 @@ export function DevHealthSection({
       {actionResult ? (
         <Card palette={palette} title={labels.devResult}>
           <BodyStrong palette={palette}>{actionResult.message}</BodyStrong>
+          {actionResult.academyName ? (
+            <BodyText palette={palette}>
+              {labels.academyName}: {actionResult.academyName}
+            </BodyText>
+          ) : null}
+          {actionResult.rootLoginId ? (
+            <BodyText palette={palette}>
+              {labels.rootLoginId}: {actionResult.rootLoginId}
+            </BodyText>
+          ) : null}
           {actionResult.licenseCode ? (
             <>
-              <BodyText palette={palette}>License Code: {actionResult.licenseCode}</BodyText>
+              <BodyText palette={palette}>
+                {labels.licenseCode}: {actionResult.licenseCode}
+              </BodyText>
               <View style={styles.optionRow}>
                 <ActionButton
                   backgroundColor={palette.soft}
@@ -141,7 +188,24 @@ export function DevHealthSection({
             </>
           ) : null}
           {actionResult.expiresAt ? (
-            <BodyText palette={palette}>Expires At: {actionResult.expiresAt}</BodyText>
+            <BodyText palette={palette}>
+              Expires At: {actionResult.expiresAt}
+            </BodyText>
+          ) : null}
+          {actionResult.pendingStudents != null ? (
+            <BodyText palette={palette}>
+              {labels.memberRoleStudent}: {actionResult.pendingStudents}
+            </BodyText>
+          ) : null}
+          {actionResult.pendingTeachers != null ? (
+            <BodyText palette={palette}>
+              {labels.memberRoleTeacher}: {actionResult.pendingTeachers}
+            </BodyText>
+          ) : null}
+          {actionResult.pendingAdmins != null ? (
+            <BodyText palette={palette}>
+              {labels.memberRoleAdmin}: {actionResult.pendingAdmins}
+            </BodyText>
           ) : null}
           {actionResult.migrations?.length ? (
             <BodyText palette={palette}>
@@ -149,9 +213,7 @@ export function DevHealthSection({
             </BodyText>
           ) : null}
           {actionResult.error ? (
-            <Text style={styles.errorText}>
-              {actionResult.error}
-            </Text>
+            <Text style={styles.errorText}>{actionResult.error}</Text>
           ) : null}
         </Card>
       ) : null}
@@ -167,11 +229,13 @@ export function DevHealthSection({
         hintStyle={styles.primaryActionHint}
         titleStyle={styles.primaryActionTitle}
       />
-      {([
-        ['local', labels.local],
-        ['docker', labels.docker],
-        ['render', labels.cloud],
-      ] as const).map(([target, title]) => {
+      {(
+        [
+          ['local', labels.local],
+          ['docker', labels.docker],
+          ['render', labels.cloud],
+        ] as const
+      ).map(([target, title]) => {
         const state = targetStates[target];
         const candidates = getHealthCheckCandidates(target);
         const result = state.result;
@@ -186,25 +250,25 @@ export function DevHealthSection({
                 onRunTarget(target).catch(() => undefined);
               }}
             />
-            <View style={[styles.resultPanel, {backgroundColor: palette.soft}]}>
-              <Text style={[styles.resultLabel, {color: palette.primary}]}>
+            <View
+              style={[styles.resultPanel, { backgroundColor: palette.soft }]}
+            >
+              <Text style={[styles.resultLabel, { color: palette.primary }]}>
                 {labels.result}
               </Text>
               <BodyText palette={palette}>
                 {state.message || resetTargetMessage(target)}
               </BodyText>
-              <Text style={[styles.metaText, {color: palette.textMuted}]}>
+              <Text style={[styles.metaText, { color: palette.textMuted }]}>
                 {labels.lastChecked}: {state.checkedAt ?? 'Not yet'}
               </Text>
-              <Text style={[styles.metaText, {color: palette.textMuted}]}>
+              <Text style={[styles.metaText, { color: palette.textMuted }]}>
                 {result?.ok
                   ? `URL: ${result.url}\nStatus: ${result.status}`
                   : `Candidates: ${candidates.join(', ')}`}
               </Text>
               {!result?.ok && result?.error ? (
-                <Text style={styles.errorText}>
-                  {result.error}
-                </Text>
+                <Text style={styles.errorText}>{result.error}</Text>
               ) : null}
             </View>
           </Card>

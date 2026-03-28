@@ -16,6 +16,12 @@ import (
 
 const (
 	defaultLicenseDuration = 365 * 24 * time.Hour
+	seededAcademyName      = "Test Academy"
+	seededRootLoginID      = "root"
+	seededRootDisplayName  = "root"
+	seededRootEmail        = "root@example.com"
+	seededRootPassword     = "root"
+	seededSeedMemberCount  = 5
 )
 
 var managedDropStatements = []string{
@@ -37,15 +43,21 @@ var managedDropStatements = []string{
 }
 
 type devToolsResponse struct {
-	Status      string   `json:"status"`
-	Message     string   `json:"message"`
-	Migrations  []string `json:"migrations,omitempty"`
-	LicenseCode string   `json:"licenseCode,omitempty"`
-	ExpiresAt   string   `json:"expiresAt,omitempty"`
+	Status          string   `json:"status"`
+	Message         string   `json:"message"`
+	Migrations      []string `json:"migrations,omitempty"`
+	LicenseCode     string   `json:"licenseCode,omitempty"`
+	ExpiresAt       string   `json:"expiresAt,omitempty"`
+	AcademyName     string   `json:"academyName,omitempty"`
+	RootLoginID     string   `json:"rootLoginId,omitempty"`
+	PendingStudents int      `json:"pendingStudents,omitempty"`
+	PendingTeachers int      `json:"pendingTeachers,omitempty"`
+	PendingAdmins   int      `json:"pendingAdmins,omitempty"`
 }
 
 type devToolsRunner interface {
 	InitializeTables(ctx context.Context) (devToolsResponse, error)
+	InitializeTablesAndInjectTestData(ctx context.Context) (devToolsResponse, error)
 	CreateLicense(ctx context.Context) (devToolsResponse, error)
 }
 
@@ -127,6 +139,38 @@ func (s *devToolsService) InitializeTables(ctx context.Context) (devToolsRespons
 	}, nil
 }
 
+func (s *devToolsService) InitializeTablesAndInjectTestData(ctx context.Context) (devToolsResponse, error) {
+	logServerRuntime("dev-tools", "init-and-inject:initialize:start", map[string]any{
+		"academyName": seededAcademyName,
+	})
+
+	result, err := s.InitializeTables(ctx)
+	if err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:initialize:success", map[string]any{
+		"academyName": seededAcademyName,
+		"migrations":  len(result.Migrations),
+	})
+
+	seedResult, err := s.injectTestData(ctx)
+	if err != nil {
+		return devToolsResponse{}, err
+	}
+
+	result.Message = "Managed tables have been initialized and test data has been injected."
+	result.LicenseCode = seedResult.LicenseCode
+	result.ExpiresAt = seedResult.ExpiresAt
+	result.AcademyName = seedResult.AcademyName
+	result.RootLoginID = seedResult.RootLoginID
+	result.PendingStudents = seedResult.PendingStudents
+	result.PendingTeachers = seedResult.PendingTeachers
+	result.PendingAdmins = seedResult.PendingAdmins
+
+	return result, nil
+}
+
 func (s *devToolsService) CreateLicense(ctx context.Context) (devToolsResponse, error) {
 	if s == nil || s.db == nil {
 		return devToolsResponse{}, fmt.Errorf("oracle dev tools service is not configured")
@@ -172,6 +216,377 @@ INSERT INTO MAIMEI_LICENSES (
 	}
 
 	return devToolsResponse{}, fmt.Errorf("create license: could not generate a unique license code")
+}
+
+func (s *devToolsService) injectTestData(ctx context.Context) (devToolsResponse, error) {
+	if s == nil || s.db == nil {
+		return devToolsResponse{}, fmt.Errorf("oracle dev tools service is not configured")
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:start", map[string]any{
+		"academyName": seededAcademyName,
+		"rootLoginId": seededRootLoginID,
+	})
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return devToolsResponse{}, fmt.Errorf("start test data injection: %w", err)
+	}
+
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	now := time.Now
+	if s.now != nil {
+		now = s.now
+	}
+
+	expiresAt := now().Add(defaultLicenseDuration).UTC()
+	licenseCode, err := createSeedLicense(ctx, tx, expiresAt)
+	if err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:license-created", map[string]any{
+		"expiresAt":   expiresAt.Format(time.RFC3339),
+		"licenseCode": licenseCode,
+	})
+
+	academyCode, err := createSeedAcademy(ctx, tx, seededAcademyName)
+	if err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:academy-created", map[string]any{
+		"academyCode": academyCode,
+		"academyName": seededAcademyName,
+	})
+
+	rootPhone, err := generateSeedPhoneNumber()
+	if err != nil {
+		return devToolsResponse{}, fmt.Errorf("generate root phone number: %w", err)
+	}
+
+	rootStaffID, err := nextSequenceValue(ctx, tx, "MAIMEI_STAFF_SEQ")
+	if err != nil {
+		return devToolsResponse{}, fmt.Errorf("prepare root account: %w", err)
+	}
+
+	rootPasswordHash, err := hashPassword(seededRootPassword)
+	if err != nil {
+		return devToolsResponse{}, fmt.Errorf("prepare root password: %w", err)
+	}
+
+	if err := insertSeedRootStaff(ctx, tx, rootStaffID, academyCode, seededRootEmail, rootPhone, seededRootDisplayName); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	if err := insertSeedRootAccount(ctx, tx, seededRootLoginID, rootPasswordHash, rootStaffID); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:root-created", map[string]any{
+		"academyCode": academyCode,
+		"email":       seededRootEmail,
+		"rootLoginId": seededRootLoginID,
+	})
+
+	if err := assignSeedLicense(ctx, tx, academyCode, licenseCode); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:license-assigned", map[string]any{
+		"academyCode": academyCode,
+		"licenseCode": licenseCode,
+	})
+
+	if err := seedPendingMembers(ctx, tx, "STUDENT", "student"); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:pending-members-created", map[string]any{
+		"count":    seededSeedMemberCount,
+		"roleCode": "STUDENT",
+	})
+
+	if err := seedPendingMembers(ctx, tx, "TEACHER", "teacher"); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:pending-members-created", map[string]any{
+		"count":    seededSeedMemberCount,
+		"roleCode": "TEACHER",
+	})
+
+	if err := seedPendingMembers(ctx, tx, "ADMIN", "admin"); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:pending-members-created", map[string]any{
+		"count":    seededSeedMemberCount,
+		"roleCode": "ADMIN",
+	})
+
+	if err := tx.Commit(); err != nil {
+		return devToolsResponse{}, fmt.Errorf("complete test data injection: %w", err)
+	}
+	tx = nil
+
+	result := devToolsResponse{
+		Status:          "ok",
+		Message:         "Test data has been injected.",
+		LicenseCode:     licenseCode,
+		ExpiresAt:       expiresAt.Format(time.RFC3339),
+		AcademyName:     seededAcademyName,
+		RootLoginID:     seededRootLoginID,
+		PendingStudents: seededSeedMemberCount,
+		PendingTeachers: seededSeedMemberCount,
+		PendingAdmins:   seededSeedMemberCount,
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:success", map[string]any{
+		"academyName":     result.AcademyName,
+		"licenseCode":     result.LicenseCode,
+		"pendingAdmins":   result.PendingAdmins,
+		"pendingStudents": result.PendingStudents,
+		"pendingTeachers": result.PendingTeachers,
+		"rootLoginId":     result.RootLoginID,
+	})
+
+	return result, nil
+}
+
+func createSeedLicense(ctx context.Context, tx *sql.Tx, expiresAt time.Time) (string, error) {
+	for range 5 {
+		licenseCode, err := generateLicenseCode()
+		if err != nil {
+			return "", fmt.Errorf("generate license code: %w", err)
+		}
+
+		query := `
+INSERT INTO MAIMEI_LICENSES (
+    LICENSE_CODE,
+    STATUS_CODE,
+    EXPIRES_AT
+) VALUES (
+    :1,
+    'UNASSIGNED',
+    :2
+)`
+		if _, err := tx.ExecContext(ctx, query, licenseCode, expiresAt); err != nil {
+			if isUniqueConstraintError(err) {
+				continue
+			}
+			return "", fmt.Errorf("create seed license: %w", err)
+		}
+
+		return licenseCode, nil
+	}
+
+	return "", fmt.Errorf("create seed license: could not generate a unique license code")
+}
+
+func createSeedAcademy(ctx context.Context, tx *sql.Tx, academyName string) (string, error) {
+	insertAcademy := `
+INSERT INTO MAIMEI_ACADEMIES (
+    ACADEMY_NAME,
+    STATUS_CODE
+) VALUES (
+    :1,
+    'ACTIVE'
+)`
+	if _, err := tx.ExecContext(ctx, insertAcademy, academyName); err != nil {
+		return "", fmt.Errorf("create seed academy: %w", err)
+	}
+
+	var academyCode string
+	readAcademyCode := `
+SELECT ACADEMY_CODE
+  FROM MAIMEI_ACADEMIES
+ WHERE ACADEMY_NAME = :1`
+	if err := tx.QueryRowContext(ctx, readAcademyCode, academyName).Scan(&academyCode); err != nil {
+		return "", fmt.Errorf("create seed academy: %w", err)
+	}
+
+	return academyCode, nil
+}
+
+func insertSeedRootStaff(
+	ctx context.Context,
+	tx *sql.Tx,
+	staffID int64,
+	academyCode string,
+	email string,
+	phone string,
+	displayName string,
+) error {
+	insertRootStaff := `
+INSERT INTO MAIMEI_STAFF (
+    STAFF_ID,
+    ACADEMY_CODE,
+    EMAIL,
+    PHONE,
+    DISPLAY_NAME,
+    ROLE_CODE,
+    STATUS_CODE
+) VALUES (
+    :1,
+    :2,
+    :3,
+    :4,
+    :5,
+    'ROOT',
+    'ACTIVE'
+)`
+	if _, err := tx.ExecContext(ctx, insertRootStaff, staffID, academyCode, email, phone, displayName); err != nil {
+		return fmt.Errorf("create seed root staff: %w", err)
+	}
+
+	return nil
+}
+
+func insertSeedRootAccount(ctx context.Context, tx *sql.Tx, loginID string, passwordHash string, staffID int64) error {
+	insertRootAccount := `
+INSERT INTO MAIMEI_ACCOUNTS (
+    LOGIN_ID,
+    PASSWORD_HASH,
+    ROLE_CODE,
+    STATUS_CODE,
+    STAFF_ID
+) VALUES (
+    :1,
+    :2,
+    'ROOT',
+    'ACTIVE',
+    :3
+)`
+	if _, err := tx.ExecContext(ctx, insertRootAccount, loginID, passwordHash, staffID); err != nil {
+		if isAccountUniqueConstraintError(err, constraintAccountsLoginID) {
+			return fmt.Errorf("That login ID is already in use. Please choose another one.")
+		}
+		return fmt.Errorf("create seed root account: %w", err)
+	}
+
+	return nil
+}
+
+func assignSeedLicense(ctx context.Context, tx *sql.Tx, academyCode string, licenseCode string) error {
+	assignLicense := `
+UPDATE MAIMEI_LICENSES
+   SET ACADEMY_CODE = :1,
+       STATUS_CODE = 'ACTIVE'
+ WHERE LICENSE_CODE = :2
+   AND ACADEMY_CODE IS NULL
+   AND STATUS_CODE = 'UNASSIGNED'
+   AND EXPIRES_AT > SYSTIMESTAMP`
+	result, err := tx.ExecContext(ctx, assignLicense, academyCode, licenseCode)
+	if err != nil {
+		return fmt.Errorf("assign seed license: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("assign seed license: %w", err)
+	}
+
+	if rowsAffected != 1 {
+		return fmt.Errorf("assign seed license: could not assign license to academy")
+	}
+
+	return nil
+}
+
+func seedPendingMembers(ctx context.Context, tx *sql.Tx, roleCode string, loginPrefix string) error {
+	for index := 1; index <= seededSeedMemberCount; index++ {
+		loginID := fmt.Sprintf("%s%d", loginPrefix, index)
+		phone, err := generateSeedPhoneNumber()
+		if err != nil {
+			return fmt.Errorf("generate %s phone number: %w", roleCode, err)
+		}
+
+		if err := seedPendingMember(ctx, tx, roleCode, loginID, phone); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func seedPendingMember(ctx context.Context, tx *sql.Tx, roleCode string, loginID string, phone string) error {
+	spec, err := resolvePendingMemberRoleSpec(roleCode)
+	if err != nil {
+		return err
+	}
+
+	input := memberRegisterInput{
+		LoginID:           loginID,
+		DisplayName:       loginID,
+		Email:             fmt.Sprintf("%s@example.com", loginID),
+		Phone:             phone,
+		Password:          loginID,
+		RequestedRoleCode: roleCode,
+	}
+
+	passwordHash, err := hashPassword(input.Password)
+	if err != nil {
+		return fmt.Errorf("prepare %s password: %w", roleCode, err)
+	}
+
+	entityID, err := insertPendingMemberProfile(ctx, tx, spec, input)
+	if err != nil {
+		return err
+	}
+
+	if err := createPendingMemberAccount(
+		ctx,
+		tx,
+		input.LoginID,
+		passwordHash,
+		spec.roleCode,
+		spec.accountFKColumn,
+		entityID,
+	); err != nil {
+		if err.Error() == "That login ID is already in use. Please choose another one." {
+			return err
+		}
+		return fmt.Errorf("%s", spec.insertAccountError)
+	}
+
+	return nil
+}
+
+func generateSeedPhoneNumber() (string, error) {
+	prefix, err := randomDigits(4)
+	if err != nil {
+		return "", err
+	}
+
+	suffix, err := randomDigits(4)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("010-%s-%s", prefix, suffix), nil
+}
+
+func randomDigits(length int) (string, error) {
+	if length <= 0 {
+		return "", fmt.Errorf("invalid digit length")
+	}
+
+	buf := make([]byte, length)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+
+	for i := range buf {
+		buf[i] = '0' + (buf[i] % 10)
+	}
+
+	return string(buf), nil
 }
 
 func loadMigrationFiles(migrationsDir string) ([]string, error) {

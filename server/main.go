@@ -91,6 +91,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/members/pending/approve", a.handleApprovePendingMember)
 	mux.HandleFunc("/api/licenses/renew", a.handleRenewLicense)
 	mux.HandleFunc("/api/dev-tools/tables/init", a.handleInitializeTables)
+	mux.HandleFunc("/api/dev-tools/tables/init-and-inject", a.handleInitializeTablesAndInjectTestData)
 	mux.HandleFunc("/api/dev-tools/licenses", a.handleCreateLicense)
 	mux.HandleFunc("/api/dev-tools/client-logs", a.handleClientLogs)
 	return mux
@@ -134,6 +135,45 @@ func (a *app) handleInitializeTables(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "initialize-tables", err.Error())
 		return
 	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleInitializeTablesAndInjectTestData(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowedError(w, r.Method)
+		return
+	}
+
+	if a.devTools == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "initialize-and-inject-test-data", "oracle dev tools service is not configured")
+		return
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:start", map[string]any{
+		"academyName": seededAcademyName,
+		"rootLoginId": seededRootLoginID,
+	})
+
+	result, err := a.devTools.InitializeTablesAndInjectTestData(r.Context())
+	if err != nil {
+		logServerRuntime("dev-tools", "init-and-inject:error", map[string]any{
+			"academyName": seededAcademyName,
+			"error":       err.Error(),
+			"rootLoginId": seededRootLoginID,
+		})
+		writeAPIError(w, http.StatusInternalServerError, "initialize-and-inject-test-data", err.Error())
+		return
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:success", map[string]any{
+		"academyName":     result.AcademyName,
+		"licenseCode":     result.LicenseCode,
+		"pendingAdmins":   result.PendingAdmins,
+		"pendingStudents": result.PendingStudents,
+		"pendingTeachers": result.PendingTeachers,
+		"rootLoginId":     result.RootLoginID,
+	})
 
 	writeJSON(w, http.StatusOK, result)
 }

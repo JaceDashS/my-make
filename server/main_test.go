@@ -20,14 +20,20 @@ type stubHealthStore struct {
 }
 
 type stubDevToolsService struct {
-	initializeResult devToolsResponse
-	initializeErr    error
-	createResult     devToolsResponse
-	createErr        error
+	initializeResult          devToolsResponse
+	initializeErr             error
+	initializeAndInjectResult devToolsResponse
+	initializeAndInjectErr    error
+	createResult              devToolsResponse
+	createErr                 error
 }
 
 func (s *stubDevToolsService) InitializeTables(context.Context) (devToolsResponse, error) {
 	return s.initializeResult, s.initializeErr
+}
+
+func (s *stubDevToolsService) InitializeTablesAndInjectTestData(context.Context) (devToolsResponse, error) {
+	return s.initializeAndInjectResult, s.initializeAndInjectErr
 }
 
 func (s *stubDevToolsService) CreateLicense(context.Context) (devToolsResponse, error) {
@@ -247,6 +253,62 @@ func TestInitializeTablesRouteReturnsJSON(t *testing.T) {
 
 	if body.Status != "ok" {
 		t.Fatalf("expected ok status, got %q", body.Status)
+	}
+}
+
+func TestInitializeTablesAndInjectTestDataRouteReturnsSeedSummary(t *testing.T) {
+	application := &app{
+		devTools: &stubDevToolsService{
+			initializeAndInjectResult: devToolsResponse{
+				Status:          "ok",
+				Message:         "Managed tables have been initialized and test data has been injected.",
+				AcademyName:     "Test Academy",
+				RootLoginID:     "root",
+				LicenseCode:     "TESTLICENSE",
+				ExpiresAt:       "2027-03-24T00:00:00Z",
+				PendingStudents: 5,
+				PendingTeachers: 5,
+				PendingAdmins:   5,
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/dev-tools/tables/init-and-inject", nil)
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body devToolsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if body.AcademyName != "Test Academy" {
+		t.Fatalf("expected academy name Test Academy, got %q", body.AcademyName)
+	}
+
+	if body.RootLoginID != "root" {
+		t.Fatalf("expected root login root, got %q", body.RootLoginID)
+	}
+
+	if body.LicenseCode != "TESTLICENSE" {
+		t.Fatalf("expected license code TESTLICENSE, got %q", body.LicenseCode)
+	}
+
+	if body.ExpiresAt != "2027-03-24T00:00:00Z" {
+		t.Fatalf("expected expires at 2027-03-24T00:00:00Z, got %q", body.ExpiresAt)
+	}
+
+	if body.Message != "Managed tables have been initialized and test data has been injected." {
+		t.Fatalf("expected seed message, got %q", body.Message)
+	}
+
+	if body.PendingStudents != 5 || body.PendingTeachers != 5 || body.PendingAdmins != 5 {
+		t.Fatalf("expected pending counts 5/5/5, got %+v", body)
 	}
 }
 
