@@ -89,30 +89,24 @@ async function postJson(url: string) {
 }
 
 async function runDevToolsAction(path: string): Promise<DevToolsResult> {
-  const candidates = buildCandidates(path, RUNTIME_CONFIG.CLIENT_LOCAL_PORT);
-  let lastError = 'Unknown error';
+  const [url] = buildCandidates(path, RUNTIME_CONFIG.CLIENT_LOCAL_PORT);
 
-  for (const url of candidates) {
-    try {
-      const response = await postJson(url);
-      const payload = JSON.parse(response.body) as DevToolsResult;
+  try {
+    const response = await postJson(url);
+    const payload = JSON.parse(response.body) as DevToolsResult;
 
-      if (response.status >= 200 && response.status < 300) {
-        return payload;
-      }
-
-      lastError = payload.error ?? payload.message ?? `HTTP ${response.status}`;
+    if (response.status >= 200 && response.status < 300) {
       return payload;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
     }
-  }
 
-  return {
-    status: 'error',
-    message: 'Developer option request failed.',
-    error: lastError,
-  };
+    return payload;
+  } catch (error) {
+    return {
+      status: 'error',
+      message: 'Developer option request failed.',
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export function initializeTables() {

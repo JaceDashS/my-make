@@ -16,11 +16,14 @@ import (
 )
 
 const (
-	constraintAccountsLoginID  = "uq_maimei_accounts_login_id"
-	constraintAcademiesName    = "uq_maimei_academies_name"
-	constraintStaffRootAcademy = "uq_maimei_staff_root_per_academy"
-	constraintStaffEmail       = "uq_maimei_staff_email"
-	constraintTeachersEmail    = "uq_maimei_teachers_email"
+	constraintAcademiesName   = "uq_maimei_academies_name"
+	constraintAdminRootAcademy = "uq_maimei_admins_root_per_academy"
+	constraintAdminEmail      = "uq_maimei_admins_email"
+	constraintAdminLoginID    = "uq_maimei_admins_login_id"
+	constraintTeachersEmail   = "uq_maimei_teachers_email"
+	constraintTeacherLoginID  = "uq_maimei_teachers_login_id"
+	constraintStudentEmail    = "uq_maimei_students_email"
+	constraintStudentLoginID  = "uq_maimei_students_login_id"
 )
 
 type accountService interface {
@@ -134,7 +137,6 @@ type storedAccount struct {
 	academyState sql.NullString
 	displayName  string
 	email        sql.NullString
-	detailStatus string
 	loginID      string
 	passwordHash string
 	phone        sql.NullString
@@ -142,6 +144,7 @@ type storedAccount struct {
 	statusCode   string
 	licenseCode  sql.NullString
 	expiresAt    sql.NullTime
+	sourceTable  string
 }
 
 type storedLicense struct {
@@ -158,11 +161,10 @@ type pendingSearchField struct {
 }
 
 type pendingSearchRoleSpec struct {
-	alias           string
-	profileTable    string
-	accountFKColumn string
-	roleCode        string
-	extraWhereSQL   string
+	alias         string
+	profileTable  string
+	roleCode      string
+	extraWhereSQL string
 }
 
 type pendingMemberRoleSpec struct {
@@ -170,11 +172,10 @@ type pendingMemberRoleSpec struct {
 	sequenceName         string
 	profileTable         string
 	profileIDColumn      string
-	accountFKColumn      string
+	loginConstraint      string
 	duplicateConstraint  string
 	prepareAccountError  string
 	insertProfileError   string
-	insertAccountError   string
 	roleInsertColumnSQL  string
 	roleInsertValueSQL   string
 	roleInsertValue      any
@@ -201,23 +202,20 @@ var pendingSearchFields = map[string]pendingSearchField{
 
 var pendingSearchRoleSpecs = []pendingSearchRoleSpec{
 	{
-		alias:           "s",
-		profileTable:    "MAIMEI_STUDENTS",
-		accountFKColumn: "STUDENT_ID",
-		roleCode:        "STUDENT",
+		alias:        "s",
+		profileTable: "MAIMEI_STUDENTS",
+		roleCode:     "STUDENT",
 	},
 	{
-		alias:           "t",
-		profileTable:    "MAIMEI_TEACHERS",
-		accountFKColumn: "TEACHER_ID",
-		roleCode:        "TEACHER",
+		alias:        "t",
+		profileTable: "MAIMEI_TEACHERS",
+		roleCode:     "TEACHER",
 	},
 	{
-		alias:           "st",
-		profileTable:    "MAIMEI_STAFF",
-		accountFKColumn: "STAFF_ID",
-		roleCode:        "ADMIN",
-		extraWhereSQL:   "\n      AND st.ROLE_CODE = 'ADMIN'",
+		alias:        "st",
+		profileTable: "MAIMEI_ADMINS",
+		roleCode:     "ADMIN",
+		extraWhereSQL: "\n      AND st.ROLE_CODE = 'ADMIN'",
 	},
 }
 
@@ -255,12 +253,7 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 		return accountResponse{}, fmt.Errorf("The login ID or password is incorrect.")
 	}
 
-	effectiveStatusCode := account.statusCode
-	if account.detailStatus != "" {
-		effectiveStatusCode = account.detailStatus
-	}
-
-	switch effectiveStatusCode {
+	switch account.statusCode {
 	case "PENDING":
 		return accountResponse{}, fmt.Errorf("Your account is waiting for approval.")
 	case "HOLD":
@@ -276,9 +269,8 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 		return accountResponse{}, fmt.Errorf("Your academy is currently inactive.")
 	}
 
-	update := `UPDATE MAIMEI_ACCOUNTS SET LAST_LOGIN_AT = SYSTIMESTAMP WHERE LOGIN_ID = :1`
-	if _, err := s.execWithReconnect(ctx, update, input.LoginID); err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't complete sign-in right now. Please try again.")
+	if err := s.updateLastLoginAt(ctx, account); err != nil {
+		return accountResponse{}, err
 	}
 
 	return accountResponse{
@@ -303,12 +295,7 @@ func (s *oracleAccountService) GetProfile(ctx context.Context, loginID string) (
 		return profileResponse{}, err
 	}
 
-	effectiveStatusCode := account.statusCode
-	if account.detailStatus != "" {
-		effectiveStatusCode = account.detailStatus
-	}
-
-	switch effectiveStatusCode {
+	switch account.statusCode {
 	case "PENDING":
 		return profileResponse{}, fmt.Errorf("Your account is waiting for approval.")
 	case "HOLD":
@@ -359,12 +346,16 @@ func (s *oracleAccountService) RegisterMember(
 
 	passwordHash, err := hashPassword(input.Password)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't prepare your password right now. Please try again.")
+		return accountResponse{}, err
+	}
+
+	if err := s.ensureLoginIDAvailable(ctx, input.LoginID); err != nil {
+		return accountResponse{}, err
 	}
 
 	tx, err := s.beginTxWithReconnect(ctx)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't start member registration right now. Please try again.")
+		return accountResponse{}, err
 	}
 
 	defer func() {
@@ -383,7 +374,7 @@ func (s *oracleAccountService) RegisterMember(
 	}
 
 	if err := tx.Commit(); err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't complete member registration right now. Please try again.")
+		return accountResponse{}, err
 	}
 	tx = nil
 
@@ -443,12 +434,16 @@ func (s *oracleAccountService) RegisterRoot(ctx context.Context, input rootRegis
 
 	passwordHash, err := hashPassword(input.Password)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't prepare your password right now. Please try again.")
+		return accountResponse{}, err
+	}
+
+	if err := s.ensureLoginIDAvailable(ctx, input.RootLoginID); err != nil {
+		return accountResponse{}, err
 	}
 
 	tx, err := s.beginTxWithReconnect(ctx)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't start registration right now. Please try again.")
+		return accountResponse{}, err
 	}
 
 	defer func() {
@@ -475,7 +470,7 @@ INSERT INTO MAIMEI_ACADEMIES (
 			return accountResponse{}, fmt.Errorf("That academy name is already in use. Please choose another one.")
 		}
 
-		return accountResponse{}, fmt.Errorf("We couldn't create the academy right now. Please try again.")
+		return accountResponse{}, err
 	}
 
 	readAcademyCode := `
@@ -483,18 +478,20 @@ SELECT ACADEMY_CODE
   FROM MAIMEI_ACADEMIES
  WHERE ACADEMY_NAME = :1`
 	if err := tx.QueryRowContext(ctx, readAcademyCode, input.AcademyName).Scan(&academyCode); err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't finish registration right now. Please try again.")
+		return accountResponse{}, err
 	}
 
-	var staffID int64
-	if err := tx.QueryRowContext(ctx, `SELECT MAIMEI_STAFF_SEQ.NEXTVAL FROM DUAL`).Scan(&staffID); err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't prepare the root account right now. Please try again.")
+	var adminID int64
+	if err := tx.QueryRowContext(ctx, `SELECT MAIMEI_ADMINS_SEQ.NEXTVAL FROM DUAL`).Scan(&adminID); err != nil {
+		return accountResponse{}, err
 	}
 
-	createRootStaff := `
-INSERT INTO MAIMEI_STAFF (
-    STAFF_ID,
+	createRootAdmin := `
+INSERT INTO MAIMEI_ADMINS (
+    ADMIN_ID,
     ACADEMY_CODE,
+    LOGIN_ID,
+    PASSWORD_HASH,
     EMAIL,
     PHONE,
     DISPLAY_NAME,
@@ -506,51 +503,33 @@ INSERT INTO MAIMEI_STAFF (
     :3,
     :4,
     :5,
+    :6,
+    :7,
     'ROOT',
     'ACTIVE'
 )`
 	if _, err := tx.ExecContext(
 		ctx,
-		createRootStaff,
-		staffID,
+		createRootAdmin,
+		adminID,
 		academyCode,
+		input.RootLoginID,
+		passwordHash,
 		nullIfEmpty(input.Email),
 		input.Phone,
 		input.RootDisplayName,
 	); err != nil {
-		if isAccountUniqueConstraintError(err, constraintStaffRootAcademy) {
+		if isAccountUniqueConstraintError(err, constraintAdminRootAcademy) {
 			return accountResponse{}, fmt.Errorf("This academy already has a root account.")
 		}
-
-		return accountResponse{}, fmt.Errorf("We couldn't create the root profile right now. Please try again.")
-	}
-
-	createRootAccount := `
-INSERT INTO MAIMEI_ACCOUNTS (
-    LOGIN_ID,
-    PASSWORD_HASH,
-    ROLE_CODE,
-    STATUS_CODE,
-    STAFF_ID
-) VALUES (
-    :1,
-    :2,
-    'ROOT',
-    'ACTIVE',
-    :3
-)`
-	if _, err := tx.ExecContext(
-		ctx,
-		createRootAccount,
-		input.RootLoginID,
-		passwordHash,
-		staffID,
-	); err != nil {
-		if isAccountUniqueConstraintError(err, constraintAccountsLoginID) {
+		if isAccountUniqueConstraintError(err, constraintAdminLoginID) {
 			return accountResponse{}, fmt.Errorf("That login ID is already in use. Please choose another one.")
 		}
+		if isAccountUniqueConstraintError(err, constraintAdminEmail) {
+			return accountResponse{}, fmt.Errorf("That email address is already in use. Please choose another one.")
+		}
 
-		return accountResponse{}, fmt.Errorf("We couldn't create the root account right now. Please try again.")
+		return accountResponse{}, err
 	}
 
 	assignLicense := `
@@ -563,12 +542,12 @@ UPDATE MAIMEI_LICENSES
    AND EXPIRES_AT > SYSTIMESTAMP`
 	result, err := tx.ExecContext(ctx, assignLicense, academyCode, input.LicenseCode)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't assign the license right now. Please try again.")
+		return accountResponse{}, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't confirm the license assignment right now. Please try again.")
+		return accountResponse{}, err
 	}
 
 	if rowsAffected != 1 {
@@ -576,7 +555,7 @@ UPDATE MAIMEI_LICENSES
 	}
 
 	if err := tx.Commit(); err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't complete root registration right now. Please try again.")
+		return accountResponse{}, err
 	}
 	tx = nil
 
@@ -621,10 +600,10 @@ func resolvePendingMemberRoleSpec(roleCode string) (pendingMemberRoleSpec, error
 			sequenceName:        "MAIMEI_STUDENTS_SEQ",
 			profileTable:        "MAIMEI_STUDENTS",
 			profileIDColumn:     "STUDENT_ID",
-			accountFKColumn:     "STUDENT_ID",
+			loginConstraint:     constraintStudentLoginID,
 			prepareAccountError: "We couldn't prepare your member account right now. Please try again.",
 			insertProfileError:  "We couldn't create your member profile right now. Please try again.",
-			insertAccountError:  "We couldn't create your member account right now. Please try again.",
+			duplicateConstraint: constraintStudentEmail,
 		}, nil
 	case "TEACHER":
 		return pendingMemberRoleSpec{
@@ -632,25 +611,23 @@ func resolvePendingMemberRoleSpec(roleCode string) (pendingMemberRoleSpec, error
 			sequenceName:        "MAIMEI_TEACHERS_SEQ",
 			profileTable:        "MAIMEI_TEACHERS",
 			profileIDColumn:     "TEACHER_ID",
-			accountFKColumn:     "TEACHER_ID",
+			loginConstraint:     constraintTeacherLoginID,
 			duplicateConstraint: constraintTeachersEmail,
 			prepareAccountError: "We couldn't prepare your teacher account right now. Please try again.",
 			insertProfileError:  "We couldn't create your teacher profile right now. Please try again.",
-			insertAccountError:  "We couldn't create your teacher account right now. Please try again.",
 		}, nil
 	case "ADMIN":
 		return pendingMemberRoleSpec{
 			roleCode:             "ADMIN",
-			sequenceName:         "MAIMEI_STAFF_SEQ",
-			profileTable:         "MAIMEI_STAFF",
-			profileIDColumn:      "STAFF_ID",
-			accountFKColumn:      "STAFF_ID",
-			duplicateConstraint:  constraintStaffEmail,
+			sequenceName:         "MAIMEI_ADMINS_SEQ",
+			profileTable:         "MAIMEI_ADMINS",
+			profileIDColumn:      "ADMIN_ID",
+			loginConstraint:      constraintAdminLoginID,
+			duplicateConstraint:  constraintAdminEmail,
 			prepareAccountError:  "We couldn't prepare your admin account right now. Please try again.",
 			insertProfileError:   "We couldn't create your admin profile right now. Please try again.",
-			insertAccountError:   "We couldn't create your admin account right now. Please try again.",
 			roleInsertColumnSQL:  ",\n    ROLE_CODE",
-			roleInsertValueSQL:   ",\n    :5",
+			roleInsertValueSQL:   ",\n    :7",
 			roleInsertValue:      "ADMIN",
 			approveExtraWhereSQL: "\n   AND ROLE_CODE = 'ADMIN'",
 		}, nil
@@ -668,55 +645,24 @@ func nextSequenceValue(ctx context.Context, tx *sql.Tx, sequenceName string) (in
 	return value, nil
 }
 
-func createPendingMemberAccount(
-	ctx context.Context,
-	tx *sql.Tx,
-	loginID string,
-	passwordHash string,
-	roleCode string,
-	targetColumn string,
-	targetID int64,
-) error {
-	createAccount := fmt.Sprintf(`
-INSERT INTO MAIMEI_ACCOUNTS (
-    LOGIN_ID,
-    PASSWORD_HASH,
-    ROLE_CODE,
-    STATUS_CODE,
-    %s
-) VALUES (
-    :1,
-    :2,
-    :3,
-    'HOLD',
-    :4
-)`, targetColumn)
-
-	if _, err := tx.ExecContext(ctx, createAccount, loginID, passwordHash, roleCode, targetID); err != nil {
-		if isAccountUniqueConstraintError(err, constraintAccountsLoginID) {
-			return fmt.Errorf("That login ID is already in use. Please choose another one.")
-		}
-		return err
-	}
-
-	return nil
-}
-
 func insertPendingMemberProfile(
 	ctx context.Context,
 	tx *sql.Tx,
 	spec pendingMemberRoleSpec,
 	input memberRegisterInput,
+	passwordHash string,
 ) (int64, error) {
 	entityID, err := nextSequenceValue(ctx, tx, spec.sequenceName)
 	if err != nil {
-		return 0, fmt.Errorf("%s", spec.prepareAccountError)
+		return 0, err
 	}
 
 	insertProfile := fmt.Sprintf(`
 INSERT INTO %s (
     %s,
     ACADEMY_CODE,
+    LOGIN_ID,
+    PASSWORD_HASH,
     EMAIL,
     PHONE,
     DISPLAY_NAME%s,
@@ -726,37 +672,25 @@ INSERT INTO %s (
     NULL,
     :2,
     :3,
-    :4%s,
+    :4,
+    :5,
+    :6%s,
     'PENDING'
 )`, spec.profileTable, spec.profileIDColumn, spec.roleInsertColumnSQL, spec.roleInsertValueSQL)
 
-	args := []any{entityID, nullIfEmpty(input.Email), input.Phone, input.DisplayName}
+	args := []any{entityID, input.LoginID, passwordHash, nullIfEmpty(input.Email), input.Phone, input.DisplayName}
 	if spec.roleInsertValueSQL != "" {
 		args = append(args, spec.roleInsertValue)
 	}
 
-	if spec.roleCode == "STUDENT" {
-		insertProfile = `
-INSERT INTO MAIMEI_STUDENTS (
-    STUDENT_ID,
-    EMAIL,
-    PHONE,
-    DISPLAY_NAME,
-    STATUS_CODE
-) VALUES (
-    :1,
-    :2,
-    :3,
-    :4,
-    'PENDING'
-)`
-	}
-
 	if _, err := tx.ExecContext(ctx, insertProfile, args...); err != nil {
+		if spec.loginConstraint != "" && isAccountUniqueConstraintError(err, spec.loginConstraint) {
+			return 0, fmt.Errorf("That login ID is already in use. Please choose another one.")
+		}
 		if spec.duplicateConstraint != "" && isAccountUniqueConstraintError(err, spec.duplicateConstraint) {
 			return 0, fmt.Errorf("That email address is already in use. Please choose another one.")
 		}
-		return 0, fmt.Errorf("%s", spec.insertProfileError)
+		return 0, err
 	}
 
 	return entityID, nil
@@ -769,27 +703,8 @@ func registerPendingMember(
 	input memberRegisterInput,
 	passwordHash string,
 ) error {
-	entityID, err := insertPendingMemberProfile(ctx, tx, spec, input)
-	if err != nil {
-		return err
-	}
-
-	if err := createPendingMemberAccount(
-		ctx,
-		tx,
-		input.LoginID,
-		passwordHash,
-		spec.roleCode,
-		spec.accountFKColumn,
-		entityID,
-	); err != nil {
-		if err.Error() == "That login ID is already in use. Please choose another one." {
-			return err
-		}
-		return fmt.Errorf("%s", spec.insertAccountError)
-	}
-
-	return nil
+	_, err := insertPendingMemberProfile(ctx, tx, spec, input, passwordHash)
+	return err
 }
 
 func buildPendingMembersSearchQuery(field pendingSearchField) string {
@@ -802,20 +717,17 @@ func buildPendingMembersSearchQuery(field pendingSearchField) string {
 		)
 		selectBlocks = append(selectBlocks, fmt.Sprintf(`
     SELECT
-        a.LOGIN_ID AS login_id,
+        %[1]s.LOGIN_ID AS login_id,
         %[1]s.DISPLAY_NAME AS display_name,
         %[1]s.EMAIL AS email,
         %[1]s.PHONE AS phone,
-        a.ROLE_CODE AS role_code,
+        '%[3]s' AS role_code,
         %[1]s.CREATED_AT AS created_at
     FROM %[2]s %[1]s
-    JOIN MAIMEI_ACCOUNTS a
-      ON a.%[3]s = %[1]s.%[3]s
     WHERE %[1]s.STATUS_CODE = 'PENDING'
       AND %[1]s.ACADEMY_CODE IS NULL
-      AND a.ROLE_CODE = '%[4]s'
-      AND a.STATUS_CODE = 'HOLD'%[5]s
-      AND %s`, spec.alias, spec.profileTable, spec.accountFKColumn, spec.roleCode, spec.extraWhereSQL, matchExpression))
+      %[4]s
+      AND %s`, spec.alias, spec.profileTable, spec.roleCode, strings.TrimPrefix(spec.extraWhereSQL, "\n"), matchExpression))
 	}
 
 	return fmt.Sprintf(`
@@ -899,13 +811,13 @@ func (s *oracleAccountService) SearchPendingMembers(
 
 	rows, err := s.db.QueryContext(ctx, query, input.Query)
 	if err != nil {
-		return pendingMembersResponse{}, fmt.Errorf("We couldn't search pending members right now. Please try again.")
+		return pendingMembersResponse{}, err
 	}
 	defer rows.Close()
 
 	members, err := scanPendingMemberRecords(rows)
 	if err != nil {
-		return pendingMembersResponse{}, fmt.Errorf("We couldn't search pending members right now. Please try again.")
+		return pendingMembersResponse{}, err
 	}
 
 	if len(members) == 0 {
@@ -936,7 +848,7 @@ func (s *oracleAccountService) ApprovePendingMember(
 
 	tx, err := s.beginTxWithReconnect(ctx)
 	if err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't start approval right now. Please try again.")
+		return accountResponse{}, err
 	}
 
 	defer func() {
@@ -959,12 +871,8 @@ func (s *oracleAccountService) ApprovePendingMember(
 		return accountResponse{}, err
 	}
 
-	if err := activatePendingAccount(ctx, tx, input.LoginID, targetRoleCode); err != nil {
-		return accountResponse{}, err
-	}
-
 	if err := tx.Commit(); err != nil {
-		return accountResponse{}, fmt.Errorf("We couldn't complete approval right now. Please try again.")
+		return accountResponse{}, err
 	}
 	tx = nil
 
@@ -978,16 +886,34 @@ func (s *oracleAccountService) ApprovePendingMember(
 
 func lookupPendingAccountRole(ctx context.Context, tx *sql.Tx, loginID string) (string, error) {
 	readRole := `
-SELECT ROLE_CODE
-  FROM MAIMEI_ACCOUNTS
- WHERE LOGIN_ID = :1`
+SELECT role_code
+  FROM (
+    SELECT ROLE_CODE AS role_code
+      FROM MAIMEI_ADMINS
+     WHERE LOGIN_ID = :1
+       AND STATUS_CODE = 'PENDING'
+       AND ACADEMY_CODE IS NULL
+       AND ROLE_CODE = 'ADMIN'
+    UNION ALL
+    SELECT 'TEACHER' AS role_code
+      FROM MAIMEI_TEACHERS
+     WHERE LOGIN_ID = :1
+       AND STATUS_CODE = 'PENDING'
+       AND ACADEMY_CODE IS NULL
+    UNION ALL
+    SELECT 'STUDENT' AS role_code
+      FROM MAIMEI_STUDENTS
+     WHERE LOGIN_ID = :1
+       AND STATUS_CODE = 'PENDING'
+       AND ACADEMY_CODE IS NULL
+  )`
 
 	var targetRoleCode string
 	if err := tx.QueryRowContext(ctx, readRole, loginID).Scan(&targetRoleCode); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", fmt.Errorf("That pending member could not be found.")
 		}
-		return "", fmt.Errorf("We couldn't approve that member right now. Please try again.")
+		return "", err
 	}
 
 	return targetRoleCode, nil
@@ -1003,24 +929,19 @@ func approvePendingMemberProfile(
 	approveProfile := fmt.Sprintf(`
 UPDATE %s
    SET ACADEMY_CODE = :1,
-       STATUS_CODE = 'ACTIVE'
- WHERE %s = (
-     SELECT %s
-       FROM MAIMEI_ACCOUNTS
-      WHERE LOGIN_ID = :2
-        AND ROLE_CODE = '%s'
- )
+        STATUS_CODE = 'ACTIVE'
+ WHERE LOGIN_ID = :2
    AND STATUS_CODE = 'PENDING'
-   AND ACADEMY_CODE IS NULL%s`, spec.profileTable, spec.profileIDColumn, spec.accountFKColumn, spec.roleCode, spec.approveExtraWhereSQL)
+   AND ACADEMY_CODE IS NULL%s`, spec.profileTable, spec.approveExtraWhereSQL)
 
 	result, err := tx.ExecContext(ctx, approveProfile, academyCode, loginID)
 	if err != nil {
-		return fmt.Errorf("We couldn't approve that member right now. Please try again.")
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("We couldn't approve that member right now. Please try again.")
+		return err
 	}
 
 	if rowsAffected != 1 {
@@ -1029,22 +950,6 @@ UPDATE %s
 
 	return nil
 }
-
-func activatePendingAccount(ctx context.Context, tx *sql.Tx, loginID string, roleCode string) error {
-	activateAccount := `
-UPDATE MAIMEI_ACCOUNTS
-   SET STATUS_CODE = 'ACTIVE'
- WHERE LOGIN_ID = :1
-   AND ROLE_CODE = :2
-   AND STATUS_CODE = 'HOLD'`
-
-	if _, err := tx.ExecContext(ctx, activateAccount, loginID, roleCode); err != nil {
-		return fmt.Errorf("We couldn't approve that member right now. Please try again.")
-	}
-
-	return nil
-}
-
 func (s *oracleAccountService) RenewLicense(ctx context.Context, input renewLicenseInput) (licenseRenewResponse, error) {
 	input.LicenseCode = strings.TrimSpace(input.LicenseCode)
 	if input.LicenseCode == "" {
@@ -1075,7 +980,7 @@ UPDATE MAIMEI_LICENSES
        END
  WHERE LICENSE_CODE = :2`
 	if _, err := s.execWithReconnect(ctx, query, nextExpiresAt, input.LicenseCode); err != nil {
-		return licenseRenewResponse{}, fmt.Errorf("We couldn't renew the license right now. Please try again.")
+		return licenseRenewResponse{}, err
 	}
 
 	return licenseRenewResponse{
@@ -1089,39 +994,107 @@ UPDATE MAIMEI_LICENSES
 func (s *oracleAccountService) fetchAccount(ctx context.Context, loginID string) (storedAccount, error) {
 	query := `
 SELECT
-    COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE),
-    a.ACADEMY_NAME,
-    a.STATUS_CODE,
-    COALESCE(stf.DISPLAY_NAME, tch.DISPLAY_NAME, stu.DISPLAY_NAME),
-    COALESCE(stf.EMAIL, tch.EMAIL, stu.EMAIL),
-    COALESCE(stf.STATUS_CODE, tch.STATUS_CODE, stu.STATUS_CODE),
-    acc.LOGIN_ID,
-    acc.PASSWORD_HASH,
-    COALESCE(stf.PHONE, tch.PHONE, stu.PHONE),
-    acc.ROLE_CODE,
-    acc.STATUS_CODE,
-    (
-        SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
-        FROM MAIMEI_LICENSES lic
-        WHERE lic.ACADEMY_CODE = COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE)
-          AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
-    ),
-    (
-        SELECT MAX(lic.EXPIRES_AT)
-        FROM MAIMEI_LICENSES lic
-        WHERE lic.ACADEMY_CODE = COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE)
-          AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
-    )
-FROM MAIMEI_ACCOUNTS acc
-LEFT JOIN MAIMEI_STAFF stf
-  ON stf.STAFF_ID = acc.STAFF_ID
-LEFT JOIN MAIMEI_TEACHERS tch
-  ON tch.TEACHER_ID = acc.TEACHER_ID
-LEFT JOIN MAIMEI_STUDENTS stu
-  ON stu.STUDENT_ID = acc.STUDENT_ID
-LEFT JOIN MAIMEI_ACADEMIES a
-  ON a.ACADEMY_CODE = COALESCE(stf.ACADEMY_CODE, tch.ACADEMY_CODE, stu.ACADEMY_CODE)
-WHERE acc.LOGIN_ID = :1`
+    academy_code,
+    academy_name,
+    academy_state,
+    display_name,
+    email,
+    status_code,
+    login_id,
+    password_hash,
+    phone,
+    role_code,
+    license_code,
+    expires_at,
+    source_table
+FROM (
+    SELECT
+        adm.ACADEMY_CODE AS academy_code,
+        aca.ACADEMY_NAME AS academy_name,
+        aca.STATUS_CODE AS academy_state,
+        adm.DISPLAY_NAME AS display_name,
+        adm.EMAIL AS email,
+        adm.STATUS_CODE AS status_code,
+        adm.LOGIN_ID AS login_id,
+        adm.PASSWORD_HASH AS password_hash,
+        adm.PHONE AS phone,
+        adm.ROLE_CODE AS role_code,
+        (
+            SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
+            FROM MAIMEI_LICENSES lic
+            WHERE lic.ACADEMY_CODE = adm.ACADEMY_CODE
+              AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+        ) AS license_code,
+        (
+            SELECT MAX(lic.EXPIRES_AT)
+            FROM MAIMEI_LICENSES lic
+            WHERE lic.ACADEMY_CODE = adm.ACADEMY_CODE
+              AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+        ) AS expires_at,
+        'MAIMEI_ADMINS' AS source_table
+    FROM MAIMEI_ADMINS adm
+    LEFT JOIN MAIMEI_ACADEMIES aca
+      ON aca.ACADEMY_CODE = adm.ACADEMY_CODE
+    WHERE adm.LOGIN_ID = :1
+    UNION ALL
+    SELECT
+        tch.ACADEMY_CODE AS academy_code,
+        aca.ACADEMY_NAME AS academy_name,
+        aca.STATUS_CODE AS academy_state,
+        tch.DISPLAY_NAME AS display_name,
+        tch.EMAIL AS email,
+        tch.STATUS_CODE AS status_code,
+        tch.LOGIN_ID AS login_id,
+        tch.PASSWORD_HASH AS password_hash,
+        tch.PHONE AS phone,
+        'TEACHER' AS role_code,
+        (
+            SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
+            FROM MAIMEI_LICENSES lic
+            WHERE lic.ACADEMY_CODE = tch.ACADEMY_CODE
+              AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+        ) AS license_code,
+        (
+            SELECT MAX(lic.EXPIRES_AT)
+            FROM MAIMEI_LICENSES lic
+            WHERE lic.ACADEMY_CODE = tch.ACADEMY_CODE
+              AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+        ) AS expires_at,
+        'MAIMEI_TEACHERS' AS source_table
+    FROM MAIMEI_TEACHERS tch
+    LEFT JOIN MAIMEI_ACADEMIES aca
+      ON aca.ACADEMY_CODE = tch.ACADEMY_CODE
+    WHERE tch.LOGIN_ID = :1
+    UNION ALL
+    SELECT
+        stu.ACADEMY_CODE AS academy_code,
+        aca.ACADEMY_NAME AS academy_name,
+        aca.STATUS_CODE AS academy_state,
+        stu.DISPLAY_NAME AS display_name,
+        stu.EMAIL AS email,
+        stu.STATUS_CODE AS status_code,
+        stu.LOGIN_ID AS login_id,
+        stu.PASSWORD_HASH AS password_hash,
+        stu.PHONE AS phone,
+        'STUDENT' AS role_code,
+        (
+            SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
+            FROM MAIMEI_LICENSES lic
+            WHERE lic.ACADEMY_CODE = stu.ACADEMY_CODE
+              AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+        ) AS license_code,
+        (
+            SELECT MAX(lic.EXPIRES_AT)
+            FROM MAIMEI_LICENSES lic
+            WHERE lic.ACADEMY_CODE = stu.ACADEMY_CODE
+              AND lic.STATUS_CODE IN ('ACTIVE', 'SUSPENDED')
+        ) AS expires_at,
+        'MAIMEI_STUDENTS' AS source_table
+    FROM MAIMEI_STUDENTS stu
+    LEFT JOIN MAIMEI_ACADEMIES aca
+      ON aca.ACADEMY_CODE = stu.ACADEMY_CODE
+    WHERE stu.LOGIN_ID = :1
+)`
 
 	var account storedAccount
 	scan := func(db *sql.DB) error {
@@ -1131,14 +1104,14 @@ WHERE acc.LOGIN_ID = :1`
 			&account.academyState,
 			&account.displayName,
 			&account.email,
-			&account.detailStatus,
+			&account.statusCode,
 			&account.loginID,
 			&account.passwordHash,
 			&account.phone,
 			&account.roleCode,
-			&account.statusCode,
 			&account.licenseCode,
 			&account.expiresAt,
+			&account.sourceTable,
 		)
 	}
 
@@ -1147,7 +1120,7 @@ WHERE acc.LOGIN_ID = :1`
 		return storedAccount{}, fmt.Errorf("The login ID or password is incorrect.")
 	}
 	if err != nil {
-		return storedAccount{}, fmt.Errorf("We couldn't check your account right now. Please try again.")
+		return storedAccount{}, err
 	}
 
 	return account, nil
@@ -1176,7 +1149,7 @@ WHERE LICENSE_CODE = :1`
 		return storedLicense{}, fmt.Errorf("That license code could not be found.")
 	}
 	if err != nil {
-		return storedLicense{}, fmt.Errorf("We couldn't check that license right now. Please try again.")
+		return storedLicense{}, err
 	}
 
 	return license, nil
@@ -1189,6 +1162,54 @@ func hashPassword(password string) (string, error) {
 	}
 
 	return string(hashed), nil
+}
+
+func (s *oracleAccountService) ensureLoginIDAvailable(ctx context.Context, loginID string) error {
+	loginID = strings.TrimSpace(loginID)
+	if loginID == "" {
+		return fmt.Errorf("Please enter a login ID.")
+	}
+
+	query := `
+SELECT COUNT(*)
+  FROM (
+    SELECT LOGIN_ID FROM MAIMEI_ADMINS WHERE LOGIN_ID = :1
+    UNION ALL
+    SELECT LOGIN_ID FROM MAIMEI_TEACHERS WHERE LOGIN_ID = :1
+    UNION ALL
+    SELECT LOGIN_ID FROM MAIMEI_STUDENTS WHERE LOGIN_ID = :1
+  )`
+
+	var count int
+	scan := func(db *sql.DB) error {
+		return db.QueryRowContext(ctx, query, loginID).Scan(&count)
+	}
+
+	if err := s.queryRowWithReconnect(ctx, scan); err != nil {
+		return err
+	}
+	if count > 0 {
+		return fmt.Errorf("That login ID is already in use. Please choose another one.")
+	}
+
+	return nil
+}
+
+func (s *oracleAccountService) updateLastLoginAt(ctx context.Context, account storedAccount) error {
+	var query string
+	switch account.sourceTable {
+	case "MAIMEI_ADMINS":
+		query = `UPDATE MAIMEI_ADMINS SET LAST_LOGIN_AT = SYSTIMESTAMP WHERE LOGIN_ID = :1`
+	case "MAIMEI_TEACHERS":
+		query = `UPDATE MAIMEI_TEACHERS SET LAST_LOGIN_AT = SYSTIMESTAMP WHERE LOGIN_ID = :1`
+	case "MAIMEI_STUDENTS":
+		query = `UPDATE MAIMEI_STUDENTS SET LAST_LOGIN_AT = SYSTIMESTAMP WHERE LOGIN_ID = :1`
+	default:
+		return fmt.Errorf("unknown account source")
+	}
+
+	_, err := s.execWithReconnect(ctx, query, account.loginID)
+	return err
 }
 
 func decodeJSONBody[T any](r *http.Request) (T, error) {

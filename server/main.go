@@ -239,7 +239,7 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 	token, err := a.ensureSessionManager().Create(result)
 	if err != nil {
-		writeAPIError(w, http.StatusInternalServerError, "session", "We couldn't create a server session right now. Please try again.")
+		writeAPIError(w, http.StatusInternalServerError, "session", err.Error())
 		return
 	}
 	setSessionCookie(w, token)
@@ -365,7 +365,7 @@ func (a *app) handleRootRegister(w http.ResponseWriter, r *http.Request) {
 	})
 	token, err := a.ensureSessionManager().Create(result)
 	if err != nil {
-		writeAPIError(w, http.StatusInternalServerError, "session", "We couldn't create a server session right now. Please try again.")
+		writeAPIError(w, http.StatusInternalServerError, "session", err.Error())
 		return
 	}
 	setSessionCookie(w, token)

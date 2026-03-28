@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,19 +26,17 @@ const (
 )
 
 var managedDropStatements = []string{
-	"DROP TABLE MAIMEI_ACCOUNTS CASCADE CONSTRAINTS PURGE",
 	"DROP TABLE MAIMEI_STUDENTS CASCADE CONSTRAINTS PURGE",
 	"DROP TABLE MAIMEI_TEACHERS CASCADE CONSTRAINTS PURGE",
-	"DROP TABLE MAIMEI_STAFF CASCADE CONSTRAINTS PURGE",
+	"DROP TABLE MAIMEI_ADMINS CASCADE CONSTRAINTS PURGE",
 	"DROP TABLE MAIMEI_LICENSES CASCADE CONSTRAINTS PURGE",
 	"DROP TABLE MAIMEI_ACADEMIES CASCADE CONSTRAINTS PURGE",
-	"DROP SEQUENCE MAIMEI_ACCOUNTS_SEQ",
 	"DROP SEQUENCE MAIMEI_STUDENT_CODE_SEQ",
 	"DROP SEQUENCE MAIMEI_STUDENTS_SEQ",
 	"DROP SEQUENCE MAIMEI_TEACHER_CODE_SEQ",
 	"DROP SEQUENCE MAIMEI_TEACHERS_SEQ",
-	"DROP SEQUENCE MAIMEI_STAFF_CODE_SEQ",
-	"DROP SEQUENCE MAIMEI_STAFF_SEQ",
+	"DROP SEQUENCE MAIMEI_ADMIN_CODE_SEQ",
+	"DROP SEQUENCE MAIMEI_ADMINS_SEQ",
 	"DROP SEQUENCE MAIMEI_LICENSES_SEQ",
 	"DROP SEQUENCE MAIMEI_ACADEMIES_SEQ",
 }
@@ -65,6 +64,7 @@ type devToolsService struct {
 	db            *sql.DB
 	now           func() time.Time
 	migrationsDir string
+	opMu          sync.Mutex
 }
 
 func newDevToolsServiceFromEnv() (*devToolsService, error) {
@@ -105,6 +105,15 @@ func (s *devToolsService) InitializeTables(ctx context.Context) (devToolsRespons
 		return devToolsResponse{}, fmt.Errorf("oracle dev tools service is not configured")
 	}
 
+	if !s.opMu.TryLock() {
+		return devToolsResponse{}, fmt.Errorf("another dev-tools operation is already running")
+	}
+	defer s.opMu.Unlock()
+
+	return s.initializeTablesLocked(ctx)
+}
+
+func (s *devToolsService) initializeTablesLocked(ctx context.Context) (devToolsResponse, error) {
 	for _, statement := range managedDropStatements {
 		if _, err := s.db.ExecContext(ctx, statement); err != nil && !isIgnorableDropError(err) {
 			return devToolsResponse{}, fmt.Errorf("reset managed objects: %w", err)
@@ -140,11 +149,20 @@ func (s *devToolsService) InitializeTables(ctx context.Context) (devToolsRespons
 }
 
 func (s *devToolsService) InitializeTablesAndInjectTestData(ctx context.Context) (devToolsResponse, error) {
+	if s == nil || s.db == nil {
+		return devToolsResponse{}, fmt.Errorf("oracle dev tools service is not configured")
+	}
+
+	if !s.opMu.TryLock() {
+		return devToolsResponse{}, fmt.Errorf("another dev-tools operation is already running")
+	}
+	defer s.opMu.Unlock()
+
 	logServerRuntime("dev-tools", "init-and-inject:initialize:start", map[string]any{
 		"academyName": seededAcademyName,
 	})
 
-	result, err := s.InitializeTables(ctx)
+	result, err := s.initializeTablesLocked(ctx)
 	if err != nil {
 		return devToolsResponse{}, err
 	}
@@ -270,7 +288,7 @@ func (s *devToolsService) injectTestData(ctx context.Context) (devToolsResponse,
 		return devToolsResponse{}, fmt.Errorf("generate root phone number: %w", err)
 	}
 
-	rootStaffID, err := nextSequenceValue(ctx, tx, "MAIMEI_STAFF_SEQ")
+	rootAdminID, err := nextSequenceValue(ctx, tx, "MAIMEI_ADMINS_SEQ")
 	if err != nil {
 		return devToolsResponse{}, fmt.Errorf("prepare root account: %w", err)
 	}
@@ -280,11 +298,17 @@ func (s *devToolsService) injectTestData(ctx context.Context) (devToolsResponse,
 		return devToolsResponse{}, fmt.Errorf("prepare root password: %w", err)
 	}
 
-	if err := insertSeedRootStaff(ctx, tx, rootStaffID, academyCode, seededRootEmail, rootPhone, seededRootDisplayName); err != nil {
-		return devToolsResponse{}, err
-	}
-
-	if err := insertSeedRootAccount(ctx, tx, seededRootLoginID, rootPasswordHash, rootStaffID); err != nil {
+	if err := insertSeedRootAdmin(
+		ctx,
+		tx,
+		rootAdminID,
+		academyCode,
+		seededRootLoginID,
+		rootPasswordHash,
+		seededRootEmail,
+		rootPhone,
+		seededRootDisplayName,
+	); err != nil {
 		return devToolsResponse{}, err
 	}
 
@@ -414,19 +438,23 @@ SELECT ACADEMY_CODE
 	return academyCode, nil
 }
 
-func insertSeedRootStaff(
+func insertSeedRootAdmin(
 	ctx context.Context,
 	tx *sql.Tx,
-	staffID int64,
+	adminID int64,
 	academyCode string,
+	loginID string,
+	passwordHash string,
 	email string,
 	phone string,
 	displayName string,
 ) error {
-	insertRootStaff := `
-INSERT INTO MAIMEI_STAFF (
-    STAFF_ID,
+	insertRootAdmin := `
+INSERT INTO MAIMEI_ADMINS (
+    ADMIN_ID,
     ACADEMY_CODE,
+    LOGIN_ID,
+    PASSWORD_HASH,
     EMAIL,
     PHONE,
     DISPLAY_NAME,
@@ -438,36 +466,13 @@ INSERT INTO MAIMEI_STAFF (
     :3,
     :4,
     :5,
+    :6,
+    :7,
     'ROOT',
     'ACTIVE'
 )`
-	if _, err := tx.ExecContext(ctx, insertRootStaff, staffID, academyCode, email, phone, displayName); err != nil {
-		return fmt.Errorf("create seed root staff: %w", err)
-	}
-
-	return nil
-}
-
-func insertSeedRootAccount(ctx context.Context, tx *sql.Tx, loginID string, passwordHash string, staffID int64) error {
-	insertRootAccount := `
-INSERT INTO MAIMEI_ACCOUNTS (
-    LOGIN_ID,
-    PASSWORD_HASH,
-    ROLE_CODE,
-    STATUS_CODE,
-    STAFF_ID
-) VALUES (
-    :1,
-    :2,
-    'ROOT',
-    'ACTIVE',
-    :3
-)`
-	if _, err := tx.ExecContext(ctx, insertRootAccount, loginID, passwordHash, staffID); err != nil {
-		if isAccountUniqueConstraintError(err, constraintAccountsLoginID) {
-			return fmt.Errorf("That login ID is already in use. Please choose another one.")
-		}
-		return fmt.Errorf("create seed root account: %w", err)
+	if _, err := tx.ExecContext(ctx, insertRootAdmin, adminID, academyCode, loginID, passwordHash, email, phone, displayName); err != nil {
+		return fmt.Errorf("create seed root admin: %w", err)
 	}
 
 	return nil
@@ -535,24 +540,8 @@ func seedPendingMember(ctx context.Context, tx *sql.Tx, roleCode string, loginID
 		return fmt.Errorf("prepare %s password: %w", roleCode, err)
 	}
 
-	entityID, err := insertPendingMemberProfile(ctx, tx, spec, input)
-	if err != nil {
+	if _, err := insertPendingMemberProfile(ctx, tx, spec, input, passwordHash); err != nil {
 		return err
-	}
-
-	if err := createPendingMemberAccount(
-		ctx,
-		tx,
-		input.LoginID,
-		passwordHash,
-		spec.roleCode,
-		spec.accountFKColumn,
-		entityID,
-	); err != nil {
-		if err.Error() == "That login ID is already in use. Please choose another one." {
-			return err
-		}
-		return fmt.Errorf("%s", spec.insertAccountError)
 	}
 
 	return nil
