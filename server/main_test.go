@@ -290,9 +290,9 @@ func TestInitializeTablesAndInjectTestDataRouteReturnsSeedSummary(t *testing.T) 
 				RootLoginID:     "root",
 				LicenseCode:     "TESTLICENSE",
 				ExpiresAt:       "2027-03-24T00:00:00Z",
-				PendingStudents: 5,
-				PendingTeachers: 5,
-				PendingAdmins:   5,
+				PendingStudents: 1,
+				PendingTeachers: 1,
+				PendingAdmins:   1,
 			},
 		},
 	}
@@ -331,8 +331,8 @@ func TestInitializeTablesAndInjectTestDataRouteReturnsSeedSummary(t *testing.T) 
 		t.Fatalf("expected seed message, got %q", body.Message)
 	}
 
-	if body.PendingStudents != 5 || body.PendingTeachers != 5 || body.PendingAdmins != 5 {
-		t.Fatalf("expected pending counts 5/5/5, got %+v", body)
+	if body.PendingStudents != 1 || body.PendingTeachers != 1 || body.PendingAdmins != 1 {
+		t.Fatalf("expected pending counts 1/1/1, got %+v", body)
 	}
 }
 

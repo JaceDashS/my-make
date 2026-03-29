@@ -22,8 +22,31 @@ const (
 	seededRootDisplayName  = "root"
 	seededRootEmail        = "root@example.com"
 	seededRootPassword     = "root"
-	seededSeedMemberCount  = 5
 )
+
+type seededMemberAccount struct {
+	loginID    string
+	roleCode   string
+	statusCode string
+}
+
+var seededMemberAccounts = []seededMemberAccount{
+	{loginID: "admin", roleCode: "ADMIN", statusCode: "ACTIVE"},
+	{loginID: "teacher", roleCode: "TEACHER", statusCode: "ACTIVE"},
+	{loginID: "student", roleCode: "STUDENT", statusCode: "ACTIVE"},
+	{loginID: "admin-active", roleCode: "ADMIN", statusCode: "ACTIVE"},
+	{loginID: "teacher-active", roleCode: "TEACHER", statusCode: "ACTIVE"},
+	{loginID: "student-active", roleCode: "STUDENT", statusCode: "ACTIVE"},
+	{loginID: "admin-pending", roleCode: "ADMIN", statusCode: "PENDING"},
+	{loginID: "teacher-pending", roleCode: "TEACHER", statusCode: "PENDING"},
+	{loginID: "student-pending", roleCode: "STUDENT", statusCode: "PENDING"},
+	{loginID: "admin-hold", roleCode: "ADMIN", statusCode: "HOLD"},
+	{loginID: "teacher-hold", roleCode: "TEACHER", statusCode: "HOLD"},
+	{loginID: "student-hold", roleCode: "STUDENT", statusCode: "HOLD"},
+	{loginID: "admin-inactive", roleCode: "ADMIN", statusCode: "INACTIVE"},
+	{loginID: "teacher-inactive", roleCode: "TEACHER", statusCode: "INACTIVE"},
+	{loginID: "student-inactive", roleCode: "STUDENT", statusCode: "INACTIVE"},
+}
 
 var managedDropStatements = []string{
 	"DROP TABLE MAIMEI_STUDENTS CASCADE CONSTRAINTS PURGE",
@@ -327,32 +350,27 @@ func (s *devToolsService) injectTestData(ctx context.Context) (devToolsResponse,
 		"licenseCode": licenseCode,
 	})
 
-	if err := seedPendingMembers(ctx, tx, "STUDENT", "student"); err != nil {
-		return devToolsResponse{}, err
+	pendingCounts := map[string]int{
+		"ADMIN":   0,
+		"TEACHER": 0,
+		"STUDENT": 0,
 	}
 
-	logServerRuntime("dev-tools", "init-and-inject:seed:pending-members-created", map[string]any{
-		"count":    seededSeedMemberCount,
-		"roleCode": "STUDENT",
-	})
+	for _, account := range seededMemberAccounts {
+		if err := seedMemberAccount(ctx, tx, academyCode, account); err != nil {
+			return devToolsResponse{}, err
+		}
 
-	if err := seedPendingMembers(ctx, tx, "TEACHER", "teacher"); err != nil {
-		return devToolsResponse{}, err
+		if account.statusCode == "PENDING" {
+			pendingCounts[account.roleCode]++
+		}
+
+		logServerRuntime("dev-tools", "init-and-inject:seed:member-created", map[string]any{
+			"loginId":    account.loginID,
+			"roleCode":   account.roleCode,
+			"statusCode": account.statusCode,
+		})
 	}
-
-	logServerRuntime("dev-tools", "init-and-inject:seed:pending-members-created", map[string]any{
-		"count":    seededSeedMemberCount,
-		"roleCode": "TEACHER",
-	})
-
-	if err := seedPendingMembers(ctx, tx, "ADMIN", "admin"); err != nil {
-		return devToolsResponse{}, err
-	}
-
-	logServerRuntime("dev-tools", "init-and-inject:seed:pending-members-created", map[string]any{
-		"count":    seededSeedMemberCount,
-		"roleCode": "ADMIN",
-	})
 
 	if err := tx.Commit(); err != nil {
 		return devToolsResponse{}, fmt.Errorf("complete test data injection: %w", err)
@@ -366,9 +384,9 @@ func (s *devToolsService) injectTestData(ctx context.Context) (devToolsResponse,
 		ExpiresAt:       expiresAt.Format(time.RFC3339),
 		AcademyName:     seededAcademyName,
 		RootLoginID:     seededRootLoginID,
-		PendingStudents: seededSeedMemberCount,
-		PendingTeachers: seededSeedMemberCount,
-		PendingAdmins:   seededSeedMemberCount,
+		PendingStudents: pendingCounts["STUDENT"],
+		PendingTeachers: pendingCounts["TEACHER"],
+		PendingAdmins:   pendingCounts["ADMIN"],
 	}
 
 	logServerRuntime("dev-tools", "init-and-inject:seed:success", map[string]any{
@@ -504,43 +522,62 @@ UPDATE MAIMEI_LICENSES
 	return nil
 }
 
-func seedPendingMembers(ctx context.Context, tx *sql.Tx, roleCode string, loginPrefix string) error {
-	for index := 1; index <= seededSeedMemberCount; index++ {
-		loginID := fmt.Sprintf("%s%d", loginPrefix, index)
-		phone, err := generateSeedPhoneNumber()
-		if err != nil {
-			return fmt.Errorf("generate %s phone number: %w", roleCode, err)
-		}
-
-		if err := seedPendingMember(ctx, tx, roleCode, loginID, phone); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func seedPendingMember(ctx context.Context, tx *sql.Tx, roleCode string, loginID string, phone string) error {
-	spec, err := resolvePendingMemberRoleSpec(roleCode)
+func seedMemberAccount(
+	ctx context.Context,
+	tx *sql.Tx,
+	academyCode string,
+	account seededMemberAccount,
+) error {
+	spec, err := resolvePendingMemberRoleSpec(account.roleCode)
 	if err != nil {
 		return err
 	}
 
+	phone, err := generateSeedPhoneNumber()
+	if err != nil {
+		return fmt.Errorf("generate %s phone number: %w", account.roleCode, err)
+	}
+
 	input := memberRegisterInput{
-		LoginID:           loginID,
-		DisplayName:       loginID,
-		Email:             fmt.Sprintf("%s@example.com", loginID),
+		LoginID:           account.loginID,
+		DisplayName:       account.loginID,
+		Email:             fmt.Sprintf("%s@example.com", account.loginID),
 		Phone:             phone,
-		Password:          loginID,
-		RequestedRoleCode: roleCode,
+		Password:          account.loginID,
+		RequestedRoleCode: account.roleCode,
 	}
 
 	passwordHash, err := hashPassword(input.Password)
 	if err != nil {
-		return fmt.Errorf("prepare %s password: %w", roleCode, err)
+		return fmt.Errorf("prepare %s password: %w", account.roleCode, err)
 	}
 
 	if _, err := insertPendingMemberProfile(ctx, tx, spec, input, passwordHash); err != nil {
+		return err
+	}
+
+	if account.statusCode == "PENDING" {
+		return nil
+	}
+
+	if err := approvePendingMemberProfile(ctx, tx, spec, academyCode, account.loginID); err != nil {
+		return err
+	}
+
+	if account.statusCode == "ACTIVE" {
+		return nil
+	}
+
+	if err := updateAcademyMemberStatusProfile(ctx, tx, academyMemberRoleStatus{
+		roleCode:   account.roleCode,
+		statusCode: "ACTIVE",
+	}, academyMemberStatusUpdateInput{
+		AcademyCode:   academyCode,
+		ActorRoleCode: "ROOT",
+		LoginID:       account.loginID,
+		CurrentStatus: "ACTIVE",
+		NextStatus:    account.statusCode,
+	}); err != nil {
 		return err
 	}
 
