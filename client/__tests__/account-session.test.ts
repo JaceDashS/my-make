@@ -180,17 +180,22 @@ describe('account session helpers', () => {
     expect(setAuthError).toHaveBeenCalledWith('localized:Bad credentials.');
   });
 
-  test('runAccountLogoutFlow always clears profile and page state', async () => {
+  test('runAccountLogoutFlow clears profile and page state before logout response returns', async () => {
     const clearProfile = jest.fn();
     const setAuthAction = jest.fn();
     const setAuthError = jest.fn();
     const setAuthNotice = jest.fn();
     const setPage = jest.fn();
+    let resolveLogout:
+      | ((value: {status: string; message: string}) => void)
+      | undefined;
 
-    (logoutAccount as jest.Mock).mockResolvedValue({
-      status: 'ok',
-      message: 'Signed out successfully.',
-    });
+    (logoutAccount as jest.Mock).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveLogout = resolve;
+        }),
+    );
 
     await runAccountLogoutFlow({
       appendAuthDebugLog: jest.fn(),
@@ -208,5 +213,10 @@ describe('account session helpers', () => {
     expect(setAuthNotice).toHaveBeenCalledWith(null);
     expect(setPage).toHaveBeenCalledWith('account');
     expect(setAuthAction).toHaveBeenLastCalledWith(null);
+
+    resolveLogout?.({
+      status: 'ok',
+      message: 'Signed out successfully.',
+    });
   });
 });

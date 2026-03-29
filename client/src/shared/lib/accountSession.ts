@@ -248,14 +248,18 @@ export async function runAccountLogoutFlow({
     currentRoleCode,
   });
 
-  try {
-    await logoutAccount();
-  } finally {
-    clearProfile();
-    setAuthError(null);
-    setAuthNotice(null);
-    setPage('account');
-    setAuthAction(null);
-    appendAuthDebugLog('logout:finish', 'logout finished', {});
-  }
+  clearProfile();
+  setAuthError(null);
+  setAuthNotice(null);
+  setPage('account');
+  setAuthAction(null);
+  appendAuthDebugLog('logout:finish', 'logout finished locally', {});
+
+  void logoutAccount().then(result => {
+    appendAuthDebugLog('logout:response', 'logout response received', {
+      error: result.error ?? '',
+      message: result.message ?? '',
+      status: result.status,
+    });
+  });
 }
