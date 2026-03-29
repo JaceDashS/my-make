@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 
 import { RUNTIME_CONFIG } from '../../config/runtime/runtime-config';
-import { sendClientRuntimeLog } from './clientLogs';
 
 const EMULATOR_HOST = '10.0.2.2';
 const LOCALHOST_HOST = 'localhost';
@@ -63,6 +62,14 @@ function buildRequestLogPayload(method: 'GET' | 'POST', path: string, url: strin
     url,
   };
 }
+
+function logAccountApiEvent(
+  event: string,
+  payload: Record<string, unknown>,
+) {
+  console.log(`[accounts] ${event}`, payload);
+}
+
 async function requestWithXhr(
   method: 'GET' | 'POST',
   url: string,
@@ -104,35 +111,23 @@ async function requestJson(
   const body = payload ? JSON.stringify(payload) : null;
   const logPayload = buildRequestLogPayload(method, path, url);
 
-  sendClientRuntimeLog({
-    channel: 'accounts',
-    event: 'api:request:start',
-    payload: logPayload,
-  }).catch(() => undefined);
+  logAccountApiEvent('api:request:start', logPayload);
 
   try {
     const response = await requestWithXhr(method, url, body, timeoutMs);
     const parsed = JSON.parse(response.body) as AccountApiResult;
 
-    sendClientRuntimeLog({
-      channel: 'accounts',
-      event: 'api:request:success',
-      payload: {
-        ...logPayload,
-        status: response.status,
-      },
-    }).catch(() => undefined);
+    logAccountApiEvent('api:request:success', {
+      ...logPayload,
+      status: response.status,
+    });
 
     return parsed;
   } catch (error) {
-    sendClientRuntimeLog({
-      channel: 'accounts',
-      event: 'api:request:error',
-      payload: {
-        ...logPayload,
-        error: error instanceof Error ? error.message : String(error),
-      },
-    }).catch(() => undefined);
+    logAccountApiEvent('api:request:error', {
+      ...logPayload,
+      error: error instanceof Error ? error.message : String(error),
+    });
 
     return {
       status: 'error',
@@ -141,8 +136,6 @@ async function requestJson(
     };
   }
 }
-
-
 export function loginAccount(payload: { loginId: string; password: string }) {
   return requestJson('POST', RUNTIME_CONFIG.CLIENT_ACCOUNT_LOGIN_PATH, payload);
 }
@@ -212,20 +205,4 @@ export function renewLicense(payload: { licenseCode: string }) {
     LONG_REQUEST_TIMEOUT_MS,
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

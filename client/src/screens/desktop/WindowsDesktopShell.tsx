@@ -22,7 +22,6 @@ import {
   runAccountLogoutFlow,
   type AccountSession,
 } from '../../shared/lib/accountSession';
-import { sendClientRuntimeLog } from '../../shared/lib/clientLogs';
 import { windowsPressableFocusProps } from '../../shared/ui/windowsFocusProps';
 import { AcademyMembersSection } from '../../domains/members/AcademyMembersSection';
 import { MembersHomeScreen } from '../../domains/members/MembersHomeScreen';
@@ -113,14 +112,10 @@ export function WindowsDesktopShell() {
     message?: string,
     payload: Record<string, unknown> = {},
   ) => {
-    sendClientRuntimeLog({
-      channel: 'accounts',
-      event,
-      payload: {
-        message: message ?? '',
-        ...payload,
-      },
-    }).catch(() => undefined);
+    console.log(`[accounts] ${event}`, {
+      message: message ?? '',
+      ...payload,
+    });
   };
 
   const localizeAccountError = (message?: string | null) => {

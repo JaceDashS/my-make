@@ -238,8 +238,6 @@ func defaultTitleForOperation(operation string, status int) string {
 		return "Table initialization could not be completed."
 	case "create-license":
 		return "License creation could not be completed."
-	case "client-logs":
-		return "Client log delivery could not be completed."
 	default:
 		if status == http.StatusMethodNotAllowed {
 			return "The request method is not allowed."
@@ -261,8 +259,6 @@ func defaultActionForOperation(operation string) string {
 		return "Verify the academy code, actor role, and target member before retrying."
 	case "health", "initialize-tables", "create-license":
 		return "Verify the server and database dependencies, then run the action again."
-	case "client-logs":
-		return "Check server write access and retry the log submission."
 	default:
 		return "Review the failing request and try again after correcting the cause."
 	}

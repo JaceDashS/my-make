@@ -775,37 +775,6 @@ func (a *app) handleApprovePendingMember(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (a *app) handleClientLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeMethodNotAllowedError(w, r.Method)
-		return
-	}
-
-	entry, err := decodeJSONBody[clientLogEntry](r)
-	if err != nil {
-		logServerRuntime("client-logs", "decode-error", map[string]any{
-			"error": err.Error(),
-		})
-		writeAPIError(w, http.StatusBadRequest, "client-logs", err.Error())
-		return
-	}
-
-	if err := appendClientLog(entry); err != nil {
-		logServerRuntime("client-logs", "append-error", map[string]any{
-			"channel": entry.Channel,
-			"error":   err.Error(),
-			"event":   entry.Event,
-		})
-		writeAPIError(w, http.StatusInternalServerError, "client-logs", err.Error())
-		return
-	}
-
-	logClientRuntime(entry)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status": "ok",
-	})
-}
-
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
