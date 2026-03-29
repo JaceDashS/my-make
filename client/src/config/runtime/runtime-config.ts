@@ -15,6 +15,7 @@ export const RUNTIME_CONFIG = {
   CLIENT_DEV_INIT_TABLES_PATH: '/api/dev-tools/tables/init',
   CLIENT_DEV_INIT_AND_SEED_PATH: '/api/dev-tools/tables/init-and-inject',
   CLIENT_DEV_CREATE_LICENSE_PATH: '/api/dev-tools/licenses',
+  CLIENT_DEV_SERVER_LOG_PATH: '/api/dev-tools/server-log',
   CLIENT_LICENSE_RENEW_PATH: '/api/licenses/renew',
   CLIENT_RENDER_BASE_URL: 'https://your-render-service.onrender.com',
 } as const;

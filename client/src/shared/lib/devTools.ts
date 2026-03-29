@@ -120,3 +120,7 @@ export function initializeAndInjectTestData() {
 export function createLicense() {
   return runDevToolsAction(RUNTIME_CONFIG.CLIENT_DEV_CREATE_LICENSE_PATH);
 }
+
+export function emitServerLog() {
+  return runDevToolsAction(RUNTIME_CONFIG.CLIENT_DEV_SERVER_LOG_PATH);
+}

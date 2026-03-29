@@ -105,7 +105,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/dev-tools/tables/init", a.handleInitializeTables)
 	mux.HandleFunc("/api/dev-tools/tables/init-and-inject", a.handleInitializeTablesAndInjectTestData)
 	mux.HandleFunc("/api/dev-tools/licenses", a.handleCreateLicense)
-	mux.HandleFunc("/api/dev-tools/client-logs", a.handleClientLogs)
+	mux.HandleFunc("/api/dev-tools/server-log", a.handleEmitServerLog)
 	return mux
 }
 
@@ -208,6 +208,20 @@ func (a *app) handleCreateLicense(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleEmitServerLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowedError(w, r.Method)
+		return
+	}
+
+	log.Printf("[dev-tools/server-log] emitted minimal server log")
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"message": "Minimal server log emitted.",
+	})
 }
 
 func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {

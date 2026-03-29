@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { RUNTIME_CONFIG } from '../../../../../config/runtime/runtime-config';
 import { ActionButton } from '../../../../../shared/components/ActionButton';
@@ -7,6 +7,7 @@ import { HealthCheckButton } from '../../../../../shared/components/HealthCheckB
 import { copyText } from '../../../../../shared/lib/clipboard';
 import {
   createLicense,
+  emitServerLog,
   initializeAndInjectTestData,
   initializeTables,
   type DevToolsResult,
@@ -43,6 +44,10 @@ export function DevHealthSection({
     allChecksHint: string;
     cloud: string;
     copyLicenseCode: string;
+    devClientLog: string;
+    devClientLogHint: string;
+    devServerLog: string;
+    devServerLogHint: string;
     devDisableConditionalVisibility: string;
     devDisableConditionalVisibilityHint: string;
     devHealth: string;
@@ -81,7 +86,7 @@ export function DevHealthSection({
 }) {
   const [actionResult, setActionResult] = useState<DevToolsResult | null>(null);
   const [loadingAction, setLoadingAction] = useState<
-    'tables' | 'seed' | 'license' | null
+    'tables' | 'seed' | 'license' | 'server-log' | null
   >(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
@@ -117,6 +122,23 @@ export function DevHealthSection({
     }
 
     setCopyMessage('License code copied.');
+  };
+
+  const triggerClientLog = () => {
+    const triggeredAt = new Date().toISOString();
+
+    console.log('[dev-client-log]', {
+      env: RUNTIME_CONFIG.APP_ENV,
+      host: RUNTIME_CONFIG.DEV_HOST_IP,
+      platform: Platform.OS,
+      triggeredAt,
+    });
+
+    setCopyMessage(null);
+    setActionResult({
+      message: `Client log emitted at ${triggeredAt}.`,
+      status: 'success',
+    });
   };
 
   return (
@@ -283,6 +305,29 @@ export function DevHealthSection({
         label={labels.devLicenseCreate}
         onPress={() => {
           runDeveloperAction('license', createLicense).catch(() => undefined);
+        }}
+        style={styles.primaryCardAction}
+        textColor={palette.text}
+        hintStyle={styles.primaryCardActionHint}
+        titleStyle={styles.primaryCardActionTitle}
+      />
+      <ActionButton
+        backgroundColor={palette.soft}
+        hint={labels.devClientLogHint}
+        label={labels.devClientLog}
+        onPress={triggerClientLog}
+        style={styles.primaryCardAction}
+        textColor={palette.text}
+        hintStyle={styles.primaryCardActionHint}
+        titleStyle={styles.primaryCardActionTitle}
+      />
+      <ActionButton
+        backgroundColor={palette.soft}
+        hint={labels.devServerLogHint}
+        isLoading={loadingAction === 'server-log'}
+        label={labels.devServerLog}
+        onPress={() => {
+          runDeveloperAction('server-log', emitServerLog).catch(() => undefined);
         }}
         style={styles.primaryCardAction}
         textColor={palette.text}

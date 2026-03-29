@@ -10,6 +10,12 @@ export const DESKTOP_SHELL_LABELS = {
     allChecks: '全ヘルスチェック実行',
     allChecksHint: 'ローカル、Docker、クラウドの順で確認します。',
     cloud: 'クラウドサーバー',
+    devClientLog: 'クライアントログ出力',
+    devClientLogHint:
+      'このクライアントから標準の console.log を 1 件出力します。',
+    devServerLog: 'サーバーログ出力',
+    devServerLogHint:
+      '開発サーバーで最小コストのログを 1 件出力します。',
     devHealth: '開発者オプション',
     devHealthBody:
       '現在のデスクトップクライアントから各サーバー接続を確認します。',
@@ -171,6 +177,12 @@ export const DESKTOP_SHELL_LABELS = {
     allChecks: 'Run All Health Checks',
     allChecksHint: 'Run local, Docker, and cloud checks in sequence.',
     cloud: 'Cloud Server',
+    devClientLog: 'Emit Client Log',
+    devClientLogHint:
+      'Write one standard console.log entry from this client.',
+    devServerLog: 'Emit Server Log',
+    devServerLogHint:
+      'Write one minimal-cost log entry from the development server.',
     devHealth: 'Developer Options',
     devHealthBody: 'Check connectivity to each server from the desktop client.',
     devDisableConditionalVisibility: 'Disable Conditional Hiding',
