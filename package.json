@@ -4,8 +4,8 @@
   "scripts": {
     "install:all": "npm install --include=dev && npm --prefix client install",
     "cache:clean": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$paths=@('.\\\\node_modules\\\\.cache','.\\\\client\\\\node_modules\\\\.cache','.\\\\.next','.\\\\.turbo','.\\\\client\\\\.vite'); npm cache clean --force; foreach($path in $paths){ Remove-Item -Recurse -Force $path -ErrorAction SilentlyContinue }; Get-ChildItem -Path . -Recurse -Include *.tsbuildinfo -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"",
-    "config:runtime-config:dev": "node ./scripts/generate-runtime-config.js development",
-    "config:runtime-config:prod": "node ./scripts/generate-runtime-config.js production",
+    "sync:runtime-config:dev": "node ./scripts/generate-runtime-config.js development",
+    "sync:runtime-config:prod": "node ./scripts/generate-runtime-config.js production",
     "port:8080:kill": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$port=8080; $processIds=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach($processId in $processIds){ Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared port ' + $port)\"",
     "port:8081:kill": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$port=8081; $processIds=Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach($processId in $processIds){ Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }; Write-Host ('cleared port ' + $port)\"",
     "ports:dev:kill": "npm run port:8080:kill && npm run port:8081:kill",
