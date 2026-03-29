@@ -1,16 +1,7 @@
-export type MobileShellPalette = {
-  appBg: string;
-  border: string;
-  card: string;
+import type {ShellPalette} from '../../../shared/shell-model';
+
+export type MobileShellPalette = ShellPalette & {
   menuText: string;
-  muted: string;
-  primary: string;
-  primaryText: string;
-  sidebarItem: string;
-  sidebarItemText: string;
-  soft: string;
-  text: string;
-  textMuted: string;
   overlay: string;
   menuCard: string;
 };

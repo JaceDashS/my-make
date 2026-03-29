@@ -14,6 +14,20 @@ export type MembersSection = 'pending-approval' | 'academy-members';
 export type LanguageMode = 'ja' | 'en';
 export type ThemeMode = 'light' | 'dark';
 
+export type ShellPalette = {
+  appBg: string;
+  border: string;
+  card: string;
+  muted: string;
+  primary: string;
+  primaryText: string;
+  sidebarItem: string;
+  sidebarItemText: string;
+  soft: string;
+  text: string;
+  textMuted: string;
+};
+
 export type TargetState = {
   checkedAt: string | null;
   message: string;

@@ -1,17 +1,8 @@
-export type DesktopShellPalette = {
-  appBg: string;
-  border: string;
-  card: string;
-  muted: string;
-  primary: string;
-  primaryText: string;
+import type {ShellPalette} from '../../../shared/shell-model';
+
+export type DesktopShellPalette = ShellPalette & {
   sidebar: string;
-  sidebarItem: string;
-  sidebarItemText: string;
   sidebarText: string;
-  soft: string;
-  text: string;
-  textMuted: string;
 };
 
 export type DesktopMenuSection =
