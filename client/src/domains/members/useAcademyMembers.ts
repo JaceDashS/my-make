@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo, useReducer, useRef, useState} from 'react';
 
 import {
   searchAcademyMembers,
@@ -6,16 +6,19 @@ import {
   type AcademyMemberRecord,
 } from '../../shared/lib/pendingMembersApi';
 import type {LanguageMode} from '../../screens/shared/shell-model';
+import {filterSlotsByStatus} from './academyMembersModel';
 import {
-  buildAcademyMemberSlots,
-  filterSlotsByStatus,
-  TABLE_PAGE_SIZE,
-} from './academyMembersModel';
+  academyMembersReducer,
+  createAcademyMembersState,
+} from './academyMembersReducer';
+import {
+  getAcademyMemberSummaryText,
+  getAcademyMemberTotalPages,
+  paginateAcademyMemberSlots,
+} from './academyMembersView';
 import type {
-  AcademyMemberChartViewState,
   AcademyMemberStatus,
   AcademyMemberStatusFilter,
-  AcademyMemberSearchViewState,
   SearchField,
 } from './academyMembersTypes';
 import {
@@ -44,49 +47,34 @@ export function useAcademyMembers({
   uiNotice,
   onCleanupNativeState,
 }: UseAcademyMembersParams) {
-  const [isSearching, setIsSearching] = useState(false);
+  const [state, dispatch] = useReducer(
+    academyMembersReducer,
+    uiNotice,
+    createAcademyMembersState,
+  );
   const [statusFilter, setStatusFilter] =
     useState<AcademyMemberStatusFilter>('ALL');
-  const [updatingKey, setUpdatingKey] = useState<string | null>(null);
-  const membersRef = useRef<AcademyMemberRecord[] | null>(null);
-  const [searchView, setSearchView] = useState<AcademyMemberSearchViewState>({
-    errorMessage: '',
-    noticeMessage: uiNotice,
-  });
-  const [chartView, setChartView] = useState<AcademyMemberChartViewState>({
-    memberCount: 0,
-    slots: buildAcademyMemberSlots([]),
-  });
   const [currentPage, setCurrentPage] = useState(1);
+  const membersRef = useRef<AcademyMemberRecord[] | null>(null);
 
   const canManageMembers =
     isAuthenticated && (roleCode === 'ROOT' || roleCode === 'ADMIN');
 
   useEffect(() => {
-    setSearchView(current => ({
-      ...current,
-      noticeMessage: current.errorMessage ? current.noticeMessage : uiNotice,
-    }));
+    dispatch({type: 'sync_notice', noticeMessage: uiNotice});
   }, [uiNotice]);
 
   const visibleSlots = useMemo(
-    () => filterSlotsByStatus(chartView.slots, statusFilter),
-    [chartView.slots, statusFilter],
+    () => filterSlotsByStatus(state.chartView.slots, statusFilter),
+    [state.chartView.slots, statusFilter],
   );
 
-  const tableRowCount = visibleSlots.length;
-  const totalPages = Math.max(
-    1,
-    Math.ceil(Math.max(1, tableRowCount) / TABLE_PAGE_SIZE),
-  );
-  const paginatedSlots = visibleSlots.slice(
-    (currentPage - 1) * TABLE_PAGE_SIZE,
-    currentPage * TABLE_PAGE_SIZE,
-  );
+  const totalPages = getAcademyMemberTotalPages(visibleSlots.length);
+  const paginatedSlots = paginateAcademyMemberSlots(visibleSlots, currentPage);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [chartView.memberCount, statusFilter, visibleSlots.length]);
+  }, [state.chartView.memberCount, statusFilter, visibleSlots.length]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -94,96 +82,63 @@ export function useAcademyMembers({
     }
   }, [currentPage, totalPages]);
 
-  const summaryText = useMemo(() => {
-    if (visibleSlots.length === 0) {
-      return language === 'ja'
-        ? '現在表示できる所属メンバーはありません。'
-        : chartView.memberCount === 0
-        ? 'No academy members are currently loaded.'
-        : 'No academy members match the current filter.';
-    }
-
-    return language === 'ja'
-      ? `確認対象の所属メンバーが ${visibleSlots.length} 件あります。`
-      : `${visibleSlots.length} academy member${
-          visibleSlots.length === 1 ? '' : 's'
-        } ready to manage.`;
-  }, [chartView.memberCount, language, visibleSlots.length]);
-
-  const applyChartState = (nextRows: AcademyMemberRecord[]) => {
-    setChartView({
-      memberCount: nextRows.length,
-      slots: buildAcademyMemberSlots(nextRows),
-    });
-  };
+  const summaryText = useMemo(
+    () =>
+      getAcademyMemberSummaryText(
+        state.chartView.memberCount,
+        visibleSlots.length,
+        language,
+      ),
+    [state.chartView.memberCount, language, visibleSlots.length],
+  );
 
   const runSearchValidation = () => {
     if (!canManageMembers || !academyCode) {
       membersRef.current = null;
-      setSearchView({
+      dispatch({
+        type: 'reset_results',
         errorMessage:
           language === 'ja'
             ? '所属メンバーを検索するには、root または admin アカウントでサインインしてください。'
             : 'Sign in as a root or admin account to search academy members.',
-        noticeMessage: '',
       });
-      applyChartState([]);
       return 'invalid-role';
     }
 
     const validationMessage = validatePendingSearchQuery(field, query, language);
     if (validationMessage) {
       membersRef.current = null;
-      setSearchView({
-        errorMessage: validationMessage,
-        noticeMessage: '',
-      });
-      applyChartState([]);
+      dispatch({type: 'reset_results', errorMessage: validationMessage});
       return 'invalid-query';
     }
 
-    setSearchView(current => ({
-      ...current,
-      errorMessage: '',
-      noticeMessage: '',
-    }));
+    dispatch({type: 'clear_feedback'});
     return null;
   };
 
   const runAccessValidation = () => {
     if (!canManageMembers || !academyCode) {
       membersRef.current = null;
-      setSearchView({
+      dispatch({
+        type: 'reset_results',
         errorMessage:
           language === 'ja'
             ? '所属メンバーを検索するには、root または admin アカウントでサインインしてください。'
             : 'Sign in as a root or admin account to search academy members.',
-        noticeMessage: '',
       });
-      applyChartState([]);
       return 'invalid-role';
     }
 
-    setSearchView(current => ({
-      ...current,
-      errorMessage: '',
-      noticeMessage: '',
-    }));
+    dispatch({type: 'clear_feedback'});
     return null;
   };
 
   const handleSearch = async (overrideStatusFilter?: AcademyMemberStatusFilter) => {
-    const validationError = runSearchValidation();
-    if (validationError) {
+    if (runSearchValidation()) {
       return;
     }
 
-    setIsSearching(true);
-    setSearchView(current => ({
-      ...current,
-      errorMessage: '',
-      noticeMessage: '',
-    }));
+    dispatch({type: 'search_started'});
 
     try {
       const normalizedQuery = normalizePendingSearchQuery(field, query);
@@ -197,21 +152,21 @@ export function useAcademyMembers({
 
       if (result.status !== 'ok') {
         membersRef.current = null;
-        setSearchView(current => ({
-          ...current,
+        dispatch({
+          type: 'search_failed',
           errorMessage:
             result.error ??
             result.message ??
             (language === 'ja' ? '検索に失敗しました。' : 'Search failed.'),
-        }));
+        });
         return;
       }
 
       const nextRows = result.members ?? [];
       membersRef.current = nextRows;
-      applyChartState(nextRows);
-      setSearchView(current => ({
-        ...current,
+      dispatch({
+        type: 'search_succeeded',
+        rows: nextRows,
         noticeMessage:
           nextRows.length > 0
             ? language === 'ja'
@@ -222,20 +177,20 @@ export function useAcademyMembers({
             : language === 'ja'
             ? '一致する検索結果はありませんでした。'
             : 'Request finished with no matching results.',
-      }));
+      });
     } catch (error) {
       membersRef.current = null;
-      setSearchView(current => ({
-        ...current,
+      dispatch({
+        type: 'search_failed',
         errorMessage:
           error instanceof Error
             ? error.message
             : language === 'ja'
             ? '検索に失敗しました。'
             : String(error),
-      }));
+      });
     } finally {
-      setIsSearching(false);
+      dispatch({type: 'search_finished'});
       onCleanupNativeState('academy-members:search');
     }
   };
@@ -251,17 +206,11 @@ export function useAcademyMembers({
   };
 
   const handleLoadAllMembers = async () => {
-    const accessError = runAccessValidation();
-    if (accessError) {
+    if (runAccessValidation()) {
       return;
     }
 
-    setIsSearching(true);
-    setSearchView(current => ({
-      ...current,
-      errorMessage: '',
-      noticeMessage: '',
-    }));
+    dispatch({type: 'search_started'});
 
     try {
       const result = await searchAcademyMembers({
@@ -274,23 +223,23 @@ export function useAcademyMembers({
 
       if (result.status !== 'ok') {
         membersRef.current = null;
-        setSearchView(current => ({
-          ...current,
+        dispatch({
+          type: 'search_failed',
           errorMessage:
             result.error ??
             result.message ??
             (language === 'ja'
               ? '全メンバーの読み込みに失敗しました。'
               : 'Loading all members failed.'),
-        }));
+        });
         return;
       }
 
       const nextRows = result.members ?? [];
       membersRef.current = nextRows;
-      applyChartState(nextRows);
-      setSearchView(current => ({
-        ...current,
+      dispatch({
+        type: 'search_succeeded',
+        rows: nextRows,
         noticeMessage:
           nextRows.length > 0
             ? language === 'ja'
@@ -301,20 +250,20 @@ export function useAcademyMembers({
             : language === 'ja'
             ? '所属メンバーは見つかりませんでした。'
             : 'No academy members were found.',
-      }));
+      });
     } catch (error) {
       membersRef.current = null;
-      setSearchView(current => ({
-        ...current,
+      dispatch({
+        type: 'search_failed',
         errorMessage:
           error instanceof Error
             ? error.message
             : language === 'ja'
             ? '全メンバーの読み込みに失敗しました。'
             : String(error),
-      }));
+      });
     } finally {
-      setIsSearching(false);
+      dispatch({type: 'search_finished'});
       onCleanupNativeState('academy-members:load-all');
     }
   };
@@ -325,22 +274,20 @@ export function useAcademyMembers({
     nextStatus: AcademyMemberStatus,
   ) => {
     if (!canManageMembers || !academyCode) {
-      setSearchView(current => ({
-        ...current,
+      dispatch({
+        type: 'status_update_failed',
         errorMessage:
           language === 'ja'
             ? '所属メンバーを管理するには、root または admin アカウントでサインインしてください。'
             : 'Sign in as a root or admin account to manage academy members.',
-      }));
+      });
       return;
     }
 
-    setUpdatingKey(`${loginId}:${nextStatus}`);
-    setSearchView(current => ({
-      ...current,
-      errorMessage: '',
-      noticeMessage: '',
-    }));
+    dispatch({
+      type: 'status_update_started',
+      updatingKey: `${loginId}:${nextStatus}`,
+    });
 
     try {
       const result = await updateAcademyMemberStatus({
@@ -352,52 +299,54 @@ export function useAcademyMembers({
       });
 
       if (result.status !== 'ok') {
-        setSearchView(current => ({
-          ...current,
+        dispatch({
+          type: 'status_update_failed',
           errorMessage:
             result.error ??
             result.message ??
             (language === 'ja' ? '状態変更に失敗しました。' : 'Update failed.'),
-        }));
+        });
         return;
       }
 
-      setSearchView(current => ({
-        ...current,
+      dispatch({
+        type: 'status_update_succeeded',
         noticeMessage:
           language === 'ja'
             ? `${result.loginId ?? loginId} の状態を ${nextStatus} に変更しました。`
             : `${result.loginId ?? loginId} is now ${nextStatus}.`,
-      }));
+      });
+
       if (query.trim()) {
         await handleSearch(statusFilter);
       } else {
         await handleLoadAllMembers();
       }
     } catch (error) {
-      setSearchView(current => ({
-        ...current,
+      dispatch({
+        type: 'status_update_failed',
         errorMessage: error instanceof Error ? error.message : String(error),
-      }));
+      });
     } finally {
-      setUpdatingKey(null);
+      dispatch({type: 'status_update_finished'});
       onCleanupNativeState('academy-members:update');
     }
   };
 
   return {
     currentPage,
-    errorMessage: searchView.errorMessage,
+    errorMessage: state.errorMessage,
     handleSearch,
     handleLoadAllMembers,
     handleStatusFilterChange,
     handleStatusUpdate,
-    isSearching,
+    isSearching: state.isSearching,
     paginatedSlots,
     setCurrentPage,
     statusFilter,
-    statusMessage: searchView.errorMessage || searchView.noticeMessage || summaryText,
+    statusMessage:
+      state.errorMessage || state.noticeMessage || summaryText,
     totalPages,
-    updatingKey,
+    updatingKey: state.updatingKey,
   };
 }
