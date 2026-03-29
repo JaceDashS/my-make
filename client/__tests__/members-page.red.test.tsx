@@ -58,6 +58,8 @@ describe('members page red stage', () => {
           isAuthenticated={true}
           isOpen={true}
           showMembersPage={true}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
           labels={
             {
               account: 'Account',
@@ -110,6 +112,8 @@ describe('members page red stage', () => {
           isAuthenticated={true}
           isOpen={true}
           showMembersPage={true}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
           labels={
             {
               account: 'Account',
@@ -155,6 +159,8 @@ describe('members page red stage', () => {
           currentSection="pending-approval"
           isAuthenticated={true}
           showMembersPage={true}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
           labels={
             {
               account: 'Account',
@@ -200,6 +206,8 @@ describe('members page red stage', () => {
           currentSection="pending-approval"
           isAuthenticated={true}
           showMembersPage={true}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
           labels={
             {
               account: 'Account',
@@ -251,6 +259,8 @@ describe('members page red stage', () => {
           isAuthenticated={true}
           isOpen={true}
           showMembersPage={false}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
           labels={
             {
               account: 'Account',
@@ -297,6 +307,8 @@ describe('members page red stage', () => {
           currentSection="login"
           isAuthenticated={true}
           showMembersPage={false}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
           labels={
             {
               account: 'Account',

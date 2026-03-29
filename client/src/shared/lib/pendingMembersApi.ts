@@ -6,7 +6,7 @@ import {unique} from './unique';
 const EMULATOR_HOST = '10.0.2.2';
 const LOCALHOST_HOST = 'localhost';
 const LOOPBACK_HOST = '127.0.0.1';
-const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
 export type PendingMemberRecord = {
   createdAt: string;
@@ -17,11 +17,22 @@ export type PendingMemberRecord = {
   roleCode: string;
 };
 
+export type AcademyMemberRecord = PendingMemberRecord & {
+  statusCode: 'ACTIVE' | 'HOLD' | 'INACTIVE';
+};
+
 export type PendingMembersResponse = {
   status: string;
   message: string;
   error?: string;
   members?: PendingMemberRecord[];
+};
+
+export type AcademyMembersResponse = {
+  status: string;
+  message: string;
+  error?: string;
+  members?: AcademyMemberRecord[];
 };
 
 export type ApprovePendingMemberResponse = {
@@ -31,6 +42,17 @@ export type ApprovePendingMemberResponse = {
   academyCode?: string;
   displayName?: string;
   loginId?: string;
+  roleCode?: string;
+};
+
+export type UpdateAcademyMemberStatusResponse = {
+  status: string;
+  message: string;
+  error?: string;
+  currentStatus?: string;
+  displayName?: string;
+  loginId?: string;
+  nextStatus?: string;
   roleCode?: string;
 };
 
@@ -156,6 +178,29 @@ export function approvePendingMember(payload: {
 }) {
   return postJson<ApprovePendingMemberResponse>(
     '/api/members/pending/approve',
+    payload,
+  );
+}
+
+export function searchAcademyMembers(payload: {
+  academyCode: string;
+  actorRoleCode: string;
+  field: 'displayName' | 'email' | 'phone';
+  query: string;
+  statusFilter: 'ALL' | 'ACTIVE' | 'HOLD' | 'INACTIVE';
+}) {
+  return postJson<AcademyMembersResponse>('/api/members/academy/search', payload);
+}
+
+export function updateAcademyMemberStatus(payload: {
+  academyCode: string;
+  actorRoleCode: string;
+  loginId: string;
+  currentStatus: 'ACTIVE' | 'HOLD' | 'INACTIVE';
+  nextStatus: 'ACTIVE' | 'HOLD' | 'INACTIVE';
+}) {
+  return postJson<UpdateAcademyMemberStatusResponse>(
+    '/api/members/academy/status',
     payload,
   );
 }
