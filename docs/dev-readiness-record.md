@@ -87,7 +87,6 @@ These are meant for local cleanup before rerunning `npm run dev`.
 
 Validated locally on this Windows host:
 
-- `npm run dev:windows:check`
 - `node ./scripts/start-supported-dev.js --dry-run`
 - `node ./scripts/dev-platform-check.js`
 - `npm run dev`

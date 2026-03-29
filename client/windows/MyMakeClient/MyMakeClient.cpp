@@ -35,7 +35,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
 
   // Configure the initial InstanceSettings for the app's ReactNativeHost
   auto settings{reactNativeWin32App.ReactNativeHost().InstanceSettings()};
-  settings.JSIEngineOverride(winrt::Microsoft::ReactNative::JSIEngine::V8);
+  settings.JSIEngineOverride(winrt::Microsoft::ReactNative::JSIEngine::Hermes);
   // Register any autolinked native modules
   RegisterAutolinkedNativeModulePackages(settings.PackageProviders());
   // Register any native modules defined within this app project
@@ -57,8 +57,8 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
 #endif
 #if _DEBUG
   // For Debug builds
-  // Disable Direct Debugging of JS to avoid Hermes debugger instability in Win32 dev runs.
-  settings.UseDirectDebugger(false);
+  // Enable Direct Debugging so Metro can register this app as a DevTools target.
+  settings.UseDirectDebugger(true);
   // Enable the Developer Menu
   settings.UseDeveloperSupport(true);
 #else

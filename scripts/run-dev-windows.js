@@ -79,6 +79,12 @@ function sleep(ms) {
   });
 }
 
+function waitIndefinitely() {
+  return new Promise(() => {
+    setInterval(() => {}, 1 << 30);
+  });
+}
+
 function checkUrlReady(url) {
   return new Promise(resolve => {
     const request = http.get(url, response => {
@@ -254,68 +260,6 @@ function startPersistentStep({name, command, args}) {
   });
 }
 
-function launchDetachedStep({name, command, args}) {
-  writeHeader(`DEV WINDOWS STEP: ${name}`);
-  writeLine(colorize(`command: ${command} ${args.join(' ')}`, ANSI.dim));
-
-  const childEnv = {
-    ...process.env,
-    FORCE_COLOR: process.env.FORCE_COLOR || '1',
-    CLICOLOR: process.env.CLICOLOR || '1',
-    CLICOLOR_FORCE: process.env.CLICOLOR_FORCE || '1',
-  };
-
-  const child =
-    process.platform === 'win32'
-      ? spawn(
-          [command, ...args].map(quoteForShell).join(' '),
-          [],
-          {
-            cwd: rootDir,
-            env: childEnv,
-            shell: commandShell,
-            stdio: ['ignore', 'pipe', 'pipe'],
-          },
-        )
-      : spawn(command, args, {
-          cwd: rootDir,
-          env: childEnv,
-          shell: false,
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-
-  child.stdout.on('data', chunk => {
-    const text = chunk.toString();
-    process.stdout.write(text);
-    appendLog(text);
-  });
-
-  child.stderr.on('data', chunk => {
-    const text = chunk.toString();
-    process.stderr.write(text);
-    appendLog(text);
-  });
-
-  child.on('error', error => {
-    writeError(
-      colorize(
-        `[run-dev-windows] detached step "${name}" failed: ${error.message}`,
-        ANSI.red,
-        ANSI.bold,
-      ),
-    );
-  });
-
-  child.on('exit', code => {
-    writeLine(
-      colorize(
-        `[run-dev-windows] detached step "${name}" exited with code ${code ?? 0}`,
-        (code ?? 0) === 0 ? ANSI.green : ANSI.yellow,
-      ),
-    );
-  });
-}
-
 function cleanupDevTargets() {
   if (cleanupStarted) {
     return;
@@ -387,18 +331,6 @@ async function main() {
   });
 
   await runStep({
-    name: 'clear metro port',
-    command: npmCommand,
-    args: ['run', 'port:8081:kill'],
-  });
-
-  await runStep({
-    name: 'clear relay port',
-    command: npmCommand,
-    args: ['run', 'port:8090:kill'],
-  });
-
-  await runStep({
     name: 'sync runtime config',
     command: npmCommand,
     args: ['run', 'sync:runtime-config:dev'],
@@ -408,18 +340,6 @@ async function main() {
     name: 'windows platform check',
     command: nodeCommand,
     args: [path.join(rootDir, 'scripts', 'run-platform-target.js'), 'windows'],
-  });
-
-  await startPersistentStep({
-    name: 'start metro',
-    command: npmCommand,
-    args: ['--prefix', 'client', 'run', 'start'],
-  });
-
-  launchDetachedStep({
-    name: 'start metro relay',
-    command: nodeCommand,
-    args: [path.join(rootDir, 'scripts', 'metro-log-relay.js')],
   });
 
   writeHeader('DEV WINDOWS STEP: wait for metro');
@@ -438,17 +358,27 @@ async function main() {
 
   if (!metroReady) {
     throw new Error(
-      'Metro did not become ready on http://127.0.0.1:8081/status after startup.',
+      'Metro did not become ready on http://127.0.0.1:8081/status. Start it first with `npm run dev:metro`.',
     );
   }
 
   writeLine(colorize('[run-dev-windows] metro is ready', ANSI.green, ANSI.bold));
 
-  launchDetachedStep({
+  await runStep({
     name: 'start windows client',
     command: npmCommand,
     args: ['--prefix', 'client', 'run', 'windows', '--', '--no-packager'],
   });
+
+  writeLine(
+    colorize(
+      '[run-dev-windows] windows client launched; keeping dev session alive until you stop it',
+      ANSI.green,
+      ANSI.bold,
+    ),
+  );
+
+  await waitIndefinitely();
 }
 
 forwardSignal('SIGINT');

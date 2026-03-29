@@ -43,7 +43,6 @@
 * `npm run dev` は Metro と Go サーバーを起動し、現在ホストで実行可能なクライアントターゲット状況を表示する
 * `npm run dev:android` は Android 開発起動を試行する
 * `npm run dev:ios` は iOS 実行可否を確認する。Windows ホストでは iPhone シミュレーターは実行できない
-* `npm run dev:windows:check` は Windows ターゲット設定有無を確認する
 * `npm run dev:windows` は Metro、Go サーバー、Windows クライアント起動を試行する
 * `npm run dev:macos` は macOS ターゲット設定有無を確認する。現在このリポジトリでは未設定
 
