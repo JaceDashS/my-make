@@ -660,6 +660,72 @@ func TestProfileRouteReturnsStoredProfile(t *testing.T) {
 	}
 }
 
+func TestUpdateProfileRouteReturnsUpdatedProfile(t *testing.T) {
+	application := &app{
+		accounts: &stubAccountService{
+			updateProfileResult: profileResponse{
+				Status:      "ok",
+				Message:     "Profile updated successfully.",
+				AccountCode: "AD0000000001",
+				AcademyCode: "abc123def456",
+				AcademyName: "My Academy",
+				DisplayName: "Root Admin",
+				Email:       "next@example.com",
+				Phone:       "010-9999-0000",
+				LoginID:     "root-admin",
+				Note:        "Updated note",
+				RoleCode:    "ROOT",
+				LicenseCode: "LICENSE001",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "root-admin",
+		RoleCode: "ROOT",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/accounts/profile/update", strings.NewReader(`{
+  "email":"next@example.com",
+  "note":"Updated note",
+  "phone":"010-9999-0000"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body profileResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if body.Email != "next@example.com" {
+		t.Fatalf("expected updated email next@example.com, got %q", body.Email)
+	}
+	if body.Note != "Updated note" {
+		t.Fatalf("expected updated note Updated note, got %q", body.Note)
+	}
+
+	stub := application.accounts.(*stubAccountService)
+	if stub.lastUpdateProfile.Email == nil || *stub.lastUpdateProfile.Email != "next@example.com" {
+		t.Fatalf("expected email to reach service, got %+v", stub.lastUpdateProfile.Email)
+	}
+	if stub.lastUpdateProfile.Note == nil || *stub.lastUpdateProfile.Note != "Updated note" {
+		t.Fatalf("expected note to reach service, got %+v", stub.lastUpdateProfile.Note)
+	}
+}
+
 func TestLogoutRouteClearsSessionCookie(t *testing.T) {
 	application := &app{
 		sessions: newSessionManager(),

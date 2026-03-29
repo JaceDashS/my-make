@@ -735,7 +735,6 @@ export function MobileAppShell() {
             <AccountSection
               authError={authError}
               authNotice={authNotice}
-              accountCode={session?.accountCode ?? accountCode}
               academyCode={session?.academyCode ?? academyCode}
               academyName={session?.academyName ?? academyName}
               authPolicy={authPolicy}
@@ -772,7 +771,6 @@ export function MobileAppShell() {
               palette={p}
               password={password}
               phone={phone}
-              profilePassword={profilePassword}
               registerError={registerError}
               registerSuccess={registerSuccess}
               registerType={registerType}

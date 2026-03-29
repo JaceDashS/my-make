@@ -658,7 +658,6 @@ export function WindowsDesktopShell() {
 
               {page === 'account' ? (
                 <AccountSection
-                  accountCode={session?.accountCode ?? accountCode}
                   academyCode={session?.academyCode ?? academyCode}
                   academyName={session?.academyName ?? academyName}
                   authError={authError}
@@ -694,11 +693,8 @@ export function WindowsDesktopShell() {
                   onAuthPolicyChange={setAuthPolicy}
                   onSaveProfile={handleSaveProfile}
                   onStatusCodeChange={setStatusCode}
-                  unmountLoginContainer={unmountLoginContainer}
-                  unmountProfileContainer={unmountProfileContainer}
                   palette={p}
                   password={password}
-                  profilePassword={profilePassword}
                   phone={phone}
                   registerError={registerError}
                   registerSuccess={registerSuccess}
