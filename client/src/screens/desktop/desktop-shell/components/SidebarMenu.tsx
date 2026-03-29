@@ -12,6 +12,7 @@ export function SidebarMenu({
   disableConditionalVisibility,
   isOpen,
   isAuthenticated,
+  showMembersPage,
   showTeacherAccountItems,
   showStudentAccountItems,
   labels,
@@ -25,6 +26,7 @@ export function SidebarMenu({
   disableConditionalVisibility: boolean;
   isOpen: boolean;
   isAuthenticated: boolean;
+  showMembersPage: boolean;
   showTeacherAccountItems: boolean;
   showStudentAccountItems: boolean;
   labels: {
@@ -256,51 +258,55 @@ export function SidebarMenu({
                 ) : null}
               </View>
             </Animated.View>
-            <Pressable
-              {...windowsPressableFocusProps}
-              onPress={() => onPageChange('members')}
-              style={[
-                styles.sidebarItem,
-                styles.sidebarItemSpaced,
-                {backgroundColor: palette.sidebarItem},
-            ]}>
-              <Text style={getTopLevelTextStyle()}>{labels.members}</Text>
-            </Pressable>
-            <Animated.View
-              pointerEvents={page === 'members' ? 'auto' : 'none'}
-              style={[
-                styles.sidebarSubmenuAnimated,
-                {
-                  opacity: membersAnimation,
-                  maxHeight: membersAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 116],
-                  }),
-                  transform: [
+            {showMembersPage ? (
+              <>
+                <Pressable
+                  {...windowsPressableFocusProps}
+                  onPress={() => onPageChange('members')}
+                  style={[
+                    styles.sidebarItem,
+                    styles.sidebarItemSpaced,
+                    {backgroundColor: palette.sidebarItem},
+                  ]}>
+                  <Text style={getTopLevelTextStyle()}>{labels.members}</Text>
+                </Pressable>
+                <Animated.View
+                  pointerEvents={page === 'members' ? 'auto' : 'none'}
+                  style={[
+                    styles.sidebarSubmenuAnimated,
                     {
-                      translateY: membersAnimation.interpolate({
+                      opacity: membersAnimation,
+                      maxHeight: membersAnimation.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [-8, 0],
+                        outputRange: [0, 116],
                       }),
+                      transform: [
+                        {
+                          translateY: membersAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-8, 0],
+                          }),
+                        },
+                      ],
                     },
-                  ],
-                },
-              ]}>
-              <View style={styles.sidebarSubmenu}>
-                <SidebarSubItem
-                  active={section === 'pending-approval'}
-                  label={labels.pendingApproval}
-                  onPress={() => onSectionChange('pending-approval')}
-                  palette={palette}
-                />
-                <SidebarSubItem
-                  active={section === 'academy-members'}
-                  label={academyMembersLabel}
-                  onPress={() => onSectionChange('academy-members')}
-                  palette={palette}
-                />
-              </View>
-            </Animated.View>
+                  ]}>
+                  <View style={styles.sidebarSubmenu}>
+                    <SidebarSubItem
+                      active={section === 'pending-approval'}
+                      label={labels.pendingApproval}
+                      onPress={() => onSectionChange('pending-approval')}
+                      palette={palette}
+                    />
+                    <SidebarSubItem
+                      active={section === 'academy-members'}
+                      label={academyMembersLabel}
+                      onPress={() => onSectionChange('academy-members')}
+                      palette={palette}
+                    />
+                  </View>
+                </Animated.View>
+              </>
+            ) : null}
           </>
         ) : null}
       </Animated.View>

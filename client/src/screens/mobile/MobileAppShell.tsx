@@ -263,6 +263,13 @@ export function MobileAppShell() {
   }, [isMenuOpen, toggleAnimation]);
 
   const choosePage = (nextPage: AppPage, nextSection?: MobileMenuSection) => {
+    if (nextPage === 'members' && !canAccessMembersPage) {
+      setPage('account');
+      setSection('login');
+      setIsMenuOpen(false);
+      return;
+    }
+
     // モバイルは項目選択後にメニューを閉じて本文へ戻す。
     if (nextPage === 'account') {
       clearRegistrationFields();
@@ -281,6 +288,12 @@ export function MobileAppShell() {
   };
 
   const choosePageGroup = (nextPage: AppPage) => {
+    if (nextPage === 'members' && !canAccessMembersPage) {
+      setPage('account');
+      setSection('login');
+      return;
+    }
+
     // 上位ページ選択時はメニューを閉じず、配下セクションの展開だけ切り替える。
     if (nextPage === 'account') {
       clearRegistrationFields();
@@ -453,8 +466,19 @@ export function MobileAppShell() {
   };
 
   const canEditAuthPolicy = (session?.roleCode ?? '') === 'ROOT';
+  const canAccessMembersPage =
+    isAuthenticated &&
+    ((session?.roleCode ?? '') === 'ROOT' || (session?.roleCode ?? '') === 'ADMIN');
   const canEditStatus =
     false;
+
+  useEffect(() => {
+    if (page === 'members' && !canAccessMembersPage) {
+      setPage('account');
+      setSection('login');
+      setIsMenuOpen(false);
+    }
+  }, [canAccessMembersPage, page]);
 
   const handleSaveProfile = async (overrides?: {
     authPolicy?: string;
@@ -673,6 +697,7 @@ export function MobileAppShell() {
           {isMenuOpen ? (
             <MenuPanel
               isAuthenticated={isAuthenticated}
+              showMembersPage={canAccessMembersPage}
               showTeacherAccountItems={showTeacherAccountItems}
               showStudentAccountItems={showStudentAccountItems}
               currentPage={page}
@@ -759,6 +784,7 @@ export function MobileAppShell() {
 
           {!isMenuOpen &&
           page === 'members' &&
+          canAccessMembersPage &&
           section === 'pending-approval' ? (
             <MembersHomeScreen
               academyCode={session?.academyCode ?? academyCode}
@@ -774,6 +800,7 @@ export function MobileAppShell() {
 
           {!isMenuOpen &&
           page === 'members' &&
+          canAccessMembersPage &&
           section === 'academy-members' ? (
             <AcademyMembersSection
               academyCode={session?.academyCode ?? academyCode}

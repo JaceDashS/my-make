@@ -8,6 +8,7 @@ import type {MobileMenuSection, MobileShellPalette} from '../model/types';
 
 export function MenuPanel({
   isAuthenticated,
+  showMembersPage,
   showTeacherAccountItems,
   showStudentAccountItems,
   currentPage,
@@ -18,6 +19,7 @@ export function MenuPanel({
   palette,
 }: {
   isAuthenticated: boolean;
+  showMembersPage: boolean;
   showTeacherAccountItems: boolean;
   showStudentAccountItems: boolean;
   currentPage: AppPage;
@@ -314,61 +316,67 @@ export function MenuPanel({
           </>
         )}
       </Animated.View>
-      <Pressable
-        {...windowsPressableFocusProps}
-        onPress={() => onSelectGroup('members')}
-        style={[
-          styles.overlayItem,
-          styles.overlayItemSpaced,
-          {backgroundColor: palette.sidebarItem},
-        ]}>
-        <Text style={getTopLevelTextStyle(currentPage === 'members')}>
-          {labels.members}
-        </Text>
-      </Pressable>
-      <Animated.View
-        pointerEvents={expandedGroup === 'members' ? 'auto' : 'none'}
-        style={[
-          styles.overlaySubmenu,
-          {
-            opacity: membersAnimation,
-            maxHeight: membersAnimation.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 116],
-            }),
-            transform: [
+      {showMembersPage ? (
+        <>
+          <Pressable
+            {...windowsPressableFocusProps}
+            onPress={() => onSelectGroup('members')}
+            style={[
+              styles.overlayItem,
+              styles.overlayItemSpaced,
+              {backgroundColor: palette.sidebarItem},
+            ]}>
+            <Text style={getTopLevelTextStyle(currentPage === 'members')}>
+              {labels.members}
+            </Text>
+          </Pressable>
+          <Animated.View
+            pointerEvents={expandedGroup === 'members' ? 'auto' : 'none'}
+            style={[
+              styles.overlaySubmenu,
               {
-                translateY: membersAnimation.interpolate({
+                opacity: membersAnimation,
+                maxHeight: membersAnimation.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [-8, 0],
+                  outputRange: [0, 116],
                 }),
+                transform: [
+                  {
+                    translateY: membersAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-8, 0],
+                    }),
+                  },
+                ],
               },
-            ],
-          },
-        ]}>
-        <Pressable
-          {...windowsPressableFocusProps}
-          onPress={() => onSelectSection('members', 'pending-approval')}
-          style={styles.overlaySubItem}>
-          <Text
-            style={getSubItemTextStyle(
-              currentPage === 'members' && currentSection === 'pending-approval',
-            )}>
-            {labels.pendingApproval}
-          </Text>
-        </Pressable>
-        <Pressable
-          {...windowsPressableFocusProps}
-          onPress={() => onSelectSection('members', 'academy-members')}
-          style={styles.overlaySubItem}>
-          <Text
-            style={getSubItemTextStyle(
-              currentPage === 'members' && currentSection === 'academy-members',
-            )}>
-            {academyMembersLabel}
-          </Text>
-        </Pressable>
-      </Animated.View>
+            ]}>
+            <Pressable
+              {...windowsPressableFocusProps}
+              onPress={() => onSelectSection('members', 'pending-approval')}
+              style={styles.overlaySubItem}>
+              <Text
+                style={getSubItemTextStyle(
+                  currentPage === 'members' &&
+                    currentSection === 'pending-approval',
+                )}>
+                {labels.pendingApproval}
+              </Text>
+            </Pressable>
+            <Pressable
+              {...windowsPressableFocusProps}
+              onPress={() => onSelectSection('members', 'academy-members')}
+              style={styles.overlaySubItem}>
+              <Text
+                style={getSubItemTextStyle(
+                  currentPage === 'members' &&
+                    currentSection === 'academy-members',
+                )}>
+                {academyMembersLabel}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </>
+      ) : null}
     </View>
   );
 }

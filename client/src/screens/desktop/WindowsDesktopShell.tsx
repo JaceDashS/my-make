@@ -520,6 +520,12 @@ export function WindowsDesktopShell() {
   };
 
   const handlePageChange = (nextPage: AppPage) => {
+    if (nextPage === 'members' && !canAccessMembersPage && !disableConditionalVisibility) {
+      setPage('account');
+      setSection('login');
+      return;
+    }
+
     if (nextPage === 'account') {
       clearRegistrationFields();
       setAuthError(null);
@@ -549,12 +555,22 @@ export function WindowsDesktopShell() {
   };
 
   const canEditAuthPolicy = (session?.roleCode ?? '') === 'ROOT';
+  const canAccessMembersPage =
+    isAuthenticated &&
+    ((session?.roleCode ?? '') === 'ROOT' || (session?.roleCode ?? '') === 'ADMIN');
   const canEditStatus =
     false;
   const showTeacherAccountItems =
     isAuthenticated && (session?.roleCode ?? '') === 'TEACHER';
   const showStudentAccountItems =
     isAuthenticated && (session?.roleCode ?? '') === 'STUDENT';
+
+  useEffect(() => {
+    if (page === 'members' && !canAccessMembersPage && !disableConditionalVisibility) {
+      setPage('account');
+      setSection('login');
+    }
+  }, [canAccessMembersPage, disableConditionalVisibility, page]);
 
   const handleAccountSectionChange = (nextSection: DesktopMenuSection) => {
     if (nextSection === 'login' || nextSection === 'register') {
@@ -598,6 +614,7 @@ export function WindowsDesktopShell() {
           disableConditionalVisibility={disableConditionalVisibility}
           isOpen={isSidebarOpen}
           isAuthenticated={isAuthenticated}
+          showMembersPage={disableConditionalVisibility || canAccessMembersPage}
           showTeacherAccountItems={showTeacherAccountItems}
           showStudentAccountItems={showStudentAccountItems}
           labels={t}
@@ -692,7 +709,9 @@ export function WindowsDesktopShell() {
                 />
               ) : null}
 
-              {page === 'members' && section === 'pending-approval' ? (
+              {page === 'members' &&
+              (disableConditionalVisibility || canAccessMembersPage) &&
+              section === 'pending-approval' ? (
                 <MembersHomeScreen
                   academyCode={session?.academyCode ?? academyCode}
                   academyName={session?.academyName ?? academyName}
@@ -706,7 +725,9 @@ export function WindowsDesktopShell() {
                 />
               ) : null}
 
-              {page === 'members' && section === 'academy-members' ? (
+              {page === 'members' &&
+              (disableConditionalVisibility || canAccessMembersPage) &&
+              section === 'academy-members' ? (
                 <AcademyMembersSection
                   academyCode={session?.academyCode ?? academyCode}
                   compact
