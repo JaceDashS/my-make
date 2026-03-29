@@ -3,9 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "sync:dev-host": "node scripts/sync-dev-host.mjs",
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
+    "preandroid": "npm run sync:dev-host",
+    "prestart": "npm run sync:dev-host",
+    "prewindows": "npm run sync:dev-host",
     "start": "react-native start",
     "test": "jest",
     "windows": "npx @react-native-community/cli run-windows",
