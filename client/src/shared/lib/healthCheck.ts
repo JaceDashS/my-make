@@ -1,6 +1,7 @@
 import {Platform} from 'react-native';
 import {RUNTIME_CONFIG} from '../../config/runtime/runtime-config';
 import {unique} from './unique';
+import {EMULATOR_HOST, LOCALHOST_HOST, LOOPBACK_HOST} from './httpClient';
 
 export type HealthCheckTarget = 'local' | 'docker' | 'render';
 export type HealthCheckResult =
@@ -19,9 +20,6 @@ export type HealthCheckResult =
       label: string;
     };
 
-const EMULATOR_HOST = '10.0.2.2';
-const LOCALHOST_HOST = 'localhost';
-const LOOPBACK_HOST = '127.0.0.1';
 const REQUEST_TIMEOUT_MS = 5000;
 
 function createTimeoutError() {

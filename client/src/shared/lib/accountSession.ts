@@ -21,20 +21,13 @@ export type AccountSession = {
   statusCode: string;
 };
 
-type AccountSessionSetters = {
+type AccountSessionApplySetters = {
   setSession: (value: AccountSession | null) => void;
   setIsAuthenticated: (value: boolean) => void;
-  setAccountCode: (value: string) => void;
-  setAcademyCode: (value: string) => void;
-  setAcademyName: (value: string) => void;
-  setAuthPolicy: (value: string) => void;
-  setDisplayName: (value: string) => void;
-  setEmail: (value: string) => void;
-  setLicenseCode: (value: string) => void;
-  setLoginId: (value: string) => void;
-  setNote: (value: string) => void;
-  setPhone: (value: string) => void;
-  setStatusCode: (value: string) => void;
+};
+
+type AccountSessionClearSetters = AccountSessionApplySetters & {
+  resetLocalProfileState: () => void;
 };
 
 type AuthLog = (
@@ -99,23 +92,12 @@ export function createAccountSession(
 
 export function applyAccountProfileState(
   profile: AccountApiResult,
-  setters: AccountSessionSetters,
+  setters: AccountSessionApplySetters,
   appendAuthDebugLog: AuthLog,
 ) {
   const nextSession = createAccountSession(profile);
 
   setters.setSession(nextSession);
-  setters.setAccountCode(nextSession.accountCode);
-  setters.setAcademyCode(nextSession.academyCode);
-  setters.setAcademyName(nextSession.academyName);
-  setters.setAuthPolicy(nextSession.authPolicy);
-  setters.setDisplayName(nextSession.displayName);
-  setters.setEmail(nextSession.email);
-  setters.setLicenseCode(nextSession.licenseCode);
-  setters.setLoginId(nextSession.loginId);
-  setters.setNote(nextSession.note);
-  setters.setPhone(nextSession.phone);
-  setters.setStatusCode(nextSession.statusCode);
   setters.setIsAuthenticated(true);
   appendAuthDebugLog('profile:apply', 'applied profile to session', {
     detailsCount: nextSession.profileDetails.length,
@@ -126,7 +108,7 @@ export function applyAccountProfileState(
 
 export function clearAccountProfileState(
   currentSession: AccountSession | null,
-  setters: AccountSessionSetters,
+  setters: AccountSessionClearSetters,
   appendAuthDebugLog: AuthLog,
 ) {
   appendAuthDebugLog('profile:clear', 'clearing profile state', {
@@ -134,19 +116,9 @@ export function clearAccountProfileState(
     currentRoleCode: currentSession?.roleCode ?? '',
     detailsCount: currentSession?.profileDetails.length ?? 0,
   });
+  setters.resetLocalProfileState();
   setters.setSession(null);
   setters.setIsAuthenticated(false);
-  setters.setAccountCode('');
-  setters.setAcademyCode('');
-  setters.setAcademyName('');
-  setters.setAuthPolicy('');
-  setters.setDisplayName('');
-  setters.setEmail('');
-  setters.setLicenseCode('');
-  setters.setLoginId('');
-  setters.setNote('');
-  setters.setPhone('');
-  setters.setStatusCode('');
 }
 
 export async function runAccountLoginFlow({
@@ -255,11 +227,21 @@ export async function runAccountLogoutFlow({
   setAuthAction(null);
   appendAuthDebugLog('logout:finish', 'logout finished locally', {});
 
-  void logoutAccount().then(result => {
-    appendAuthDebugLog('logout:response', 'logout response received', {
-      error: result.error ?? '',
-      message: result.message ?? '',
-      status: result.status,
+  logoutAccount()
+    .then(result => {
+      appendAuthDebugLog('logout:response', 'logout response received', {
+        error: result.error ?? '',
+        message: result.message ?? '',
+        status: result.status,
+      });
+    })
+    .catch(error => {
+      appendAuthDebugLog(
+        'logout:exception',
+        error instanceof Error ? error.message : String(error),
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
     });
-  });
 }
