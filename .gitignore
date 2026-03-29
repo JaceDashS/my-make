@@ -100,3 +100,6 @@ buck-out
 
 # Watchman
 .watchmanconfig
+
+# claude
+.claude
