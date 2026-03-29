@@ -8,6 +8,8 @@ import type {MobileMenuSection, MobileShellPalette} from '../model/types';
 
 export function MenuPanel({
   isAuthenticated,
+  showTeacherAccountItems,
+  showStudentAccountItems,
   currentPage,
   currentSection,
   labels,
@@ -16,23 +18,36 @@ export function MenuPanel({
   palette,
 }: {
   isAuthenticated: boolean;
+  showTeacherAccountItems: boolean;
+  showStudentAccountItems: boolean;
   currentPage: AppPage;
   currentSection: MobileMenuSection;
   labels: {
     account: string;
+    academyMembers: string;
+    availableSchedule: string;
     devHealth: string;
     general: string;
     login: string;
     members: string;
     pendingApproval: string;
+    preset: string;
     profile: string;
+    reservation: string;
+    reservationView: string;
     register: string;
     settings: string;
+    studentOptions: string;
   };
   onSelectGroup: (page: AppPage) => void;
   onSelectSection: (page: AppPage, section: MobileMenuSection) => void;
   palette: MobileShellPalette;
 }) {
+  const academyMembersLabel = labels.academyMembers;
+  const accountItemCount =
+    (!isAuthenticated ? 2 : 1) +
+    (showTeacherAccountItems ? 3 : 0) +
+    (showStudentAccountItems ? 2 : 0);
   const [expandedGroup, setExpandedGroup] = useState<
     'settings' | 'account' | 'members' | null
   >(
@@ -177,7 +192,7 @@ export function MenuPanel({
             opacity: accountAnimation,
             maxHeight: accountAnimation.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, isAuthenticated ? 58 : 116],
+              outputRange: [0, 24 + accountItemCount * 58],
             }),
             transform: [
               {
@@ -190,17 +205,88 @@ export function MenuPanel({
           },
         ]}>
         {isAuthenticated ? (
-          <Pressable
-            {...windowsPressableFocusProps}
-            onPress={() => onSelectSection('account', 'login')}
-            style={styles.overlaySubItem}>
-            <Text
-              style={getSubItemTextStyle(
-                currentPage === 'account' && currentSection === 'login',
-              )}>
-              {labels.profile}
-            </Text>
-          </Pressable>
+          <>
+            <Pressable
+              {...windowsPressableFocusProps}
+              onPress={() => onSelectSection('account', 'login')}
+              style={styles.overlaySubItem}>
+              <Text
+                style={getSubItemTextStyle(
+                  currentPage === 'account' && currentSection === 'login',
+                )}>
+                {labels.profile}
+              </Text>
+            </Pressable>
+            {showTeacherAccountItems ? (
+              <>
+                <Pressable
+                  {...windowsPressableFocusProps}
+                  onPress={() => onSelectSection('account', 'preset')}
+                  style={styles.overlaySubItem}>
+                  <Text
+                    style={getSubItemTextStyle(
+                      currentPage === 'account' && currentSection === 'preset',
+                    )}>
+                    {labels.preset}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  {...windowsPressableFocusProps}
+                  onPress={() =>
+                    onSelectSection('account', 'available-schedule')
+                  }
+                  style={styles.overlaySubItem}>
+                  <Text
+                    style={getSubItemTextStyle(
+                      currentPage === 'account' &&
+                        currentSection === 'available-schedule',
+                    )}>
+                    {labels.availableSchedule}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  {...windowsPressableFocusProps}
+                  onPress={() => onSelectSection('account', 'reservation-view')}
+                  style={styles.overlaySubItem}>
+                  <Text
+                    style={getSubItemTextStyle(
+                      currentPage === 'account' &&
+                        currentSection === 'reservation-view',
+                    )}>
+                    {labels.reservationView}
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
+            {showStudentAccountItems ? (
+              <>
+                <Pressable
+                  {...windowsPressableFocusProps}
+                  onPress={() => onSelectSection('account', 'student-options')}
+                  style={styles.overlaySubItem}>
+                  <Text
+                    style={getSubItemTextStyle(
+                      currentPage === 'account' &&
+                        currentSection === 'student-options',
+                    )}>
+                    {labels.studentOptions}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  {...windowsPressableFocusProps}
+                  onPress={() => onSelectSection('account', 'reservation')}
+                  style={styles.overlaySubItem}>
+                  <Text
+                    style={getSubItemTextStyle(
+                      currentPage === 'account' &&
+                        currentSection === 'reservation',
+                    )}>
+                    {labels.reservation}
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
+          </>
         ) : (
           <>
             <Pressable
@@ -248,7 +334,7 @@ export function MenuPanel({
             opacity: membersAnimation,
             maxHeight: membersAnimation.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, 58],
+              outputRange: [0, 116],
             }),
             transform: [
               {
@@ -269,6 +355,17 @@ export function MenuPanel({
               currentPage === 'members' && currentSection === 'pending-approval',
             )}>
             {labels.pendingApproval}
+          </Text>
+        </Pressable>
+        <Pressable
+          {...windowsPressableFocusProps}
+          onPress={() => onSelectSection('members', 'academy-members')}
+          style={styles.overlaySubItem}>
+          <Text
+            style={getSubItemTextStyle(
+              currentPage === 'members' && currentSection === 'academy-members',
+            )}>
+            {academyMembersLabel}
           </Text>
         </Pressable>
       </Animated.View>

@@ -1,23 +1,25 @@
 import { Platform } from 'react-native';
 
 import { RUNTIME_CONFIG } from '../../config/runtime/runtime-config';
-import { unique } from './unique';
+import { sendClientRuntimeLog } from './clientLogs';
 
 const EMULATOR_HOST = '10.0.2.2';
 const LOCALHOST_HOST = 'localhost';
-const LOOPBACK_HOST = '127.0.0.1';
-const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LONG_REQUEST_TIMEOUT_MS = 60000;
 
 export type AccountApiResult = {
   status: string;
   message: string;
   error?: string;
+  accountCode?: string;
   academyCode?: string;
   academyName?: string;
   displayName?: string;
+  details?: Array<{key?: string; label?: string; value?: string}>;
   email?: string;
   loginId?: string;
+  note?: string;
   roleCode?: string;
   phone?: string;
   expiresAt?: string;
@@ -33,24 +35,34 @@ function createTimeoutError(timeoutMs: number) {
   return new Error(`Request timed out after ${timeoutMs}ms`);
 }
 
-function buildCandidates(path: string) {
+function buildBaseUrl() {
   const port = RUNTIME_CONFIG.CLIENT_LOCAL_PORT;
-  const devHostUrl = `http://${RUNTIME_CONFIG.DEV_HOST_IP}:${port}${path}`;
-  const emulatorUrl = `http://${EMULATOR_HOST}:${port}${path}`;
-  const localhostUrl = `http://${LOCALHOST_HOST}:${port}${path}`;
-  const loopbackUrl = `http://${LOOPBACK_HOST}:${port}${path}`;
 
   if (Platform.OS === 'windows') {
-    return unique([localhostUrl, loopbackUrl, devHostUrl]);
+    return `http://${LOCALHOST_HOST}:${port}`;
   }
 
   if (Platform.OS === 'android') {
-    return unique([devHostUrl, emulatorUrl, localhostUrl, loopbackUrl]);
+    return `http://${RUNTIME_CONFIG.DEV_HOST_IP}:${port}`;
   }
 
-  return unique([devHostUrl, localhostUrl, loopbackUrl]);
+  return `http://${EMULATOR_HOST}:${port}`;
 }
 
+function buildRequestLogPayload(method: 'GET' | 'POST', path: string, url: string) {
+  const match = url.match(/^(https?):\/\/([^/:]+)(?::(\d+))?/i);
+  const protocol = match?.[1] ?? 'http';
+  const host = match?.[2] ?? '';
+  const port = match?.[3] ?? (protocol === 'https' ? '443' : '80');
+
+  return {
+    host,
+    method,
+    path,
+    port,
+    url,
+  };
+}
 async function requestWithXhr(
   method: 'GET' | 'POST',
   url: string,
@@ -88,59 +100,48 @@ async function requestJson(
   payload: Record<string, string | undefined> | null,
   timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 ) {
-  const candidates = buildCandidates(path);
+  const url = `${buildBaseUrl()}${path}`;
   const body = payload ? JSON.stringify(payload) : null;
-  let lastError = 'Unknown error';
+  const logPayload = buildRequestLogPayload(method, path, url);
 
-  for (const url of candidates) {
-    try {
-      const response =
-        Platform.OS === 'windows'
-          ? await requestWithXhr(method, url, body, timeoutMs)
-          : await fetchWithTimeout(method, url, body, timeoutMs);
-      const parsed = JSON.parse(response.body) as AccountApiResult;
+  sendClientRuntimeLog({
+    channel: 'accounts',
+    event: 'api:request:start',
+    payload: logPayload,
+  }).catch(() => undefined);
 
-      if (response.status >= 200 && response.status < 300) {
-        return parsed;
-      }
+  try {
+    const response = await requestWithXhr(method, url, body, timeoutMs);
+    const parsed = JSON.parse(response.body) as AccountApiResult;
 
-      lastError = parsed.error ?? parsed.message ?? `HTTP ${response.status}`;
-      return parsed;
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-    }
+    sendClientRuntimeLog({
+      channel: 'accounts',
+      event: 'api:request:success',
+      payload: {
+        ...logPayload,
+        status: response.status,
+      },
+    }).catch(() => undefined);
+
+    return parsed;
+  } catch (error) {
+    sendClientRuntimeLog({
+      channel: 'accounts',
+      event: 'api:request:error',
+      payload: {
+        ...logPayload,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    }).catch(() => undefined);
+
+    return {
+      status: 'error',
+      message: 'Request failed.',
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
-
-  return {
-    status: 'error',
-    message: 'Request failed.',
-    error: lastError,
-  };
 }
 
-async function fetchWithTimeout(
-  method: 'GET' | 'POST',
-  url: string,
-  body: string | null,
-  timeoutMs: number,
-): Promise<RequestResult> {
-  const response = await Promise.race([
-    fetch(url, {
-      body: body ?? undefined,
-      credentials: 'include',
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      method,
-    }),
-    new Promise<never>((_, reject) => {
-      setTimeout(() => reject(createTimeoutError(timeoutMs)), timeoutMs);
-    }),
-  ]);
-
-  return {
-    body: await response.text(),
-    status: response.status,
-  };
-}
 
 export function loginAccount(payload: { loginId: string; password: string }) {
   return requestJson('POST', RUNTIME_CONFIG.CLIENT_ACCOUNT_LOGIN_PATH, payload);
@@ -148,6 +149,21 @@ export function loginAccount(payload: { loginId: string; password: string }) {
 
 export function fetchAccountProfile() {
   return requestJson('GET', RUNTIME_CONFIG.CLIENT_ACCOUNT_PROFILE_PATH, null);
+}
+
+export function updateAccountProfile(payload: {
+  authPolicy?: string;
+  email?: string;
+  note?: string;
+  password?: string;
+  phone?: string;
+  statusCode?: string;
+}) {
+  return requestJson(
+    'POST',
+    RUNTIME_CONFIG.CLIENT_ACCOUNT_PROFILE_UPDATE_PATH,
+    payload,
+  );
 }
 
 export function logoutAccount() {
@@ -196,3 +212,20 @@ export function renewLicense(payload: { licenseCode: string }) {
     LONG_REQUEST_TIMEOUT_MS,
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

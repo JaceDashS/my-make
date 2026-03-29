@@ -16,21 +16,24 @@ import (
 )
 
 const (
-	constraintAcademiesName   = "uq_maimei_academies_name"
+	constraintAcademiesName    = "uq_maimei_academies_name"
 	constraintAdminRootAcademy = "uq_maimei_admins_root_per_academy"
-	constraintAdminEmail      = "uq_maimei_admins_email"
-	constraintAdminLoginID    = "uq_maimei_admins_login_id"
-	constraintTeachersEmail   = "uq_maimei_teachers_email"
-	constraintTeacherLoginID  = "uq_maimei_teachers_login_id"
-	constraintStudentEmail    = "uq_maimei_students_email"
-	constraintStudentLoginID  = "uq_maimei_students_login_id"
+	constraintAdminEmail       = "uq_maimei_admins_email"
+	constraintAdminLoginID     = "uq_maimei_admins_login_id"
+	constraintTeachersEmail    = "uq_maimei_teachers_email"
+	constraintTeacherLoginID   = "uq_maimei_teachers_login_id"
+	constraintStudentEmail     = "uq_maimei_students_email"
+	constraintStudentLoginID   = "uq_maimei_students_login_id"
 )
 
 type accountService interface {
 	Login(ctx context.Context, input loginInput) (accountResponse, error)
 	GetProfile(ctx context.Context, loginID string) (profileResponse, error)
+	UpdateProfile(ctx context.Context, actor accountResponse, input profileUpdateInput) (profileResponse, error)
 	RegisterMember(ctx context.Context, input memberRegisterInput) (accountResponse, error)
 	RegisterRoot(ctx context.Context, input rootRegisterInput) (accountResponse, error)
+	SearchAcademyMembers(ctx context.Context, input academyMemberSearchInput) (academyMembersResponse, error)
+	UpdateAcademyMemberStatus(ctx context.Context, input academyMemberStatusUpdateInput) (academyMemberStatusUpdateResponse, error)
 	SearchPendingMembers(ctx context.Context, input pendingMemberSearchInput) (pendingMembersResponse, error)
 	ApprovePendingMember(ctx context.Context, input approvePendingMemberInput) (accountResponse, error)
 	RenewLicense(ctx context.Context, input renewLicenseInput) (licenseRenewResponse, error)
@@ -72,6 +75,15 @@ type renewLicenseInput struct {
 	LicenseCode string `json:"licenseCode"`
 }
 
+type profileUpdateInput struct {
+	Password   *string `json:"password"`
+	Email      *string `json:"email"`
+	Phone      *string `json:"phone"`
+	Note       *string `json:"note"`
+	AuthPolicy *string `json:"authPolicy"`
+	StatusCode *string `json:"statusCode"`
+}
+
 type pendingMemberSearchInput struct {
 	AcademyCode   string `json:"academyCode"`
 	ActorRoleCode string `json:"actorRoleCode"`
@@ -86,27 +98,43 @@ type approvePendingMemberInput struct {
 }
 
 type accountResponse struct {
-	Status      string `json:"status"`
-	Message     string `json:"message"`
-	AcademyCode string `json:"academyCode"`
-	AcademyName string `json:"academyName"`
-	DisplayName string `json:"displayName"`
-	LoginID     string `json:"loginId"`
-	RoleCode    string `json:"roleCode"`
+	Status      string          `json:"status"`
+	Message     string          `json:"message"`
+	AccountCode string          `json:"accountCode,omitempty"`
+	AcademyCode string          `json:"academyCode"`
+	AcademyName string          `json:"academyName"`
+	DisplayName string          `json:"displayName"`
+	Email       string          `json:"email,omitempty"`
+	LoginID     string          `json:"loginId"`
+	Note        string          `json:"note,omitempty"`
+	Phone       string          `json:"phone,omitempty"`
+	RoleCode    string          `json:"roleCode"`
+	LicenseCode string          `json:"licenseCode,omitempty"`
+	ExpiresAt   string          `json:"expiresAt,omitempty"`
+	Details     []profileDetail `json:"details,omitempty"`
 }
 
 type profileResponse struct {
-	Status      string `json:"status"`
-	Message     string `json:"message"`
-	AcademyCode string `json:"academyCode,omitempty"`
-	AcademyName string `json:"academyName,omitempty"`
-	DisplayName string `json:"displayName"`
-	Email       string `json:"email,omitempty"`
-	Phone       string `json:"phone,omitempty"`
-	LoginID     string `json:"loginId"`
-	RoleCode    string `json:"roleCode"`
-	LicenseCode string `json:"licenseCode,omitempty"`
-	ExpiresAt   string `json:"expiresAt,omitempty"`
+	Status      string          `json:"status"`
+	Message     string          `json:"message"`
+	AccountCode string          `json:"accountCode,omitempty"`
+	AcademyCode string          `json:"academyCode,omitempty"`
+	AcademyName string          `json:"academyName,omitempty"`
+	DisplayName string          `json:"displayName"`
+	Email       string          `json:"email,omitempty"`
+	Phone       string          `json:"phone,omitempty"`
+	LoginID     string          `json:"loginId"`
+	Note        string          `json:"note,omitempty"`
+	RoleCode    string          `json:"roleCode"`
+	LicenseCode string          `json:"licenseCode,omitempty"`
+	ExpiresAt   string          `json:"expiresAt,omitempty"`
+	Details     []profileDetail `json:"details,omitempty"`
+}
+
+type profileDetail struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 type pendingMemberRecord struct {
@@ -124,6 +152,50 @@ type pendingMembersResponse struct {
 	Members []pendingMemberRecord `json:"members"`
 }
 
+type academyMemberSearchInput struct {
+	AcademyCode   string `json:"academyCode"`
+	ActorRoleCode string `json:"actorRoleCode"`
+	Field         string `json:"field"`
+	Query         string `json:"query"`
+	StatusFilter  string `json:"statusFilter"`
+}
+
+type academyMemberStatusUpdateInput struct {
+	AcademyCode   string `json:"academyCode"`
+	ActorRoleCode string `json:"actorRoleCode"`
+	LoginID       string `json:"loginId"`
+	CurrentStatus string `json:"currentStatus"`
+	NextStatus    string `json:"nextStatus"`
+}
+
+type academyMemberRecord struct {
+	AcademyCode string `json:"academyCode,omitempty"`
+	AcademyName string `json:"academyName,omitempty"`
+	CreatedAt   string `json:"createdAt"`
+	DisplayName string `json:"displayName"`
+	Email       string `json:"email,omitempty"`
+	Phone       string `json:"phone,omitempty"`
+	LoginID     string `json:"loginId"`
+	RoleCode    string `json:"roleCode"`
+	StatusCode  string `json:"statusCode"`
+}
+
+type academyMembersResponse struct {
+	Status  string                `json:"status"`
+	Message string                `json:"message"`
+	Members []academyMemberRecord `json:"members"`
+}
+
+type academyMemberStatusUpdateResponse struct {
+	Status        string `json:"status"`
+	Message       string `json:"message"`
+	LoginID       string `json:"loginId"`
+	DisplayName   string `json:"displayName,omitempty"`
+	RoleCode      string `json:"roleCode,omitempty"`
+	CurrentStatus string `json:"currentStatus"`
+	NextStatus    string `json:"nextStatus"`
+}
+
 type licenseRenewResponse struct {
 	Status      string `json:"status"`
 	Message     string `json:"message"`
@@ -132,19 +204,32 @@ type licenseRenewResponse struct {
 }
 
 type storedAccount struct {
-	academyCode  sql.NullString
-	academyName  sql.NullString
-	academyState sql.NullString
-	displayName  string
-	email        sql.NullString
-	loginID      string
-	passwordHash string
-	phone        sql.NullString
-	roleCode     string
-	statusCode   string
-	licenseCode  sql.NullString
-	expiresAt    sql.NullTime
-	sourceTable  string
+	accountCode        sql.NullString
+	academyCode        sql.NullString
+	academyName        sql.NullString
+	academyState       sql.NullString
+	authPolicy         sql.NullString
+	availableSchedule  sql.NullString
+	displayName        string
+	email              sql.NullString
+	loginID            string
+	note               sql.NullString
+	passwordHash       string
+	passRemainingCount sql.NullInt64
+	passTotalCount     sql.NullInt64
+	phone              sql.NullString
+	preferenceRanges   sql.NullString
+	preset             sql.NullString
+	primaryTeacherID   sql.NullInt64
+	roleCode           string
+	skinCValue         sql.NullFloat64
+	skinHValue         sql.NullFloat64
+	skinLValue         sql.NullFloat64
+	skinTraits         sql.NullString
+	statusCode         string
+	licenseCode        sql.NullString
+	expiresAt          sql.NullTime
+	sourceTable        string
 }
 
 type storedLicense struct {
@@ -165,6 +250,17 @@ type pendingSearchRoleSpec struct {
 	profileTable  string
 	roleCode      string
 	extraWhereSQL string
+}
+
+type academySearchRoleSpec struct {
+	alias              string
+	profileTable       string
+	roleCodeExpression string
+}
+
+type academyMemberRoleStatus struct {
+	roleCode   string
+	statusCode string
 }
 
 type pendingMemberRoleSpec struct {
@@ -212,10 +308,28 @@ var pendingSearchRoleSpecs = []pendingSearchRoleSpec{
 		roleCode:     "TEACHER",
 	},
 	{
-		alias:        "st",
-		profileTable: "MAIMEI_ADMINS",
-		roleCode:     "ADMIN",
+		alias:         "st",
+		profileTable:  "MAIMEI_ADMINS",
+		roleCode:      "ADMIN",
 		extraWhereSQL: "\n      AND st.ROLE_CODE = 'ADMIN'",
+	},
+}
+
+var academySearchRoleSpecs = []academySearchRoleSpec{
+	{
+		alias:              "adm",
+		profileTable:       "MAIMEI_ADMINS",
+		roleCodeExpression: "adm.ROLE_CODE",
+	},
+	{
+		alias:              "tch",
+		profileTable:       "MAIMEI_TEACHERS",
+		roleCodeExpression: "'TEACHER'",
+	},
+	{
+		alias:              "stu",
+		profileTable:       "MAIMEI_STUDENTS",
+		roleCodeExpression: "'STUDENT'",
 	},
 }
 
@@ -273,15 +387,26 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 		return accountResponse{}, err
 	}
 
-	return accountResponse{
+	response := accountResponse{
 		Status:      "ok",
 		Message:     "Signed in successfully.",
+		AccountCode: nullStringValue(account.accountCode),
 		AcademyCode: nullStringValue(account.academyCode),
 		AcademyName: nullStringValue(account.academyName),
 		DisplayName: account.displayName,
+		Email:       nullStringValue(account.email),
 		LoginID:     account.loginID,
+		Note:        nullStringValue(account.note),
+		Phone:       nullStringValue(account.phone),
 		RoleCode:    account.roleCode,
-	}, nil
+		LicenseCode: nullStringValue(account.licenseCode),
+		Details:     buildProfileDetails(account),
+	}
+	if account.expiresAt.Valid {
+		response.ExpiresAt = account.expiresAt.Time.UTC().Format(time.RFC3339)
+	}
+
+	return response, nil
 }
 
 func (s *oracleAccountService) GetProfile(ctx context.Context, loginID string) (profileResponse, error) {
@@ -314,20 +439,236 @@ func (s *oracleAccountService) GetProfile(ctx context.Context, loginID string) (
 	response := profileResponse{
 		Status:      "ok",
 		Message:     "Profile loaded successfully.",
+		AccountCode: nullStringValue(account.accountCode),
 		AcademyCode: nullStringValue(account.academyCode),
 		AcademyName: nullStringValue(account.academyName),
 		DisplayName: account.displayName,
 		Email:       nullStringValue(account.email),
 		Phone:       nullStringValue(account.phone),
 		LoginID:     account.loginID,
+		Note:        nullStringValue(account.note),
 		RoleCode:    account.roleCode,
 		LicenseCode: nullStringValue(account.licenseCode),
+		Details:     buildProfileDetails(account),
 	}
 	if account.expiresAt.Valid {
 		response.ExpiresAt = account.expiresAt.Time.UTC().Format(time.RFC3339)
 	}
 
 	return response, nil
+}
+
+func (s *oracleAccountService) UpdateProfile(
+	ctx context.Context,
+	actor accountResponse,
+	input profileUpdateInput,
+) (profileResponse, error) {
+	loginID := strings.TrimSpace(actor.LoginID)
+	if loginID == "" {
+		return profileResponse{}, fmt.Errorf("No active session was found.")
+	}
+
+	account, err := s.fetchAccount(ctx, loginID)
+	if err != nil {
+		return profileResponse{}, err
+	}
+
+	assignments := make([]string, 0, 6)
+	args := make([]any, 0, 8)
+	nextArg := 1
+
+	if input.Password != nil && strings.TrimSpace(*input.Password) != "" {
+		passwordHash, err := hashPassword(strings.TrimSpace(*input.Password))
+		if err != nil {
+			return profileResponse{}, fmt.Errorf("We could not prepare your password right now. Please try again.")
+		}
+		assignments = append(assignments, fmt.Sprintf("PASSWORD_HASH = :%d", nextArg))
+		args = append(args, passwordHash)
+		nextArg++
+	}
+
+	if input.Email != nil {
+		assignments = append(assignments, fmt.Sprintf("EMAIL = :%d", nextArg))
+		args = append(args, nullIfEmpty(strings.TrimSpace(*input.Email)))
+		nextArg++
+	}
+
+	if input.Phone != nil {
+		if strings.TrimSpace(*input.Phone) == "" {
+			return profileResponse{}, fmt.Errorf("Please enter a phone number.")
+		}
+		assignments = append(assignments, fmt.Sprintf("PHONE = :%d", nextArg))
+		args = append(args, strings.TrimSpace(*input.Phone))
+		nextArg++
+	}
+
+	if input.Note != nil {
+		assignments = append(assignments, fmt.Sprintf("NOTE_BODY = :%d", nextArg))
+		args = append(args, nullIfEmpty(strings.TrimSpace(*input.Note)))
+		nextArg++
+	}
+
+	if input.AuthPolicy != nil {
+		if actor.RoleCode != "ROOT" {
+			return profileResponse{}, fmt.Errorf("Only root accounts can update auth policy.")
+		}
+
+		assignments = append(assignments, fmt.Sprintf("AUTH_POLICY = :%d", nextArg))
+		args = append(args, nullIfEmpty(strings.TrimSpace(*input.AuthPolicy)))
+		nextArg++
+	}
+
+	if input.StatusCode != nil {
+		if !canUpdateProfileStatus(actor.RoleCode, account.roleCode) {
+			return profileResponse{}, fmt.Errorf("You do not have permission to update this status.")
+		}
+		if !isAllowedAccountStatus(strings.TrimSpace(*input.StatusCode)) {
+			return profileResponse{}, fmt.Errorf("Please choose a valid status.")
+		}
+
+		assignments = append(assignments, fmt.Sprintf("STATUS_CODE = :%d", nextArg))
+		args = append(args, strings.TrimSpace(*input.StatusCode))
+		nextArg++
+	}
+
+	if len(assignments) == 0 {
+		return s.GetProfile(ctx, loginID)
+	}
+
+	var tableName string
+	switch account.sourceTable {
+	case "MAIMEI_ADMINS":
+		tableName = "MAIMEI_ADMINS"
+	case "MAIMEI_TEACHERS":
+		tableName = "MAIMEI_TEACHERS"
+	case "MAIMEI_STUDENTS":
+		tableName = "MAIMEI_STUDENTS"
+	default:
+		return profileResponse{}, fmt.Errorf("Your account is unavailable right now.")
+	}
+
+	query := fmt.Sprintf(`
+UPDATE %s
+   SET %s
+ WHERE LOGIN_ID = :%d`, tableName, strings.Join(assignments, ",\n       "), nextArg)
+	args = append(args, loginID)
+
+	if _, err := s.execWithReconnect(ctx, query, args...); err != nil {
+		return profileResponse{}, fmt.Errorf("We could not update your profile right now. Please try again.")
+	}
+
+	updatedAccount, err := s.fetchAccount(ctx, loginID)
+	if err != nil {
+		return profileResponse{}, err
+	}
+
+	response := profileResponse{
+		Status:      "ok",
+		Message:     "Profile updated successfully.",
+		AccountCode: nullStringValue(updatedAccount.accountCode),
+		AcademyCode: nullStringValue(updatedAccount.academyCode),
+		AcademyName: nullStringValue(updatedAccount.academyName),
+		DisplayName: updatedAccount.displayName,
+		Email:       nullStringValue(updatedAccount.email),
+		Phone:       nullStringValue(updatedAccount.phone),
+		LoginID:     updatedAccount.loginID,
+		Note:        nullStringValue(updatedAccount.note),
+		RoleCode:    updatedAccount.roleCode,
+		LicenseCode: nullStringValue(updatedAccount.licenseCode),
+		Details:     buildProfileDetails(updatedAccount),
+	}
+	if updatedAccount.expiresAt.Valid {
+		response.ExpiresAt = updatedAccount.expiresAt.Time.UTC().Format(time.RFC3339)
+	}
+
+	return response, nil
+}
+
+func buildProfileDetails(account storedAccount) []profileDetail {
+	details := make([]profileDetail, 0, 16)
+
+	appendDetail := func(key, label, value string) {
+		if strings.TrimSpace(value) == "" {
+			return
+		}
+
+		details = append(details, profileDetail{
+			Key:   key,
+			Label: label,
+			Value: value,
+		})
+	}
+
+	codeLabel := "Student Code"
+	switch account.roleCode {
+	case "ROOT", "ADMIN":
+		codeLabel = "Admin Code"
+	case "TEACHER":
+		codeLabel = "Teacher Code"
+	}
+
+	appendDetail("accountCode", codeLabel, nullStringValue(account.accountCode))
+	appendDetail("academyCode", "Academy Code", nullStringValue(account.academyCode))
+	appendDetail("loginId", "Login ID", account.loginID)
+	appendDetail("password", "Masked Password", "••••••••")
+	appendDetail("displayName", "Display Name", account.displayName)
+	appendDetail("email", "Email", nullStringValue(account.email))
+	appendDetail("phone", "Phone", nullStringValue(account.phone))
+	note := strings.TrimSpace(nullStringValue(account.note))
+	if note == "" {
+		note = "-"
+	}
+	appendDetail("note", "Note", note)
+
+	switch account.roleCode {
+	case "ROOT", "ADMIN":
+		authPolicy := strings.TrimSpace(nullStringValue(account.authPolicy))
+		if authPolicy == "" {
+			authPolicy = "-"
+		}
+		appendDetail("authPolicy", "Auth Policy", authPolicy)
+	case "TEACHER":
+		preset := strings.TrimSpace(nullStringValue(account.preset))
+		if preset == "" {
+			preset = "-"
+		}
+		availableSchedule := strings.TrimSpace(nullStringValue(account.availableSchedule))
+		if availableSchedule == "" {
+			availableSchedule = "-"
+		}
+		appendDetail("preset", "Preset", preset)
+		appendDetail("availableSchedule", "Available Schedule", availableSchedule)
+	case "STUDENT":
+		appendDetail("skinLValue", "Skin L Value", nullFloat64Value(account.skinLValue))
+		appendDetail("skinCValue", "Skin C Value", nullFloat64Value(account.skinCValue))
+		appendDetail("skinHValue", "Skin H Value", nullFloat64Value(account.skinHValue))
+		appendDetail("skinTraits", "Skin Traits", nullStringValue(account.skinTraits))
+		appendDetail("preferenceRanges", "Preference Ranges", nullStringValue(account.preferenceRanges))
+		appendDetail("primaryTeacherId", "Primary Teacher ID", nullInt64Value(account.primaryTeacherID))
+		appendDetail("passTotalCount", "Pass Total Count", nullInt64Value(account.passTotalCount))
+		appendDetail("passRemainingCount", "Pass Remaining Count", nullInt64Value(account.passRemainingCount))
+	}
+
+	appendDetail("roleCode", "Role", account.roleCode)
+	appendDetail("statusCode", "Status", account.statusCode)
+
+	return details
+}
+
+func nullFloat64Value(value sql.NullFloat64) string {
+	if !value.Valid {
+		return ""
+	}
+
+	return fmt.Sprintf("%.4f", value.Float64)
+}
+
+func nullInt64Value(value sql.NullInt64) string {
+	if !value.Valid {
+		return ""
+	}
+
+	return fmt.Sprintf("%d", value.Int64)
 }
 
 func (s *oracleAccountService) RegisterMember(
@@ -741,6 +1082,62 @@ SELECT
 FROM (
 %s
 )
+  ORDER BY created_at DESC`, strings.Join(selectBlocks, "\n\n    UNION ALL\n"))
+}
+
+func buildAcademyMembersSearchQuery(
+	field pendingSearchField,
+	statusFilter string,
+) string {
+	selectBlocks := make([]string, 0, len(academySearchRoleSpecs))
+	for _, spec := range academySearchRoleSpecs {
+		matchExpression := fmt.Sprintf(
+			strings.ReplaceAll(field.matchExpression, ":1", ":2"),
+			spec.alias,
+			field.column,
+		)
+		statusClause := ""
+		if statusFilter != "ALL" {
+			statusClause = fmt.Sprintf("\n        AND %[1]s.STATUS_CODE = '%[2]s'", spec.alias, statusFilter)
+		} else {
+			statusClause = fmt.Sprintf(
+				"\n        AND %[1]s.STATUS_CODE IN ('ACTIVE', 'HOLD', 'INACTIVE')",
+				spec.alias,
+			)
+		}
+		selectBlocks = append(selectBlocks, fmt.Sprintf(`
+      SELECT
+          %[1]s.ACADEMY_CODE AS academy_code,
+          aca.ACADEMY_NAME AS academy_name,
+          %[1]s.LOGIN_ID AS login_id,
+          %[1]s.DISPLAY_NAME AS display_name,
+          %[1]s.EMAIL AS email,
+          %[1]s.PHONE AS phone,
+          %[3]s AS role_code,
+          %[1]s.CREATED_AT AS created_at,
+          %[1]s.STATUS_CODE AS status_code
+      FROM %[2]s %[1]s
+      LEFT JOIN MAIMEI_ACADEMIES aca
+        ON aca.ACADEMY_CODE = %[1]s.ACADEMY_CODE
+      WHERE %[1]s.ACADEMY_CODE = :1
+        %[4]s
+        AND %s`, spec.alias, spec.profileTable, spec.roleCodeExpression, statusClause, matchExpression))
+	}
+
+	return fmt.Sprintf(`
+SELECT
+    academy_code,
+    academy_name,
+    login_id,
+    display_name,
+    email,
+    phone,
+    role_code,
+    created_at,
+    status_code
+FROM (
+%s
+)
 ORDER BY created_at DESC`, strings.Join(selectBlocks, "\n\n    UNION ALL\n"))
 }
 
@@ -767,6 +1164,55 @@ func scanPendingMemberRecords(rows *sql.Rows) ([]pendingMemberRecord, error) {
 			LoginID:     loginID,
 			RoleCode:    roleCode,
 			CreatedAt:   createdAt.UTC().Format(time.RFC3339),
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return members, nil
+}
+
+func scanAcademyMemberRecords(rows *sql.Rows) ([]academyMemberRecord, error) {
+	members := make([]academyMemberRecord, 0, 4)
+	for rows.Next() {
+		var (
+			academyCode string
+			academyName string
+			loginID     string
+			displayName string
+			email       sql.NullString
+			phone       sql.NullString
+			roleCode    string
+			createdAt   time.Time
+			statusCode  string
+		)
+
+		if err := rows.Scan(
+			&academyCode,
+			&academyName,
+			&loginID,
+			&displayName,
+			&email,
+			&phone,
+			&roleCode,
+			&createdAt,
+			&statusCode,
+		); err != nil {
+			return nil, err
+		}
+
+		members = append(members, academyMemberRecord{
+			AcademyCode: academyCode,
+			AcademyName: academyName,
+			DisplayName: displayName,
+			Email:       nullStringValue(email),
+			Phone:       nullStringValue(phone),
+			LoginID:     loginID,
+			RoleCode:    roleCode,
+			CreatedAt:   createdAt.UTC().Format(time.RFC3339),
+			StatusCode:  statusCode,
 		})
 	}
 
@@ -831,6 +1277,66 @@ func (s *oracleAccountService) SearchPendingMembers(
 	}, nil
 }
 
+func (s *oracleAccountService) SearchAcademyMembers(
+	ctx context.Context,
+	input academyMemberSearchInput,
+) (academyMembersResponse, error) {
+	input.AcademyCode = strings.TrimSpace(input.AcademyCode)
+	input.ActorRoleCode = strings.ToUpper(strings.TrimSpace(input.ActorRoleCode))
+	input.Field = strings.TrimSpace(input.Field)
+	input.Query = strings.TrimSpace(input.Query)
+	input.StatusFilter = strings.ToUpper(strings.TrimSpace(input.StatusFilter))
+
+	if err := validateAcademyModerationAccess(input.AcademyCode, input.ActorRoleCode); err != nil {
+		return academyMembersResponse{}, err
+	}
+
+	if input.Field == "" {
+		return academyMembersResponse{}, fmt.Errorf("Please choose a search field.")
+	}
+
+	field, ok := pendingSearchFields[input.Field]
+	if !ok {
+		return academyMembersResponse{}, fmt.Errorf("Please choose a valid search field.")
+	}
+
+	if input.StatusFilter == "" {
+		input.StatusFilter = "ALL"
+	}
+	if err := validateAcademyMemberStatusFilter(input.StatusFilter); err != nil {
+		return academyMembersResponse{}, err
+	}
+
+	input.Query = normalizePendingSearchQuery(input.Field, input.Query)
+	if input.Query != "" {
+		if err := validatePendingSearchQuery(input.Field, input.Query); err != nil {
+			return academyMembersResponse{}, err
+		}
+	}
+
+	query := buildAcademyMembersSearchQuery(field, input.StatusFilter)
+	rows, err := s.db.QueryContext(ctx, query, input.AcademyCode, input.Query)
+	if err != nil {
+		return academyMembersResponse{}, err
+	}
+	defer rows.Close()
+
+	members, err := scanAcademyMemberRecords(rows)
+	if err != nil {
+		return academyMembersResponse{}, err
+	}
+
+	if len(members) == 0 {
+		return academyMembersResponse{}, fmt.Errorf("No academy members matched that %s.", field.label)
+	}
+
+	return academyMembersResponse{
+		Status:  "ok",
+		Message: "Academy members found.",
+		Members: members,
+	}, nil
+}
+
 func (s *oracleAccountService) ApprovePendingMember(
 	ctx context.Context,
 	input approvePendingMemberInput,
@@ -884,6 +1390,66 @@ func (s *oracleAccountService) ApprovePendingMember(
 	}, nil
 }
 
+func (s *oracleAccountService) UpdateAcademyMemberStatus(
+	ctx context.Context,
+	input academyMemberStatusUpdateInput,
+) (academyMemberStatusUpdateResponse, error) {
+	input.AcademyCode = strings.TrimSpace(input.AcademyCode)
+	input.ActorRoleCode = strings.ToUpper(strings.TrimSpace(input.ActorRoleCode))
+	input.LoginID = strings.TrimSpace(input.LoginID)
+	input.CurrentStatus = strings.ToUpper(strings.TrimSpace(input.CurrentStatus))
+	input.NextStatus = strings.ToUpper(strings.TrimSpace(input.NextStatus))
+
+	if err := validateAcademyModerationAccess(input.AcademyCode, input.ActorRoleCode); err != nil {
+		return academyMemberStatusUpdateResponse{}, err
+	}
+	if input.LoginID == "" {
+		return academyMemberStatusUpdateResponse{}, fmt.Errorf("Please choose an academy member.")
+	}
+	if err := validateAcademyMemberStatusTransition(input.CurrentStatus, input.NextStatus); err != nil {
+		return academyMemberStatusUpdateResponse{}, err
+	}
+
+	tx, err := s.beginTxWithReconnect(ctx)
+	if err != nil {
+		return academyMemberStatusUpdateResponse{}, err
+	}
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	target, err := lookupAcademyAccountRoleAndStatus(ctx, tx, input.AcademyCode, input.LoginID)
+	if err != nil {
+		return academyMemberStatusUpdateResponse{}, err
+	}
+	if err := validateAcademyMemberTargetRole(target.roleCode); err != nil {
+		return academyMemberStatusUpdateResponse{}, err
+	}
+	if target.statusCode != input.CurrentStatus {
+		return academyMemberStatusUpdateResponse{}, fmt.Errorf("The member status changed before this update. Please search again.")
+	}
+
+	if err := updateAcademyMemberStatusProfile(ctx, tx, target, input); err != nil {
+		return academyMemberStatusUpdateResponse{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return academyMemberStatusUpdateResponse{}, err
+	}
+	tx = nil
+
+	return academyMemberStatusUpdateResponse{
+		Status:        "ok",
+		Message:       "Academy member status updated.",
+		LoginID:       input.LoginID,
+		CurrentStatus: input.CurrentStatus,
+		NextStatus:    input.NextStatus,
+		RoleCode:      target.roleCode,
+	}, nil
+}
+
 func lookupPendingAccountRole(ctx context.Context, tx *sql.Tx, loginID string) (string, error) {
 	readRole := `
 SELECT role_code
@@ -893,7 +1459,6 @@ SELECT role_code
      WHERE LOGIN_ID = :1
        AND STATUS_CODE = 'PENDING'
        AND ACADEMY_CODE IS NULL
-       AND ROLE_CODE = 'ADMIN'
     UNION ALL
     SELECT 'TEACHER' AS role_code
       FROM MAIMEI_TEACHERS
@@ -917,6 +1482,46 @@ SELECT role_code
 	}
 
 	return targetRoleCode, nil
+}
+
+func lookupAcademyAccountRoleAndStatus(
+	ctx context.Context,
+	tx *sql.Tx,
+	academyCode string,
+	loginID string,
+) (academyMemberRoleStatus, error) {
+	readRole := `
+SELECT role_code, status_code
+  FROM (
+    SELECT ROLE_CODE AS role_code, STATUS_CODE AS status_code
+      FROM MAIMEI_ADMINS
+     WHERE LOGIN_ID = :1
+       AND ACADEMY_CODE = :2
+       AND STATUS_CODE IN ('ACTIVE', 'HOLD', 'INACTIVE')
+    UNION ALL
+    SELECT 'TEACHER' AS role_code, STATUS_CODE AS status_code
+      FROM MAIMEI_TEACHERS
+     WHERE LOGIN_ID = :1
+       AND ACADEMY_CODE = :2
+       AND STATUS_CODE IN ('ACTIVE', 'HOLD', 'INACTIVE')
+    UNION ALL
+    SELECT 'STUDENT' AS role_code, STATUS_CODE AS status_code
+      FROM MAIMEI_STUDENTS
+     WHERE LOGIN_ID = :1
+       AND ACADEMY_CODE = :2
+       AND STATUS_CODE IN ('ACTIVE', 'HOLD', 'INACTIVE')
+  )
+ WHERE ROWNUM = 1`
+
+	var target academyMemberRoleStatus
+	if err := tx.QueryRowContext(ctx, readRole, loginID, academyCode).Scan(&target.roleCode, &target.statusCode); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return academyMemberRoleStatus{}, fmt.Errorf("That academy member could not be found.")
+		}
+		return academyMemberRoleStatus{}, err
+	}
+
+	return target, nil
 }
 
 func approvePendingMemberProfile(
@@ -946,6 +1551,62 @@ UPDATE %s
 
 	if rowsAffected != 1 {
 		return fmt.Errorf("That pending member could not be found.")
+	}
+
+	return nil
+}
+
+func updateAcademyMemberStatusProfile(
+	ctx context.Context,
+	tx *sql.Tx,
+	target academyMemberRoleStatus,
+	input academyMemberStatusUpdateInput,
+) error {
+	var updateProfile string
+	switch target.roleCode {
+	case "ROOT", "ADMIN":
+		updateProfile = `
+UPDATE MAIMEI_ADMINS
+   SET STATUS_CODE = :1
+ WHERE ACADEMY_CODE = :2
+   AND LOGIN_ID = :3
+   AND STATUS_CODE = :4`
+	case "TEACHER":
+		updateProfile = `
+UPDATE MAIMEI_TEACHERS
+   SET STATUS_CODE = :1
+ WHERE ACADEMY_CODE = :2
+   AND LOGIN_ID = :3
+   AND STATUS_CODE = :4`
+	case "STUDENT":
+		updateProfile = `
+UPDATE MAIMEI_STUDENTS
+   SET STATUS_CODE = :1
+ WHERE ACADEMY_CODE = :2
+   AND LOGIN_ID = :3
+   AND STATUS_CODE = :4`
+	default:
+		return fmt.Errorf("That academy member could not be found.")
+	}
+
+	result, err := tx.ExecContext(
+		ctx,
+		updateProfile,
+		input.NextStatus,
+		input.AcademyCode,
+		input.LoginID,
+		input.CurrentStatus,
+	)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected != 1 {
+		return fmt.Errorf("That academy member could not be found.")
 	}
 
 	return nil
@@ -994,31 +1655,57 @@ UPDATE MAIMEI_LICENSES
 func (s *oracleAccountService) fetchAccount(ctx context.Context, loginID string) (storedAccount, error) {
 	query := `
 SELECT
+    account_code,
     academy_code,
     academy_name,
     academy_state,
+    auth_policy,
+    available_schedule,
     display_name,
     email,
     status_code,
     login_id,
+    note,
     password_hash,
+    pass_remaining_count,
+    pass_total_count,
     phone,
+    preference_ranges,
+    preset,
+    primary_teacher_id,
     role_code,
+    skin_c_value,
+    skin_h_value,
+    skin_l_value,
+    skin_traits,
     license_code,
     expires_at,
     source_table
 FROM (
     SELECT
+        adm.ADMIN_CODE AS account_code,
         adm.ACADEMY_CODE AS academy_code,
         aca.ACADEMY_NAME AS academy_name,
         aca.STATUS_CODE AS academy_state,
+        DBMS_LOB.SUBSTR(adm.AUTH_POLICY, 4000, 1) AS auth_policy,
+        CAST(NULL AS VARCHAR2(4000)) AS available_schedule,
         adm.DISPLAY_NAME AS display_name,
         adm.EMAIL AS email,
         adm.STATUS_CODE AS status_code,
         adm.LOGIN_ID AS login_id,
+        DBMS_LOB.SUBSTR(adm.NOTE_BODY, 4000, 1) AS note,
         adm.PASSWORD_HASH AS password_hash,
+        CAST(NULL AS NUMBER(10, 0)) AS pass_remaining_count,
+        CAST(NULL AS NUMBER(10, 0)) AS pass_total_count,
         adm.PHONE AS phone,
+        CAST(NULL AS VARCHAR2(4000)) AS preference_ranges,
+        CAST(NULL AS VARCHAR2(4000)) AS preset,
+        CAST(NULL AS NUMBER(19, 0)) AS primary_teacher_id,
         adm.ROLE_CODE AS role_code,
+        CAST(NULL AS NUMBER(10, 4)) AS skin_c_value,
+        CAST(NULL AS NUMBER(10, 4)) AS skin_h_value,
+        CAST(NULL AS NUMBER(10, 4)) AS skin_l_value,
+        CAST(NULL AS VARCHAR2(4000)) AS skin_traits,
         (
             SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
             FROM MAIMEI_LICENSES lic
@@ -1038,16 +1725,29 @@ FROM (
     WHERE adm.LOGIN_ID = :1
     UNION ALL
     SELECT
+        tch.TEACHER_CODE AS account_code,
         tch.ACADEMY_CODE AS academy_code,
         aca.ACADEMY_NAME AS academy_name,
         aca.STATUS_CODE AS academy_state,
+        CAST(NULL AS VARCHAR2(4000)) AS auth_policy,
+        DBMS_LOB.SUBSTR(tch.AVAILABLE_SCHEDULE, 4000, 1) AS available_schedule,
         tch.DISPLAY_NAME AS display_name,
         tch.EMAIL AS email,
         tch.STATUS_CODE AS status_code,
         tch.LOGIN_ID AS login_id,
+        DBMS_LOB.SUBSTR(tch.NOTE_BODY, 4000, 1) AS note,
         tch.PASSWORD_HASH AS password_hash,
+        CAST(NULL AS NUMBER(10, 0)) AS pass_remaining_count,
+        CAST(NULL AS NUMBER(10, 0)) AS pass_total_count,
         tch.PHONE AS phone,
+        CAST(NULL AS VARCHAR2(4000)) AS preference_ranges,
+        DBMS_LOB.SUBSTR(tch.PRESET, 4000, 1) AS preset,
+        CAST(NULL AS NUMBER(19, 0)) AS primary_teacher_id,
         'TEACHER' AS role_code,
+        CAST(NULL AS NUMBER(10, 4)) AS skin_c_value,
+        CAST(NULL AS NUMBER(10, 4)) AS skin_h_value,
+        CAST(NULL AS NUMBER(10, 4)) AS skin_l_value,
+        CAST(NULL AS VARCHAR2(4000)) AS skin_traits,
         (
             SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
             FROM MAIMEI_LICENSES lic
@@ -1067,16 +1767,29 @@ FROM (
     WHERE tch.LOGIN_ID = :1
     UNION ALL
     SELECT
+        stu.STUDENT_CODE AS account_code,
         stu.ACADEMY_CODE AS academy_code,
         aca.ACADEMY_NAME AS academy_name,
         aca.STATUS_CODE AS academy_state,
+        CAST(NULL AS VARCHAR2(4000)) AS auth_policy,
+        CAST(NULL AS VARCHAR2(4000)) AS available_schedule,
         stu.DISPLAY_NAME AS display_name,
         stu.EMAIL AS email,
         stu.STATUS_CODE AS status_code,
         stu.LOGIN_ID AS login_id,
+        DBMS_LOB.SUBSTR(stu.NOTE_BODY, 4000, 1) AS note,
         stu.PASSWORD_HASH AS password_hash,
+        stu.PASS_REMAINING_COUNT AS pass_remaining_count,
+        stu.PASS_TOTAL_COUNT AS pass_total_count,
         stu.PHONE AS phone,
+        DBMS_LOB.SUBSTR(stu.PREFERENCE_RANGES_BODY, 4000, 1) AS preference_ranges,
+        CAST(NULL AS VARCHAR2(4000)) AS preset,
+        stu.PRIMARY_TEACHER_ID AS primary_teacher_id,
         'STUDENT' AS role_code,
+        stu.SKIN_C_VALUE AS skin_c_value,
+        stu.SKIN_H_VALUE AS skin_h_value,
+        stu.SKIN_L_VALUE AS skin_l_value,
+        DBMS_LOB.SUBSTR(stu.SKIN_TRAITS_BODY, 4000, 1) AS skin_traits,
         (
             SELECT MAX(lic.LICENSE_CODE) KEEP (DENSE_RANK LAST ORDER BY lic.EXPIRES_AT)
             FROM MAIMEI_LICENSES lic
@@ -1099,16 +1812,29 @@ FROM (
 	var account storedAccount
 	scan := func(db *sql.DB) error {
 		return db.QueryRowContext(ctx, query, loginID).Scan(
+			&account.accountCode,
 			&account.academyCode,
 			&account.academyName,
 			&account.academyState,
+			&account.authPolicy,
+			&account.availableSchedule,
 			&account.displayName,
 			&account.email,
 			&account.statusCode,
 			&account.loginID,
+			&account.note,
 			&account.passwordHash,
+			&account.passRemainingCount,
+			&account.passTotalCount,
 			&account.phone,
+			&account.preferenceRanges,
+			&account.preset,
+			&account.primaryTeacherID,
 			&account.roleCode,
+			&account.skinCValue,
+			&account.skinHValue,
+			&account.skinLValue,
+			&account.skinTraits,
 			&account.licenseCode,
 			&account.expiresAt,
 			&account.sourceTable,
@@ -1347,6 +2073,83 @@ func validatePendingModerationAccess(academyCode, actorRoleCode string) error {
 		return nil
 	default:
 		return fmt.Errorf("Only root or admin accounts can manage pending members.")
+	}
+}
+
+func validateAcademyModerationAccess(academyCode, actorRoleCode string) error {
+	if academyCode == "" {
+		return fmt.Errorf("Please enter your academy code.")
+	}
+
+	switch actorRoleCode {
+	case "ROOT", "ADMIN":
+		return nil
+	default:
+		return fmt.Errorf("Only root or admin accounts can manage academy members.")
+	}
+}
+
+func validateAcademyMemberStatusFilter(statusFilter string) error {
+	switch statusFilter {
+	case "ALL", "ACTIVE", "HOLD", "INACTIVE":
+		return nil
+	default:
+		return fmt.Errorf("Please choose a valid status filter.")
+	}
+}
+
+func validateAcademyMemberStatusTransition(currentStatus, nextStatus string) error {
+	if currentStatus == nextStatus {
+		return fmt.Errorf("Please choose a different next status.")
+	}
+
+	switch currentStatus {
+	case "ACTIVE":
+		if nextStatus == "HOLD" || nextStatus == "INACTIVE" {
+			return nil
+		}
+	case "HOLD":
+		if nextStatus == "ACTIVE" || nextStatus == "INACTIVE" {
+			return nil
+		}
+	case "INACTIVE":
+		if nextStatus == "ACTIVE" || nextStatus == "HOLD" {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("That academy member status transition is not allowed.")
+}
+
+func validateAcademyMemberTargetRole(roleCode string) error {
+	if roleCode == "ROOT" {
+		return fmt.Errorf("Root accounts cannot change status here.")
+	}
+
+	return nil
+}
+
+func canUpdateProfileStatus(actorRoleCode, targetRoleCode string) bool {
+	if targetRoleCode == "ROOT" {
+		return false
+	}
+
+	switch actorRoleCode {
+	case "ROOT":
+		return true
+	case "ADMIN":
+		return targetRoleCode != "ROOT" && targetRoleCode != "ADMIN"
+	default:
+		return false
+	}
+}
+
+func isAllowedAccountStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "ACTIVE", "HOLD", "INACTIVE":
+		return true
+	default:
+		return false
 	}
 }
 

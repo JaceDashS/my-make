@@ -12,6 +12,8 @@ export function SidebarMenu({
   disableConditionalVisibility,
   isOpen,
   isAuthenticated,
+  showTeacherAccountItems,
+  showStudentAccountItems,
   labels,
   onPageChange,
   onSectionChange,
@@ -23,16 +25,24 @@ export function SidebarMenu({
   disableConditionalVisibility: boolean;
   isOpen: boolean;
   isAuthenticated: boolean;
+  showTeacherAccountItems: boolean;
+  showStudentAccountItems: boolean;
   labels: {
     account: string;
+    academyMembers: string;
+    availableSchedule: string;
     devHealth: string;
     general: string;
     login: string;
     members: string;
     pendingApproval: string;
+    preset: string;
     profile: string;
+    reservation: string;
+    reservationView: string;
     register: string;
     settings: string;
+    studentOptions: string;
   };
   onPageChange: (page: AppPage) => void;
   onSectionChange: (section: DesktopMenuSection) => void;
@@ -40,6 +50,11 @@ export function SidebarMenu({
   palette: DesktopShellPalette;
   section: DesktopMenuSection;
 }) {
+  const academyMembersLabel = labels.academyMembers;
+  const accountItemCount =
+    (!isAuthenticated || disableConditionalVisibility ? 2 : 1) +
+    (showTeacherAccountItems ? 3 : 0) +
+    (showStudentAccountItems ? 2 : 0);
   const settingsAnimation = useRef(
     new Animated.Value(page === 'settings' ? 1 : 0),
   ).current;
@@ -174,7 +189,7 @@ export function SidebarMenu({
                   opacity: accountAnimation,
                   maxHeight: accountAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, 104],
+                    outputRange: [0, 52 + accountItemCount * 48],
                   }),
                   transform: [
                     {
@@ -201,6 +216,44 @@ export function SidebarMenu({
                     palette={palette}
                   />
                 ) : null}
+                {showTeacherAccountItems ? (
+                  <>
+                    <SidebarSubItem
+                      active={section === 'preset'}
+                      label={labels.preset}
+                      onPress={() => onSectionChange('preset')}
+                      palette={palette}
+                    />
+                    <SidebarSubItem
+                      active={section === 'available-schedule'}
+                      label={labels.availableSchedule}
+                      onPress={() => onSectionChange('available-schedule')}
+                      palette={palette}
+                    />
+                    <SidebarSubItem
+                      active={section === 'reservation-view'}
+                      label={labels.reservationView}
+                      onPress={() => onSectionChange('reservation-view')}
+                      palette={palette}
+                    />
+                  </>
+                ) : null}
+                {showStudentAccountItems ? (
+                  <>
+                    <SidebarSubItem
+                      active={section === 'student-options'}
+                      label={labels.studentOptions}
+                      onPress={() => onSectionChange('student-options')}
+                      palette={palette}
+                    />
+                    <SidebarSubItem
+                      active={section === 'reservation'}
+                      label={labels.reservation}
+                      onPress={() => onSectionChange('reservation')}
+                      palette={palette}
+                    />
+                  </>
+                ) : null}
               </View>
             </Animated.View>
             <Pressable
@@ -221,7 +274,7 @@ export function SidebarMenu({
                   opacity: membersAnimation,
                   maxHeight: membersAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, 64],
+                    outputRange: [0, 116],
                   }),
                   transform: [
                     {
@@ -238,6 +291,12 @@ export function SidebarMenu({
                   active={section === 'pending-approval'}
                   label={labels.pendingApproval}
                   onPress={() => onSectionChange('pending-approval')}
+                  palette={palette}
+                />
+                <SidebarSubItem
+                  active={section === 'academy-members'}
+                  label={academyMembersLabel}
+                  onPress={() => onSectionChange('academy-members')}
                   palette={palette}
                 />
               </View>

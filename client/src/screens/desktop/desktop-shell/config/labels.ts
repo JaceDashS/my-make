@@ -5,6 +5,8 @@ export const DESKTOP_SHELL_LABELS = {
     academyCode: '塾コード',
     academyName: '塾名',
     account: 'アカウント',
+    back: '戻る',
+    academyMembers: '所属メンバー',
     allChecks: '全ヘルスチェック実行',
     allChecksHint: 'ローカル、Docker、クラウドの順で確認します。',
     cloud: 'クラウドサーバー',
@@ -39,6 +41,7 @@ export const DESKTOP_SHELL_LABELS = {
     debugLog: 'デバッグログ',
     displayName: '表示名',
     email: 'メール',
+    edit: '編集',
     guestHint:
       '登録したアカウントでログインするとプロフィールと保護コントロールを確認できます。',
     invalid: 'アカウントIDまたはパスワードが正しくありません。',
@@ -60,6 +63,7 @@ export const DESKTOP_SHELL_LABELS = {
     loginId: 'ログインID',
     members: 'メンバー',
     pendingApproval: '承認待ち',
+    preset: 'Preset',
     memberRegisterBody:
       'Member アカウントを申請すると、root または admin の承認後に利用できます。',
     memberRegisterSuccess:
@@ -71,6 +75,30 @@ export const DESKTOP_SHELL_LABELS = {
     memberRoleInvalid: '有効な権限を選択してください。',
     noAccount:
       'まだ作成されたアカウントがありません。先に登録を完了してください。',
+    note: 'メモ',
+    presetPlaceholderBody: 'Preset editor placeholder. Detailed editing will be added later.',
+    presetPlaceholderTitle: 'Preset',
+    profileEdit: 'プロフィール編集',
+    profileEditBody: '必要な項目を変更して保存できます。',
+    profilePasswordPlaceholder: '空欄のままなら変更しません。',
+    profileSave: 'プロフィール保存',
+    profileSaveSuccess: 'プロフィールを更新しました。',
+    profileUpdateFailed:
+      'プロフィールを更新できませんでした。しばらくしてからもう一度お試しください。',
+    profileStatusDenied: 'このアカウント状態は変更できません。',
+    profileStatusInvalid: '有効な状態を選択してください。',
+    profileAuthPolicyDenied: 'Auth Policy は root のみ変更できます。',
+    status: '状態',
+    studentOptions: 'Student Options',
+    studentOptionsPlaceholderBody:
+      'Student options placeholder. Skin values, skin traits, and preference ranges editing will be added later.',
+    studentOptionsPlaceholderTitle: 'Student Options',
+    statusActive: 'ACTIVE',
+    statusHold: 'HOLD',
+    statusInactive: 'INACTIVE',
+    availableSchedulePlaceholderBody:
+      'Available Schedule editor placeholder. Detailed editing will be added later.',
+    availableSchedulePlaceholderTitle: 'Available Schedule',
     password: 'パスワード',
     passwordSetupFailed:
       'パスワードを準備できませんでした。しばらくしてからもう一度お試しください。',
@@ -78,7 +106,11 @@ export const DESKTOP_SHELL_LABELS = {
     profile: 'プロフィール',
     profileAcademy: '所属塾',
     profileBody: '現在サインインしているアカウント情報です。',
+    profileCodeAdmin: 'Admin Code',
+    profileCodeStudent: 'Student Code',
+    profileCodeTeacher: 'Teacher Code',
     profileId: 'サインイン中ID',
+    profilePassword: 'マスクされたパスワード',
     profileRole: '権限',
     protectedControls: '保護コントロール',
     protectedLocked: 'サインインするまでロックされています。',
@@ -90,15 +122,25 @@ export const DESKTOP_SHELL_LABELS = {
     registerType: '登録タイプ',
     registerTypeUser: 'Member',
     registerTypeRoot: 'Root',
+    reservation: '예약하기',
+    reservationPlaceholderBody:
+      'Reservation placeholder. Booking flow will be added later.',
+    reservationPlaceholderTitle: '예약하기',
+    reservationView: '예약보기',
+    reservationViewPlaceholderBody:
+      'Reservation view placeholder. Teacher booking list will be added later.',
+    reservationViewPlaceholderTitle: '예약보기',
     register: '登録',
     registerBody: '登録タイプを選んで必要な情報を入力します。',
     registerSuccess: 'Root アカウントを作成しました。',
     registrationBusy:
       '現在登録を完了できません。しばらくしてからもう一度お試しください。',
+    save: '保存',
     result: '結果',
     rootLoginId: 'root ログインID',
     rootAlreadyExists: 'この塾にはすでに root アカウントがあります。',
     settings: '設定',
+    availableSchedule: 'Available Schedule',
     signIn: 'サインイン',
     testLogin: 'テストログイン',
     testLoginBody:
@@ -106,6 +148,7 @@ export const DESKTOP_SHELL_LABELS = {
     testMoveToLogin: 'ログイン画面へ戻る',
     testMoveToProfile: 'プロフィールへ移動',
     signOut: 'サインアウト',
+    cancel: 'キャンセル',
     theme: 'テーマ',
     unlocked: 'サインイン済みのため保護設定を利用できます。',
     licenseCode: 'ライセンスコード',
@@ -123,6 +166,8 @@ export const DESKTOP_SHELL_LABELS = {
     academyCode: 'Academy Code',
     academyName: 'Academy Name',
     account: 'Account',
+    back: 'Back',
+    academyMembers: 'Academy Members',
     allChecks: 'Run All Health Checks',
     allChecksHint: 'Run local, Docker, and cloud checks in sequence.',
     cloud: 'Cloud Server',
@@ -156,6 +201,7 @@ export const DESKTOP_SHELL_LABELS = {
     debugLog: 'Debug Log',
     displayName: 'Display Name',
     email: 'Email',
+    edit: 'Edit',
     guestHint:
       'Sign in with the account you created to view your profile and protected controls.',
     invalid: 'The account ID or password is incorrect.',
@@ -177,6 +223,7 @@ export const DESKTOP_SHELL_LABELS = {
     loginId: 'Login ID',
     members: 'Members',
     pendingApproval: 'Pending Approval',
+    preset: 'Preset',
     memberRegisterBody:
       'Submit a member account request and sign in after a root or admin approves it.',
     memberRegisterSuccess:
@@ -187,6 +234,31 @@ export const DESKTOP_SHELL_LABELS = {
     memberRoleTeacher: 'Teacher',
     memberRoleInvalid: 'Please choose a valid role.',
     noAccount: 'No account has been created yet. Complete registration first.',
+    note: 'Note',
+    presetPlaceholderBody:
+      'Preset editor placeholder. Detailed editing will be added later.',
+    presetPlaceholderTitle: 'Preset',
+    profileEdit: 'Edit Profile',
+    profileEditBody: 'Update the fields you need and save the profile.',
+    profilePasswordPlaceholder: 'Leave blank to keep the current password.',
+    profileSave: 'Save Profile',
+    profileSaveSuccess: 'Profile updated successfully.',
+    profileUpdateFailed:
+      'We could not update the profile right now. Please try again.',
+    profileStatusDenied: 'You do not have permission to change this status.',
+    profileStatusInvalid: 'Please choose a valid status.',
+    profileAuthPolicyDenied: 'Only root accounts can update auth policy.',
+    status: 'Status',
+    studentOptions: 'Student Options',
+    studentOptionsPlaceholderBody:
+      'Student options placeholder. Skin values, skin traits, and preference ranges editing will be added later.',
+    studentOptionsPlaceholderTitle: 'Student Options',
+    statusActive: 'ACTIVE',
+    statusHold: 'HOLD',
+    statusInactive: 'INACTIVE',
+    availableSchedulePlaceholderBody:
+      'Available Schedule editor placeholder. Detailed editing will be added later.',
+    availableSchedulePlaceholderTitle: 'Available Schedule',
     password: 'Password',
     passwordSetupFailed:
       'We could not prepare your password right now. Please try again.',
@@ -194,7 +266,11 @@ export const DESKTOP_SHELL_LABELS = {
     profile: 'Profile',
     profileAcademy: 'Academy',
     profileBody: 'This is the account currently signed in.',
+    profileCodeAdmin: 'Admin Code',
+    profileCodeStudent: 'Student Code',
+    profileCodeTeacher: 'Teacher Code',
     profileId: 'Signed-in ID',
+    profilePassword: 'Masked Password',
     profileRole: 'Role',
     protectedControls: 'Protected controls',
     protectedLocked: 'Locked until you sign in.',
@@ -207,15 +283,25 @@ export const DESKTOP_SHELL_LABELS = {
     registerType: 'Register Type',
     registerTypeUser: 'Member',
     registerTypeRoot: 'Root',
+    reservation: 'Reservation',
+    reservationPlaceholderBody:
+      'Reservation placeholder. Booking flow will be added later.',
+    reservationPlaceholderTitle: 'Reservation',
+    reservationView: 'Reservation View',
+    reservationViewPlaceholderBody:
+      'Reservation view placeholder. Teacher booking list will be added later.',
+    reservationViewPlaceholderTitle: 'Reservation View',
     register: 'Register',
     registerBody: 'Choose a register type and enter the required information.',
     registerSuccess: 'Your root account has been created.',
     registrationBusy:
       'We could not complete registration right now. Please try again.',
+    save: 'Save',
     result: 'Result',
     rootLoginId: 'Root Login ID',
     rootAlreadyExists: 'This academy already has a root account.',
     settings: 'Settings',
+    availableSchedule: 'Available Schedule',
     signIn: 'Sign in',
     testLogin: 'Test Login',
     testLoginBody:
@@ -223,6 +309,7 @@ export const DESKTOP_SHELL_LABELS = {
     testMoveToLogin: 'Back to Login',
     testMoveToProfile: 'Go to Profile',
     signOut: 'Sign out',
+    cancel: 'Cancel',
     theme: 'Theme',
     unlocked: 'Protected settings are available because you are signed in.',
     licenseCode: 'License Code',
@@ -242,3 +329,5 @@ export const DESKTOP_SHELL_LABELS = {
 export function getDesktopShellLabels(language: LanguageMode) {
   return DESKTOP_SHELL_LABELS[language];
 }
+
+

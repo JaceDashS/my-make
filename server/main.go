@@ -46,19 +46,28 @@ func main() {
 }
 
 func newApp() *app {
-	health, err := newHealthServiceFromEnv()
+	var health healthChecker
+	loadedHealth, err := newHealthServiceFromEnv()
 	if err != nil {
 		log.Printf("oracle health service unavailable: %v", err)
+	} else {
+		health = loadedHealth
 	}
 
-	devTools, err := newDevToolsServiceFromEnv()
+	var devTools devToolsRunner
+	loadedDevTools, err := newDevToolsServiceFromEnv()
 	if err != nil {
 		log.Printf("oracle dev tools service unavailable: %v", err)
+	} else {
+		devTools = loadedDevTools
 	}
 
-	accounts, err := newAccountServiceFromEnv()
+	var accounts accountService
+	loadedAccounts, err := newAccountServiceFromEnv()
 	if err != nil {
 		log.Printf("oracle account service unavailable: %v", err)
+	} else {
+		accounts = loadedAccounts
 	}
 
 	return &app{
@@ -84,9 +93,12 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/accounts/login", a.handleLogin)
 	mux.HandleFunc("/api/accounts/session", a.handleSession)
 	mux.HandleFunc("/api/accounts/profile", a.handleProfile)
+	mux.HandleFunc("/api/accounts/profile/update", a.handleUpdateProfile)
 	mux.HandleFunc("/api/accounts/logout", a.handleLogout)
 	mux.HandleFunc("/api/accounts/member-register", a.handleMemberRegister)
 	mux.HandleFunc("/api/accounts/root-register", a.handleRootRegister)
+	mux.HandleFunc("/api/members/academy/search", a.handleSearchAcademyMembers)
+	mux.HandleFunc("/api/members/academy/status", a.handleUpdateAcademyMemberStatus)
 	mux.HandleFunc("/api/members/pending/search", a.handleSearchPendingMembers)
 	mux.HandleFunc("/api/members/pending/approve", a.handleApprovePendingMember)
 	mux.HandleFunc("/api/licenses/renew", a.handleRenewLicense)
@@ -220,6 +232,7 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	logServerRuntime("accounts", "login:start", map[string]any{
 		"loginId": input.LoginID,
+		"token":   tokenPreviewFromRequest(r),
 	})
 
 	result, err := a.accounts.Login(r.Context(), input)
@@ -242,6 +255,11 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "session", err.Error())
 		return
 	}
+	logServerRuntime("accounts", "login:session-created", map[string]any{
+		"loginId":     result.LoginID,
+		"roleCode":    result.RoleCode,
+		"tokenPrefix": tokenPreview(token),
+	})
 	setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, result)
 }
@@ -283,22 +301,102 @@ func (a *app) handleProfile(w http.ResponseWriter, r *http.Request) {
 
 	token, ok := readSessionCookie(r)
 	if !ok {
+		logServerRuntime("accounts", "profile:no-cookie", map[string]any{})
 		writeAPIError(w, http.StatusUnauthorized, "profile", "No active session was found.")
 		return
 	}
 
 	account, ok := a.ensureSessionManager().Get(token)
 	if !ok {
+		logServerRuntime("accounts", "profile:session-miss", map[string]any{
+			"tokenPrefix": tokenPreview(token),
+		})
 		clearSessionCookie(w)
 		writeAPIError(w, http.StatusUnauthorized, "profile", "No active session was found.")
 		return
 	}
+	logServerRuntime("accounts", "profile:session-hit", map[string]any{
+		"loginId":     account.LoginID,
+		"roleCode":    account.RoleCode,
+		"tokenPrefix": tokenPreview(token),
+	})
 
 	result, err := a.accounts.GetProfile(r.Context(), account.LoginID)
 	if err != nil {
+		logServerRuntime("accounts", "profile:error", map[string]any{
+			"loginId":     account.LoginID,
+			"tokenPrefix": tokenPreview(token),
+			"error":       err.Error(),
+		})
 		writeAPIError(w, http.StatusBadRequest, "profile", err.Error())
 		return
 	}
+	logServerRuntime("accounts", "profile:success", map[string]any{
+		"loginId":        result.LoginID,
+		"roleCode":       result.RoleCode,
+		"detailsCount":   len(result.Details),
+		"profileCode":    result.AccountCode,
+		"sessionLoginId": account.LoginID,
+		"tokenPrefix":    tokenPreview(token),
+	})
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowedError(w, r.Method)
+		return
+	}
+
+	if a.accounts == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "profile-update", "oracle account service is not configured")
+		return
+	}
+
+	token, ok := readSessionCookie(r)
+	if !ok {
+		writeAPIError(w, http.StatusUnauthorized, "profile-update", "No active session was found.")
+		return
+	}
+
+	account, ok := a.ensureSessionManager().Get(token)
+	if !ok {
+		clearSessionCookie(w)
+		writeAPIError(w, http.StatusUnauthorized, "profile-update", "No active session was found.")
+		return
+	}
+
+	input, err := decodeJSONBody[profileUpdateInput](r)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "profile-update", err.Error())
+		return
+	}
+
+	logServerRuntime("accounts", "profile-update:start", map[string]any{
+		"loginId":     account.LoginID,
+		"roleCode":    account.RoleCode,
+		"tokenPrefix": tokenPreview(token),
+	})
+
+	result, err := a.accounts.UpdateProfile(r.Context(), account, input)
+	if err != nil {
+		logServerRuntime("accounts", "profile-update:error", map[string]any{
+			"loginId":     account.LoginID,
+			"roleCode":    account.RoleCode,
+			"tokenPrefix": tokenPreview(token),
+			"error":       err.Error(),
+		})
+		writeAPIError(w, http.StatusBadRequest, "profile-update", err.Error())
+		return
+	}
+
+	logServerRuntime("accounts", "profile-update:success", map[string]any{
+		"loginId":      result.LoginID,
+		"roleCode":     result.RoleCode,
+		"detailsCount": len(result.Details),
+		"tokenPrefix":  tokenPreview(token),
+	})
 
 	writeJSON(w, http.StatusOK, result)
 }
@@ -310,13 +408,39 @@ func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if token, ok := readSessionCookie(r); ok {
+		logServerRuntime("accounts", "logout:start", map[string]any{
+			"tokenPrefix": tokenPreview(token),
+		})
 		a.ensureSessionManager().Delete(token)
 	}
 	clearSessionCookie(w)
+	logServerRuntime("accounts", "logout:success", map[string]any{
+		"token": tokenPreviewFromRequest(r),
+	})
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":  "ok",
 		"message": "Signed out successfully.",
 	})
+}
+
+func tokenPreviewFromRequest(r *http.Request) string {
+	token, ok := readSessionCookie(r)
+	if !ok {
+		return ""
+	}
+
+	return tokenPreview(token)
+}
+
+func tokenPreview(token string) string {
+	if token == "" {
+		return ""
+	}
+	if len(token) <= 8 {
+		return token
+	}
+
+	return token[:8]
 }
 
 func (a *app) handleRootRegister(w http.ResponseWriter, r *http.Request) {
@@ -438,6 +562,108 @@ func (a *app) handleRenewLicense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleSearchAcademyMembers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowedError(w, r.Method)
+		return
+	}
+
+	if a.accounts == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "search-academy-members", "oracle account service is not configured")
+		return
+	}
+
+	input, err := decodeJSONBody[academyMemberSearchInput](r)
+	if err != nil {
+		logServerRuntime("members", "academy-search:decode-error", map[string]any{
+			"error": err.Error(),
+		})
+		writeAPIError(w, http.StatusBadRequest, "search-academy-members", err.Error())
+		return
+	}
+
+	logServerRuntime("members", "academy-search:start", map[string]any{
+		"academyCode":  input.AcademyCode,
+		"field":        input.Field,
+		"query":        input.Query,
+		"roleCode":     input.ActorRoleCode,
+		"statusFilter": input.StatusFilter,
+	})
+
+	result, err := a.accounts.SearchAcademyMembers(r.Context(), input)
+	if err != nil {
+		logServerRuntime("members", "academy-search:error", map[string]any{
+			"academyCode":  input.AcademyCode,
+			"error":        err.Error(),
+			"field":        input.Field,
+			"query":        input.Query,
+			"roleCode":     input.ActorRoleCode,
+			"statusFilter": input.StatusFilter,
+		})
+		writeAPIError(w, http.StatusBadRequest, "search-academy-members", err.Error())
+		return
+	}
+
+	logServerRuntime("members", "academy-search:success", map[string]any{
+		"academyCode":  input.AcademyCode,
+		"count":        len(result.Members),
+		"field":        input.Field,
+		"query":        input.Query,
+		"statusFilter": input.StatusFilter,
+	})
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleUpdateAcademyMemberStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowedError(w, r.Method)
+		return
+	}
+
+	if a.accounts == nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "update-academy-member-status", "oracle account service is not configured")
+		return
+	}
+
+	input, err := decodeJSONBody[academyMemberStatusUpdateInput](r)
+	if err != nil {
+		logServerRuntime("members", "academy-status:decode-error", map[string]any{
+			"error": err.Error(),
+		})
+		writeAPIError(w, http.StatusBadRequest, "update-academy-member-status", err.Error())
+		return
+	}
+
+	logServerRuntime("members", "academy-status:start", map[string]any{
+		"academyCode":   input.AcademyCode,
+		"currentStatus": input.CurrentStatus,
+		"loginId":       input.LoginID,
+		"nextStatus":    input.NextStatus,
+		"roleCode":      input.ActorRoleCode,
+	})
+
+	result, err := a.accounts.UpdateAcademyMemberStatus(r.Context(), input)
+	if err != nil {
+		logServerRuntime("members", "academy-status:error", map[string]any{
+			"academyCode":   input.AcademyCode,
+			"currentStatus": input.CurrentStatus,
+			"error":         err.Error(),
+			"loginId":       input.LoginID,
+			"nextStatus":    input.NextStatus,
+			"roleCode":      input.ActorRoleCode,
+		})
+		writeAPIError(w, http.StatusBadRequest, "update-academy-member-status", err.Error())
+		return
+	}
+
+	logServerRuntime("members", "academy-status:success", map[string]any{
+		"academyCode": input.AcademyCode,
+		"loginId":     result.LoginID,
+		"nextStatus":  result.NextStatus,
+	})
 	writeJSON(w, http.StatusOK, result)
 }
 

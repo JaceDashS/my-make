@@ -10,14 +10,21 @@ import {
 } from '../../shared/lib/healthCheck';
 import {
   fetchAccountProfile,
-  loginAccount,
-  logoutAccount,
   registerMemberAccount,
   registerRootAccount,
+  updateAccountProfile,
   type AccountApiResult,
 } from '../../shared/lib/accountApi';
+import {
+  applyAccountProfileState,
+  clearAccountProfileState,
+  runAccountLoginFlow,
+  runAccountLogoutFlow,
+  type AccountSession,
+} from '../../shared/lib/accountSession';
 import { sendClientRuntimeLog } from '../../shared/lib/clientLogs';
 import { windowsPressableFocusProps } from '../../shared/ui/windowsFocusProps';
+import { AcademyMembersSection } from '../../domains/members/AcademyMembersSection';
 import { MembersHomeScreen } from '../../domains/members/MembersHomeScreen';
 import {
   INITIAL_TARGET_STATE,
@@ -56,17 +63,7 @@ function getDefaultSection(nextPage: AppPage): DesktopMenuSection | undefined {
 }
 
 export function WindowsDesktopShell() {
-  const [session, setSession] = useState<{
-    academyCode: string;
-    academyName: string;
-    displayName: string;
-    email: string;
-    expiresAt: string;
-    licenseCode: string;
-    loginId: string;
-    phone: string;
-    roleCode: string;
-  } | null>(null);
+  const [session, setSession] = useState<AccountSession | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [page, setPage] = useState<AppPage>('settings');
   const [section, setSection] = useState<DesktopMenuSection>('general');
@@ -74,12 +71,17 @@ export function WindowsDesktopShell() {
   const [theme, setTheme] = useState<ThemeMode>('light');
   const [academyCode, setAcademyCode] = useState('');
   const [academyName, setAcademyName] = useState('');
+  const [accountCode, setAccountCode] = useState('');
   const [licenseCode, setLicenseCode] = useState('');
   const [loginId, setLoginId] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [note, setNote] = useState('');
   const [phone, setPhone] = useState('');
+  const [authPolicy, setAuthPolicy] = useState('');
+  const [statusCode, setStatusCode] = useState('');
   const [password, setPassword] = useState('');
+  const [profilePassword, setProfilePassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [requestedRoleCode, setRequestedRoleCode] = useState<
     'STUDENT' | 'TEACHER' | 'ADMIN'
@@ -95,7 +97,7 @@ export function WindowsDesktopShell() {
   const [unmountLoginContainer, setUnmountLoginContainer] = useState(false);
   const [unmountProfileContainer, setUnmountProfileContainer] = useState(false);
   const [authAction, setAuthAction] = useState<
-    'login' | 'logout' | 'register' | null
+    'login' | 'logout' | 'profile' | 'register' | null
   >(null);
   const [loadingTarget, setLoadingTarget] = useState<HealthCheckTarget | null>(
     null,
@@ -108,14 +110,14 @@ export function WindowsDesktopShell() {
 
   const appendAuthDebugLog = (
     event: string,
-    message: string,
+    message?: string,
     payload: Record<string, unknown> = {},
   ) => {
     sendClientRuntimeLog({
       channel: 'accounts',
       event,
       payload: {
-        message,
+        message: message ?? '',
         ...payload,
       },
     }).catch(() => undefined);
@@ -167,6 +169,14 @@ export function WindowsDesktopShell() {
         return t.academyCreateFailed;
       case 'We could not prepare your password right now. Please try again.':
         return t.passwordSetupFailed;
+      case 'Only root accounts can update auth policy.':
+        return t.profileAuthPolicyDenied;
+      case 'You do not have permission to update this status.':
+        return t.profileStatusDenied;
+      case 'Please choose a valid status.':
+        return t.profileStatusInvalid;
+      case 'We could not update your profile right now. Please try again.':
+        return t.profileUpdateFailed;
       case 'We could not sign you in right now. Please try again.':
       case "We couldn't complete sign-in right now. Please try again.":
         return t.signInFailed;
@@ -187,39 +197,47 @@ export function WindowsDesktopShell() {
   };
 
   const applyProfile = (profile: AccountApiResult) => {
-    const nextSession = {
-      academyCode: profile.academyCode ?? '',
-      academyName: profile.academyName ?? '',
-      displayName: profile.displayName ?? '',
-      email: profile.email ?? '',
-      expiresAt: profile.expiresAt ?? '',
-      licenseCode: profile.licenseCode ?? '',
-      loginId: profile.loginId ?? '',
-      phone: profile.phone ?? '',
-      roleCode: profile.roleCode ?? '',
-    };
-
-    setSession(nextSession);
-    setAcademyCode(nextSession.academyCode);
-    setAcademyName(nextSession.academyName);
-    setDisplayName(nextSession.displayName);
-    setEmail(nextSession.email);
-    setLicenseCode(nextSession.licenseCode);
-    setLoginId(nextSession.loginId);
-    setPhone(nextSession.phone);
-    setIsAuthenticated(true);
+    applyAccountProfileState(
+      profile,
+      {
+        setSession,
+        setIsAuthenticated,
+        setAccountCode,
+        setAcademyCode,
+        setAcademyName,
+        setAuthPolicy,
+        setDisplayName,
+        setEmail,
+        setLicenseCode,
+        setLoginId,
+        setNote,
+        setPhone,
+        setStatusCode,
+      },
+      appendAuthDebugLog,
+    );
   };
 
   const clearProfile = () => {
-    setSession(null);
-    setIsAuthenticated(false);
-    setAcademyCode('');
-    setAcademyName('');
-    setDisplayName('');
-    setEmail('');
-    setLicenseCode('');
-    setLoginId('');
-    setPhone('');
+    clearAccountProfileState(
+      session,
+      {
+        setSession,
+        setIsAuthenticated,
+        setAccountCode,
+        setAcademyCode,
+        setAcademyName,
+        setAuthPolicy,
+        setDisplayName,
+        setEmail,
+        setLicenseCode,
+        setLoginId,
+        setNote,
+        setPhone,
+        setStatusCode,
+      },
+      appendAuthDebugLog,
+    );
   };
 
   const loadProfile = async () => {
@@ -230,35 +248,14 @@ export function WindowsDesktopShell() {
       );
     }
 
+    appendAuthDebugLog('profile:load', 'loaded desktop profile', {
+      detailsCount: (result as AccountApiResult & {details?: unknown[]}).details?.length ?? 0,
+      loginId: result.loginId ?? '',
+      roleCode: result.roleCode ?? '',
+    });
     applyProfile(result);
     return result;
   };
-
-  useEffect(() => {
-    let active = true;
-
-    fetchAccountProfile()
-      .then(result => {
-        if (!active || result.status !== 'ok') {
-          return;
-        }
-
-        applyProfile(result);
-        setAuthError(null);
-        setAuthNotice(null);
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-
-        clearProfile();
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     // サイドバー本体だけを畳み、メインパネルは動かさない。
@@ -270,74 +267,19 @@ export function WindowsDesktopShell() {
   }, [isSidebarOpen, sidebarAnimation]);
 
   const handleLogin = async () => {
-    setAuthAction('login');
-    appendAuthDebugLog(
-      'login:start',
-      `loginId=${loginId || '(empty)'} passwordLength=${password.length}`,
-      { loginId, passwordLength: password.length },
-    );
-
-    try {
-      const result = await loginAccount({
-        loginId,
-        password,
-      });
-      appendAuthDebugLog('login:response', JSON.stringify(result), {
-        status: result.status,
-        roleCode: result.roleCode ?? '',
-        academyCode: result.academyCode ?? '',
-      });
-
-      if (result.status !== 'ok') {
-        setIsAuthenticated(false);
-        setAuthNotice(null);
-        setAuthError(localizeAccountError(result.error));
-        appendAuthDebugLog(
-          'login:error',
-          result.error ?? result.message ?? 'unknown',
-          {
-            loginId,
-            error: result.error ?? result.message ?? 'unknown',
-          },
-        );
-        return;
-      }
-
-      await loadProfile();
-      setAuthError(null);
-      setAuthNotice(null);
-      setRegisterSuccess(null);
-      setPage('account');
-      appendAuthDebugLog(
-        'login:success',
-        `academyCode=${result.academyCode ?? ''} roleCode=${
-          result.roleCode ?? ''
-        }`,
-        {
-          loginId: result.loginId ?? loginId,
-          academyCode: result.academyCode ?? '',
-          roleCode: result.roleCode ?? '',
-        },
-      );
-    } catch (error) {
-      appendAuthDebugLog(
-        'login:exception',
-        error instanceof Error ? error.message : String(error),
-        {
-          loginId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
-      setIsAuthenticated(false);
-      setAuthNotice(null);
-      setAuthError(
-        localizeAccountError(
-          error instanceof Error ? error.message : String(error),
-        ),
-      );
-    } finally {
-      setAuthAction(null);
-    }
+    await runAccountLoginFlow({
+      appendAuthDebugLog,
+      applyProfile,
+      localizeAccountError,
+      loginId,
+      password,
+      setAuthAction,
+      setAuthError,
+      setAuthNotice,
+      setIsAuthenticated,
+      setPage,
+      setRegisterSuccess,
+    });
   };
 
   const handleRegister = async () => {
@@ -427,7 +369,6 @@ export function WindowsDesktopShell() {
         setRegisterSuccess(null);
         return;
       }
-
       await loadProfile();
       setAuthError(null);
       setAuthNotice(null);
@@ -446,15 +387,85 @@ export function WindowsDesktopShell() {
   };
 
   const handleLogout = async () => {
-    setAuthAction('logout');
+    await runAccountLogoutFlow({
+      appendAuthDebugLog,
+      clearProfile,
+      currentLoginId: session?.loginId ?? '',
+      currentRoleCode: session?.roleCode ?? '',
+      setAuthAction,
+      setAuthError,
+      setAuthNotice,
+      setPage,
+    });
+  };
+
+  const handleSaveProfile = async (overrides?: {
+    authPolicy?: string;
+    email?: string;
+    note?: string;
+    password?: string;
+    phone?: string;
+    statusCode?: string;
+  }) => {
+    setAuthAction('profile');
+    setAuthError(null);
+    setAuthNotice(null);
 
     try {
-      await logoutAccount();
+      const payload: {
+        authPolicy?: string;
+        email?: string;
+        note?: string;
+        password?: string;
+        phone?: string;
+        statusCode?: string;
+      } = {};
+
+      if (overrides?.authPolicy !== undefined && session?.roleCode === 'ROOT') {
+        payload.authPolicy = overrides.authPolicy;
+      }
+      if (overrides?.email !== undefined) {
+        payload.email = overrides.email;
+      }
+      if (overrides?.note !== undefined) {
+        payload.note = overrides.note;
+      }
+      if (overrides?.password !== undefined) {
+        payload.password = overrides.password;
+      }
+      if (overrides?.phone !== undefined) {
+        payload.phone = overrides.phone;
+      }
+      if (overrides?.statusCode !== undefined && canEditStatus) {
+        payload.statusCode = overrides.statusCode;
+      }
+
+      const result = await updateAccountProfile(payload);
+
+      if (result.status !== 'ok') {
+        setAuthError(localizeAccountError(result.error ?? result.message));
+        return;
+      }
+
+      if (overrides?.email !== undefined) {
+        setEmail(overrides.email);
+      }
+      if (overrides?.note !== undefined) {
+        setNote(overrides.note);
+      }
+      if (overrides?.phone !== undefined) {
+        setPhone(overrides.phone);
+      }
+      if (overrides?.authPolicy !== undefined) {
+        setAuthPolicy(overrides.authPolicy);
+      }
+      if (overrides?.statusCode !== undefined) {
+        setStatusCode(overrides.statusCode);
+      }
+      applyProfile(result);
+      setProfilePassword('');
+      setAuthNotice(t.profileSaveSuccess);
     } finally {
-      clearProfile();
-      setAuthError(null);
-      setAuthNotice(null);
-      setPage('account');
       setAuthAction(null);
     }
   };
@@ -528,6 +539,7 @@ export function WindowsDesktopShell() {
     setAcademyName('');
     setLicenseCode('');
     setLoginId('');
+    setNote('');
     setDisplayName('');
     setEmail('');
     setPhone('');
@@ -535,6 +547,14 @@ export function WindowsDesktopShell() {
     setConfirmPassword('');
     setRequestedRoleCode('STUDENT');
   };
+
+  const canEditAuthPolicy = (session?.roleCode ?? '') === 'ROOT';
+  const canEditStatus =
+    false;
+  const showTeacherAccountItems =
+    isAuthenticated && (session?.roleCode ?? '') === 'TEACHER';
+  const showStudentAccountItems =
+    isAuthenticated && (session?.roleCode ?? '') === 'STUDENT';
 
   const handleAccountSectionChange = (nextSection: DesktopMenuSection) => {
     if (nextSection === 'login' || nextSection === 'register') {
@@ -560,6 +580,14 @@ export function WindowsDesktopShell() {
   const accountSection: AccountSectionType =
     (disableConditionalVisibility || !isAuthenticated) && section === 'register'
       ? 'register'
+      : showTeacherAccountItems &&
+        (section === 'preset' ||
+          section === 'available-schedule' ||
+          section === 'reservation-view')
+      ? section
+      : showStudentAccountItems &&
+        (section === 'student-options' || section === 'reservation')
+      ? section
       : 'login';
 
   return (
@@ -570,6 +598,8 @@ export function WindowsDesktopShell() {
           disableConditionalVisibility={disableConditionalVisibility}
           isOpen={isSidebarOpen}
           isAuthenticated={isAuthenticated}
+          showTeacherAccountItems={showTeacherAccountItems}
+          showStudentAccountItems={showStudentAccountItems}
           labels={t}
           onPageChange={handlePageChange}
           onSectionChange={handleAccountSectionChange}
@@ -611,18 +641,24 @@ export function WindowsDesktopShell() {
 
               {page === 'account' ? (
                 <AccountSection
+                  accountCode={session?.accountCode ?? accountCode}
                   academyCode={session?.academyCode ?? academyCode}
                   academyName={session?.academyName ?? academyName}
                   authError={authError}
                   authNotice={authNotice}
+                  authPolicy={authPolicy}
+                  canEditAuthPolicy={canEditAuthPolicy}
+                  canEditStatus={canEditStatus}
                   confirmPassword={confirmPassword}
                   currentSection={accountSection}
                   displayName={session?.displayName ?? displayName}
-                  email={session?.email ?? email}
+                  email={email}
                   isAuthenticated={isAuthenticated}
+                  profileDetails={session?.profileDetails ?? []}
                   isSubmitting={authAction !== null}
                   licenseCode={session?.licenseCode ?? licenseCode}
                   loginId={session?.loginId ?? loginId}
+                  note={note}
                   onAcademyNameChange={setAcademyName}
                   onConfirmPasswordChange={setConfirmPassword}
                   onDisplayNameChange={setDisplayName}
@@ -630,22 +666,28 @@ export function WindowsDesktopShell() {
                   onLicenseCodeChange={setLicenseCode}
                   onLogin={handleLogin}
                   onLoginIdChange={setLoginId}
+                  onNoteChange={setNote}
                   onLogout={handleLogout}
                   onPasswordChange={setPassword}
+                  onProfilePasswordChange={setProfilePassword}
                   onPhoneChange={setPhone}
                   onRegister={handleRegister}
                   onRegisterTypeChange={handleRegisterTypeChange}
                   onRequestedRoleCodeChange={setRequestedRoleCode}
+                  onAuthPolicyChange={setAuthPolicy}
+                  onSaveProfile={handleSaveProfile}
+                  onStatusCodeChange={setStatusCode}
                   unmountLoginContainer={unmountLoginContainer}
                   unmountProfileContainer={unmountProfileContainer}
                   palette={p}
                   password={password}
-                  phone={session?.phone ?? phone}
+                  profilePassword={profilePassword}
+                  phone={phone}
                   registerError={registerError}
                   registerSuccess={registerSuccess}
                   registerType={registerType}
                   requestedRoleCode={requestedRoleCode}
-                  roleCode={session?.roleCode ?? 'ROOT'}
+                  statusCode={statusCode}
                   texts={t}
                 />
               ) : null}
@@ -659,6 +701,17 @@ export function WindowsDesktopShell() {
                   isAuthenticated={isAuthenticated}
                   language={language}
                   loginId={session?.loginId ?? loginId}
+                  palette={p}
+                  roleCode={session?.roleCode ?? ''}
+                />
+              ) : null}
+
+              {page === 'members' && section === 'academy-members' ? (
+                <AcademyMembersSection
+                  academyCode={session?.academyCode ?? academyCode}
+                  compact
+                  isAuthenticated={isAuthenticated}
+                  language={language}
                   palette={p}
                   roleCode={session?.roleCode ?? ''}
                 />
@@ -693,3 +746,23 @@ export function WindowsDesktopShell() {
     </SafeAreaView>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

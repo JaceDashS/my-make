@@ -46,6 +46,15 @@ type stubAccountService struct {
 	lastRegisterMember   memberRegisterInput
 	profileResult        profileResponse
 	profileErr           error
+	updateProfileResult  profileResponse
+	updateProfileErr     error
+	lastUpdateProfile    profileUpdateInput
+	searchAcademyResult  academyMembersResponse
+	searchAcademyErr     error
+	lastSearchAcademy    academyMemberSearchInput
+	updateAcademyResult  academyMemberStatusUpdateResponse
+	updateAcademyErr     error
+	lastUpdateAcademy    academyMemberStatusUpdateInput
 	searchPendingResult  pendingMembersResponse
 	searchPendingErr     error
 	approvePendingResult accountResponse
@@ -67,6 +76,11 @@ func (s *stubAccountService) GetProfile(context.Context, string) (profileRespons
 	return s.profileResult, s.profileErr
 }
 
+func (s *stubAccountService) UpdateProfile(_ context.Context, _ accountResponse, input profileUpdateInput) (profileResponse, error) {
+	s.lastUpdateProfile = input
+	return s.updateProfileResult, s.updateProfileErr
+}
+
 func (s *stubAccountService) RegisterMember(_ context.Context, input memberRegisterInput) (accountResponse, error) {
 	s.lastRegisterMember = input
 	return s.registerMemberResult, s.registerMemberErr
@@ -74,6 +88,16 @@ func (s *stubAccountService) RegisterMember(_ context.Context, input memberRegis
 
 func (s *stubAccountService) RegisterRoot(context.Context, rootRegisterInput) (accountResponse, error) {
 	return s.registerRootResult, s.registerRootErr
+}
+
+func (s *stubAccountService) SearchAcademyMembers(_ context.Context, input academyMemberSearchInput) (academyMembersResponse, error) {
+	s.lastSearchAcademy = input
+	return s.searchAcademyResult, s.searchAcademyErr
+}
+
+func (s *stubAccountService) UpdateAcademyMemberStatus(_ context.Context, input academyMemberStatusUpdateInput) (academyMemberStatusUpdateResponse, error) {
+	s.lastUpdateAcademy = input
+	return s.updateAcademyResult, s.updateAcademyErr
 }
 
 func (s *stubAccountService) SearchPendingMembers(context.Context, pendingMemberSearchInput) (pendingMembersResponse, error) {
@@ -583,12 +607,14 @@ func TestProfileRouteReturnsStoredProfile(t *testing.T) {
 			profileResult: profileResponse{
 				Status:      "ok",
 				Message:     "Profile loaded successfully.",
+				AccountCode: "AD0000000001",
 				AcademyCode: "abc123def456",
 				AcademyName: "My Academy",
 				DisplayName: "Root Admin",
 				Email:       "root@example.com",
 				Phone:       "010-1234-5678",
 				LoginID:     "root-admin",
+				Note:        "Profile note",
 				RoleCode:    "ROOT",
 				LicenseCode: "LICENSE001",
 				ExpiresAt:   "2027-03-24T00:00:00Z",
@@ -625,6 +651,12 @@ func TestProfileRouteReturnsStoredProfile(t *testing.T) {
 	}
 	if body.Email != "root@example.com" {
 		t.Fatalf("expected profile email root@example.com, got %q", body.Email)
+	}
+	if body.AccountCode != "AD0000000001" {
+		t.Fatalf("expected profile account code AD0000000001, got %q", body.AccountCode)
+	}
+	if body.Note != "Profile note" {
+		t.Fatalf("expected profile note Profile note, got %q", body.Note)
 	}
 }
 
