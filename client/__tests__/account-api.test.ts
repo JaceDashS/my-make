@@ -2,10 +2,6 @@ jest.mock('react-native', () => ({
   Platform: {OS: 'windows'},
 }));
 
-jest.mock('../src/shared/lib/clientLogs', () => ({
-  sendClientRuntimeLog: jest.fn().mockResolvedValue(undefined),
-}));
-
 import {
   fetchAccountProfile,
   loginAccount,

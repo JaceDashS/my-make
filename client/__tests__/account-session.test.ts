@@ -38,17 +38,6 @@ function createSetters() {
   return {
     setSession: jest.fn(),
     setIsAuthenticated: jest.fn(),
-    setAccountCode: jest.fn(),
-    setAcademyCode: jest.fn(),
-    setAcademyName: jest.fn(),
-    setAuthPolicy: jest.fn(),
-    setDisplayName: jest.fn(),
-    setEmail: jest.fn(),
-    setLicenseCode: jest.fn(),
-    setLoginId: jest.fn(),
-    setNote: jest.fn(),
-    setPhone: jest.fn(),
-    setStatusCode: jest.fn(),
   };
 }
 
@@ -72,10 +61,13 @@ describe('account session helpers', () => {
 
     applyAccountProfileState(createProfile(), setters, appendAuthDebugLog);
 
-    expect(setters.setSession).toHaveBeenCalled();
-    expect(setters.setAccountCode).toHaveBeenCalledWith('AC0001');
-    expect(setters.setAuthPolicy).toHaveBeenCalledWith('ROOT_ONLY');
-    expect(setters.setStatusCode).toHaveBeenCalledWith('ACTIVE');
+    expect(setters.setSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountCode: 'AC0001',
+        authPolicy: 'ROOT_ONLY',
+        statusCode: 'ACTIVE',
+      }),
+    );
     expect(setters.setIsAuthenticated).toHaveBeenCalledWith(true);
     expect(appendAuthDebugLog).toHaveBeenCalledWith(
       'profile:apply',
@@ -114,8 +106,6 @@ describe('account session helpers', () => {
 
     expect(setters.setSession).toHaveBeenCalledWith(null);
     expect(setters.setIsAuthenticated).toHaveBeenCalledWith(false);
-    expect(setters.setAccountCode).toHaveBeenCalledWith('');
-    expect(setters.setStatusCode).toHaveBeenCalledWith('');
   });
 
   test('runAccountLoginFlow applies profile when login succeeds', async () => {
