@@ -66,6 +66,11 @@ export function updateAccountProfile(payload: {
   note?: string;
   password?: string;
   phone?: string;
+  preferenceRanges?: string;
+  skinCValue?: string;
+  skinHValue?: string;
+  skinLValue?: string;
+  skinTraits?: string;
   statusCode?: string;
 }) {
   return requestJson(

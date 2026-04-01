@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, Text, View } from 'react-native';
+import { Alert, Animated, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { windowsPressableFocusProps } from '../../shared/ui/windowsFocusProps';
@@ -8,7 +8,7 @@ import { MembersHomeScreen } from '../../domains/members/MembersHomeScreen';
 import { useManagedAppShell } from '../shared/useManagedAppShell';
 import { getMobileShellLabels } from './mobile-shell/config/labels';
 import { MenuPanel } from './mobile-shell/components/MenuPanel';
-import { AccountSection } from './mobile-shell/pages/account/AccountSection';
+import { AccountSectionV2 as AccountSection } from './mobile-shell/pages/account/AccountSectionV2';
 import { DevHealthSection } from './mobile-shell/pages/settings/DevHealthSection';
 import { GeneralSection } from './mobile-shell/pages/settings/GeneralSection';
 import { mobileShellStyles as styles } from './mobile-shell/config/styles';
@@ -17,6 +17,8 @@ import type { MobileMenuSection } from './mobile-shell/model/types';
 
 export function MobileAppShell() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [studentOptionsDirty, setStudentOptionsDirty] = useState(false);
+  const [showStudentSkinPreview, setShowStudentSkinPreview] = useState(false);
   const toggleAnimation = useRef(new Animated.Value(0)).current;
 
   const [language, setLanguage] = useState<'ja' | 'en'>('ja');
@@ -88,10 +90,31 @@ export function MobileAppShell() {
     }).start();
   }, [isMenuOpen, toggleAnimation]);
 
+  const confirmStudentOptionsDiscard = () => {
+    if (!(page === 'account' && accountSection === 'student-options' && studentOptionsDirty)) {
+      return true;
+    }
+
+    if (typeof globalThis.confirm === 'function') {
+      return globalThis.confirm(
+        'Student options has unsaved changes. Leave without saving?',
+      );
+    }
+
+    Alert.alert(
+      'Unsaved changes',
+      'Student options has unsaved changes. Save Student Skin before leaving this section.',
+    );
+    return false;
+  };
+
   const choosePage = (
     nextPage: 'settings' | 'account' | 'members',
     nextSection?: MobileMenuSection,
   ) => {
+    if (!confirmStudentOptionsDiscard()) {
+      return;
+    }
     selectPage(nextPage, {
       closeMenuOnSelect: true,
       nextSection,
@@ -99,6 +122,9 @@ export function MobileAppShell() {
   };
 
   const choosePageGroup = (nextPage: 'settings' | 'account' | 'members') => {
+    if (!confirmStudentOptionsDiscard()) {
+      return;
+    }
     selectPage(nextPage);
   };
 
@@ -211,7 +237,11 @@ export function MobileAppShell() {
               loadingTarget={loadingTarget}
               onRunAll={runAllHealthChecks}
               onRunTarget={handleHealthCheck}
+              onToggleShowStudentSkinPreview={() =>
+                setShowStudentSkinPreview(value => !value)
+              }
               palette={p}
+              showStudentSkinPreview={showStudentSkinPreview}
               targetStates={targetStates}
             />
           ) : null}
@@ -252,6 +282,8 @@ export function MobileAppShell() {
               onRegisterTypeChange={handleRegisterTypeChange}
               onRequestedRoleCodeChange={setRequestedRoleCode}
               onSaveProfile={handleSaveProfile}
+              onStudentOptionsDirtyChange={setStudentOptionsDirty}
+              showStudentSkinPreview={showStudentSkinPreview}
               onStatusCodeChange={() => {}}
               palette={p}
               password={password}

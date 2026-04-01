@@ -369,6 +369,11 @@ export function useAccountShellController<TSection extends string>({
     note?: string;
     password?: string;
     phone?: string;
+    preferenceRanges?: string;
+    skinCValue?: string;
+    skinHValue?: string;
+    skinLValue?: string;
+    skinTraits?: string;
     statusCode?: string;
   }) => {
     setAuthAction('profile');
@@ -382,6 +387,11 @@ export function useAccountShellController<TSection extends string>({
         note?: string;
         password?: string;
         phone?: string;
+        preferenceRanges?: string;
+        skinCValue?: string;
+        skinHValue?: string;
+        skinLValue?: string;
+        skinTraits?: string;
         statusCode?: string;
       } = {};
 
@@ -399,6 +409,21 @@ export function useAccountShellController<TSection extends string>({
       }
       if (overrides?.phone !== undefined) {
         payload.phone = overrides.phone;
+      }
+      if (overrides?.skinLValue !== undefined) {
+        payload.skinLValue = overrides.skinLValue;
+      }
+      if (overrides?.skinCValue !== undefined) {
+        payload.skinCValue = overrides.skinCValue;
+      }
+      if (overrides?.skinHValue !== undefined) {
+        payload.skinHValue = overrides.skinHValue;
+      }
+      if (overrides?.skinTraits !== undefined) {
+        payload.skinTraits = overrides.skinTraits;
+      }
+      if (overrides?.preferenceRanges !== undefined) {
+        payload.preferenceRanges = overrides.preferenceRanges;
       }
       if (overrides?.statusCode !== undefined && canEditStatus) {
         payload.statusCode = overrides.statusCode;

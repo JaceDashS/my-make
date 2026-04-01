@@ -15,6 +15,8 @@ export const SHELL_LABELS = {
     devServerLogHint:
       '開発サーバーで最小コストのログを 1 件出力します。',
     devHealth: '開発者オプション',
+    devShowStudentSkinPreview: 'スキンプレビューを表示',
+    devShowStudentSkinPreviewHint: 'スチューデントスキンのシリアライズデータを確認します。',
     devUnmountLoginContainer: 'ログインコンテナをアンマウント',
     devUnmountLoginContainerHint:
       'ログイントグルで非表示時に login コンテナをツリーから外します。',
@@ -177,6 +179,8 @@ export const SHELL_LABELS = {
     devServerLogHint:
       'Write one minimal-cost log entry from the development server.',
     devHealth: 'Developer Options',
+    devShowStudentSkinPreview: 'Show Student Skin Preview',
+    devShowStudentSkinPreviewHint: 'Display the serialized student skin data for inspection.',
     devUnmountLoginContainer: 'Unmount Login Container',
     devUnmountLoginContainerHint:
       'Remove the login container from the tree when its toggle hides it.',

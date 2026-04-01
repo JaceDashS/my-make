@@ -5,6 +5,7 @@ import {
   loginAccount,
   logoutAccount,
   registerMemberAccount,
+  updateAccountProfile,
 } from '../src/shared/lib/accountApi';
 import { getDesktopShellLabels } from '../src/screens/desktop/desktop-shell/config/labels';
 import { useAccountShellController } from '../src/screens/shared/useAccountShellController';
@@ -210,5 +211,75 @@ describe('useAccountShellController', () => {
     expect(hook.snapshot.password).toBe('');
     expect(hook.setPage).toHaveBeenCalledWith('account');
     expect(hook.setSection).toHaveBeenCalledWith('login');
+  });
+
+  test('sends student skin payloads when saving the profile', async () => {
+    const hook = renderHook();
+    (loginAccount as jest.Mock).mockResolvedValue(
+      createProfile({
+        details: [
+          {key: 'skinLValue', label: 'Skin L Value', value: '72.2'},
+          {key: 'skinCValue', label: 'Skin C Value', value: '18.4'},
+          {key: 'skinHValue', label: 'Skin H Value', value: '72.0'},
+          {key: 'skinTraits', label: 'Skin Traits', value: 'Warm undertone'},
+          {
+            key: 'preferenceRanges',
+            label: 'Preference Ranges',
+            value: '{"version":1,"space":"lch","plane":"h-c","hueMode":"unwrap","regions":[]}',
+          },
+        ],
+        loginId: 'student01',
+        roleCode: 'STUDENT',
+      }),
+    );
+    (updateAccountProfile as jest.Mock).mockResolvedValue(
+      createProfile({
+        details: [
+          {key: 'skinLValue', label: 'Skin L Value', value: '65.5'},
+          {key: 'skinCValue', label: 'Skin C Value', value: '14.2'},
+          {key: 'skinHValue', label: 'Skin H Value', value: '58.1'},
+          {key: 'skinTraits', label: 'Skin Traits', value: 'Neutral memo'},
+          {
+            key: 'preferenceRanges',
+            label: 'Preference Ranges',
+            value: '{"version":1,"space":"lch","plane":"h-c","hueMode":"unwrap","regions":[]}',
+          },
+        ],
+        loginId: 'student01',
+        roleCode: 'STUDENT',
+      }),
+    );
+
+    ReactTestRenderer.act(() => {
+      hook.snapshot.setLoginId('student01');
+      hook.snapshot.setPassword('secret');
+    });
+
+    await ReactTestRenderer.act(async () => {
+      await hook.snapshot.handleLogin();
+    });
+
+    await ReactTestRenderer.act(async () => {
+      await hook.snapshot.handleSaveProfile({
+        preferenceRanges:
+          '{"version":1,"space":"lch","plane":"h-c","hueMode":"unwrap","regions":[]}',
+        skinCValue: '14.2',
+        skinHValue: '58.1',
+        skinLValue: '65.5',
+        skinTraits: 'Neutral memo',
+      } as any);
+    });
+
+    expect(updateAccountProfile).toHaveBeenCalledWith({
+      preferenceRanges:
+        '{"version":1,"space":"lch","plane":"h-c","hueMode":"unwrap","regions":[]}',
+      skinCValue: '14.2',
+      skinHValue: '58.1',
+      skinLValue: '65.5',
+      skinTraits: 'Neutral memo',
+    });
+    expect(hook.snapshot.authNotice).toBe(
+      getDesktopShellLabels('en').profileSaveSuccess,
+    );
   });
 });

@@ -693,7 +693,12 @@ func TestUpdateProfileRouteReturnsUpdatedProfile(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/accounts/profile/update", strings.NewReader(`{
   "email":"next@example.com",
   "note":"Updated note",
-  "phone":"010-9999-0000"
+  "phone":"010-9999-0000",
+  "skinLValue":"65.5",
+  "skinCValue":"14.2",
+  "skinHValue":"58.1",
+  "skinTraits":"Neutral memo",
+  "preferenceRanges":"{\"version\":1,\"space\":\"lch\",\"plane\":\"h-c\",\"hueMode\":\"unwrap\",\"regions\":[]}"
 }`))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
@@ -723,6 +728,21 @@ func TestUpdateProfileRouteReturnsUpdatedProfile(t *testing.T) {
 	}
 	if stub.lastUpdateProfile.Note == nil || *stub.lastUpdateProfile.Note != "Updated note" {
 		t.Fatalf("expected note to reach service, got %+v", stub.lastUpdateProfile.Note)
+	}
+	if stub.lastUpdateProfile.SkinLValue == nil || *stub.lastUpdateProfile.SkinLValue != "65.5" {
+		t.Fatalf("expected skin L value to reach service, got %+v", stub.lastUpdateProfile.SkinLValue)
+	}
+	if stub.lastUpdateProfile.SkinCValue == nil || *stub.lastUpdateProfile.SkinCValue != "14.2" {
+		t.Fatalf("expected skin C value to reach service, got %+v", stub.lastUpdateProfile.SkinCValue)
+	}
+	if stub.lastUpdateProfile.SkinHValue == nil || *stub.lastUpdateProfile.SkinHValue != "58.1" {
+		t.Fatalf("expected skin H value to reach service, got %+v", stub.lastUpdateProfile.SkinHValue)
+	}
+	if stub.lastUpdateProfile.SkinTraits == nil || *stub.lastUpdateProfile.SkinTraits != "Neutral memo" {
+		t.Fatalf("expected skin traits to reach service, got %+v", stub.lastUpdateProfile.SkinTraits)
+	}
+	if stub.lastUpdateProfile.PreferenceRanges == nil || *stub.lastUpdateProfile.PreferenceRanges != "{\"version\":1,\"space\":\"lch\",\"plane\":\"h-c\",\"hueMode\":\"unwrap\",\"regions\":[]}" {
+		t.Fatalf("expected preference ranges to reach service, got %+v", stub.lastUpdateProfile.PreferenceRanges)
 	}
 }
 

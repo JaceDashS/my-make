@@ -26,6 +26,7 @@ export function DevHealthSection({
   disableConditionalVisibility,
   unmountLoginContainer,
   unmountProfileContainer,
+  showStudentSkinPreview,
   labels,
   loadingTarget,
   onRunAll,
@@ -33,6 +34,7 @@ export function DevHealthSection({
   onToggleDisableConditionalVisibility,
   onToggleUnmountLoginContainer,
   onToggleUnmountProfileContainer,
+  onToggleShowStudentSkinPreview,
   palette,
   targetStates,
 }: {
@@ -48,6 +50,8 @@ export function DevHealthSection({
     devClientLogHint: string;
     devServerLog: string;
     devServerLogHint: string;
+    devShowStudentSkinPreview: string;
+    devShowStudentSkinPreviewHint: string;
     devDisableConditionalVisibility: string;
     devDisableConditionalVisibilityHint: string;
     devHealth: string;
@@ -81,6 +85,8 @@ export function DevHealthSection({
   onToggleDisableConditionalVisibility: () => void;
   onToggleUnmountLoginContainer: () => void;
   onToggleUnmountProfileContainer: () => void;
+  onToggleShowStudentSkinPreview: () => void;
+  showStudentSkinPreview: boolean;
   palette: DesktopShellPalette;
   targetStates: Record<HealthCheckTarget, TargetState>;
 }) {
@@ -266,6 +272,38 @@ export function DevHealthSection({
             </Text>
             <Text style={[styles.checkboxHint, { color: palette.textMuted }]}>
               {labels.devUnmountProfileContainerHint}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          {...windowsPressableFocusProps}
+          onPress={onToggleShowStudentSkinPreview}
+          style={styles.checkboxRow}
+        >
+          <View
+            style={[
+              styles.checkboxBox,
+              {
+                backgroundColor: showStudentSkinPreview ? palette.primary : palette.soft,
+                borderColor: showStudentSkinPreview ? palette.primary : palette.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.checkboxMark,
+                {color: showStudentSkinPreview ? palette.primaryText : palette.textMuted},
+              ]}
+            >
+              {showStudentSkinPreview ? '✓' : ''}
+            </Text>
+          </View>
+          <View style={styles.checkboxTextWrap}>
+            <Text style={[styles.checkboxTitle, { color: palette.text }]}>
+              {labels.devShowStudentSkinPreview}
+            </Text>
+            <Text style={[styles.checkboxHint, { color: palette.textMuted }]}>
+              {labels.devShowStudentSkinPreviewHint}
             </Text>
           </View>
         </Pressable>

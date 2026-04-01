@@ -35,6 +35,9 @@
     <ClCompile Include="MyMakeClient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PointerWheelModule.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="AutolinkedNativeModules.g.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

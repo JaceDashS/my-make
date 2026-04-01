@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Platform, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { RUNTIME_CONFIG } from '../../../../../config/runtime/runtime-config';
 import { ActionButton } from '../../../../../shared/components/ActionButton';
@@ -26,7 +26,9 @@ export function DevHealthSection({
   loadingTarget,
   onRunAll,
   onRunTarget,
+  onToggleShowStudentSkinPreview,
   palette,
+  showStudentSkinPreview,
   targetStates,
 }: {
   labels: {
@@ -42,6 +44,8 @@ export function DevHealthSection({
     devLicenseCreateHint: string;
     devServerLog: string;
     devServerLogHint: string;
+    devShowStudentSkinPreview: string;
+    devShowStudentSkinPreviewHint: string;
     devResult: string;
     devTableInit: string;
     devTableInitHint: string;
@@ -62,7 +66,9 @@ export function DevHealthSection({
   loadingTarget: HealthCheckTarget | null;
   onRunAll: () => Promise<void>;
   onRunTarget: (target: HealthCheckTarget) => Promise<void>;
+  onToggleShowStudentSkinPreview: () => void;
   palette: MobileShellPalette;
+  showStudentSkinPreview: boolean;
   targetStates: Record<HealthCheckTarget, TargetState>;
 }) {
   const [actionResult, setActionResult] = useState<DevToolsResult | null>(null);
@@ -130,6 +136,33 @@ export function DevHealthSection({
           {labels.env}: {RUNTIME_CONFIG.APP_ENV} / Host:{' '}
           {RUNTIME_CONFIG.DEV_HOST_IP}
         </BodyStrong>
+        <Pressable
+          onPress={onToggleShowStudentSkinPreview}
+          style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12}}>
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 4,
+              borderWidth: 1,
+              borderColor: showStudentSkinPreview ? palette.primary : palette.border,
+              backgroundColor: showStudentSkinPreview ? palette.primary : 'transparent',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            {showStudentSkinPreview && (
+              <Text style={{fontSize: 11, color: palette.primaryText, lineHeight: 16}}>✓</Text>
+            )}
+          </View>
+          <View style={{flex: 1}}>
+            <Text style={{fontSize: 13, fontWeight: '600', color: palette.text}}>
+              {labels.devShowStudentSkinPreview}
+            </Text>
+            <Text style={{fontSize: 12, color: palette.textMuted}}>
+              {labels.devShowStudentSkinPreviewHint}
+            </Text>
+          </View>
+        </Pressable>
       </Card>
       <ActionButton
         backgroundColor={palette.primary}

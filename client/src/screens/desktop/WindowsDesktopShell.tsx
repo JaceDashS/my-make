@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, Text, View } from 'react-native';
+import { Alert, Animated, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { windowsPressableFocusProps } from '../../shared/ui/windowsFocusProps';
@@ -8,7 +8,7 @@ import { MembersHomeScreen } from '../../domains/members/MembersHomeScreen';
 import { useManagedAppShell } from '../shared/useManagedAppShell';
 import { SidebarMenu } from './desktop-shell/components/SidebarMenu';
 import { getDesktopShellLabels } from './desktop-shell/config/labels';
-import { AccountSection } from './desktop-shell/pages/account/AccountSection';
+import { AccountSectionV2 as AccountSection } from './desktop-shell/pages/account/AccountSectionV2';
 import { DevHealthSection } from './desktop-shell/pages/settings/DevHealthSection';
 import { GeneralSection } from './desktop-shell/pages/settings/GeneralSection';
 import { desktopShellStyles as styles } from './desktop-shell/config/styles';
@@ -21,6 +21,8 @@ export function WindowsDesktopShell() {
     useState(false);
   const [unmountLoginContainer, setUnmountLoginContainer] = useState(false);
   const [unmountProfileContainer, setUnmountProfileContainer] = useState(false);
+  const [studentOptionsDirty, setStudentOptionsDirty] = useState(false);
+  const [showStudentSkinPreview, setShowStudentSkinPreview] = useState(false);
   const sidebarAnimation = useRef(new Animated.Value(1)).current;
 
   const [language, setLanguage] = useState<'ja' | 'en'>('ja');
@@ -92,6 +94,24 @@ export function WindowsDesktopShell() {
     }).start();
   }, [isSidebarOpen, sidebarAnimation]);
 
+  const confirmStudentOptionsDiscard = () => {
+    if (!(page === 'account' && accountSection === 'student-options' && studentOptionsDirty)) {
+      return true;
+    }
+
+    if (typeof globalThis.confirm === 'function') {
+      return globalThis.confirm(
+        'Student options has unsaved changes. Leave without saving?',
+      );
+    }
+
+    Alert.alert(
+      'Unsaved changes',
+      'Student options has unsaved changes. Save Student Skin before leaving this section.',
+    );
+    return false;
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: p.appBg }]}>
       <View style={[styles.shell, { backgroundColor: p.appBg }]}>
@@ -104,8 +124,18 @@ export function WindowsDesktopShell() {
           showTeacherAccountItems={showTeacherAccountItems}
           showStudentAccountItems={showStudentAccountItems}
           labels={t}
-          onPageChange={nextPage => selectPage(nextPage)}
-          onSectionChange={selectSection}
+          onPageChange={nextPage => {
+            if (!confirmStudentOptionsDiscard()) {
+              return;
+            }
+            selectPage(nextPage);
+          }}
+          onSectionChange={nextSection => {
+            if (!confirmStudentOptionsDiscard()) {
+              return;
+            }
+            selectSection(nextSection);
+          }}
           page={page}
           palette={p}
           section={section}
@@ -178,6 +208,8 @@ export function WindowsDesktopShell() {
                   onRequestedRoleCodeChange={setRequestedRoleCode}
                   onAuthPolicyChange={() => {}}
                   onSaveProfile={handleSaveProfile}
+                  onStudentOptionsDirtyChange={setStudentOptionsDirty}
+                  showStudentSkinPreview={showStudentSkinPreview}
                   onStatusCodeChange={() => {}}
                   palette={p}
                   password={password}
@@ -236,6 +268,10 @@ export function WindowsDesktopShell() {
                   onToggleUnmountProfileContainer={() =>
                     setUnmountProfileContainer(value => !value)
                   }
+                  onToggleShowStudentSkinPreview={() =>
+                    setShowStudentSkinPreview(value => !value)
+                  }
+                  showStudentSkinPreview={showStudentSkinPreview}
                   palette={p}
                   targetStates={targetStates}
                   unmountLoginContainer={unmountLoginContainer}

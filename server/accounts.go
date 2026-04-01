@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -76,12 +77,17 @@ type renewLicenseInput struct {
 }
 
 type profileUpdateInput struct {
-	Password   *string `json:"password"`
-	Email      *string `json:"email"`
-	Phone      *string `json:"phone"`
-	Note       *string `json:"note"`
-	AuthPolicy *string `json:"authPolicy"`
-	StatusCode *string `json:"statusCode"`
+	Password         *string `json:"password"`
+	Email            *string `json:"email"`
+	Phone            *string `json:"phone"`
+	Note             *string `json:"note"`
+	AuthPolicy       *string `json:"authPolicy"`
+	StatusCode       *string `json:"statusCode"`
+	SkinLValue       *string `json:"skinLValue"`
+	SkinCValue       *string `json:"skinCValue"`
+	SkinHValue       *string `json:"skinHValue"`
+	SkinTraits       *string `json:"skinTraits"`
+	PreferenceRanges *string `json:"preferenceRanges"`
 }
 
 type pendingMemberSearchInput struct {
@@ -529,6 +535,50 @@ func (s *oracleAccountService) UpdateProfile(
 		assignments = append(assignments, fmt.Sprintf("STATUS_CODE = :%d", nextArg))
 		args = append(args, strings.TrimSpace(*input.StatusCode))
 		nextArg++
+	}
+
+	if account.sourceTable == "MAIMEI_STUDENTS" {
+		if input.SkinLValue != nil {
+			parsedValue, err := parseOptionalStudentFloat(*input.SkinLValue, "skin L value")
+			if err != nil {
+				return profileResponse{}, err
+			}
+			assignments = append(assignments, fmt.Sprintf("SKIN_L_VALUE = :%d", nextArg))
+			args = append(args, parsedValue)
+			nextArg++
+		}
+
+		if input.SkinCValue != nil {
+			parsedValue, err := parseOptionalStudentFloat(*input.SkinCValue, "skin C value")
+			if err != nil {
+				return profileResponse{}, err
+			}
+			assignments = append(assignments, fmt.Sprintf("SKIN_C_VALUE = :%d", nextArg))
+			args = append(args, parsedValue)
+			nextArg++
+		}
+
+		if input.SkinHValue != nil {
+			parsedValue, err := parseOptionalStudentFloat(*input.SkinHValue, "skin H value")
+			if err != nil {
+				return profileResponse{}, err
+			}
+			assignments = append(assignments, fmt.Sprintf("SKIN_H_VALUE = :%d", nextArg))
+			args = append(args, parsedValue)
+			nextArg++
+		}
+
+		if input.SkinTraits != nil {
+			assignments = append(assignments, fmt.Sprintf("SKIN_TRAITS_BODY = :%d", nextArg))
+			args = append(args, nullIfEmpty(strings.TrimSpace(*input.SkinTraits)))
+			nextArg++
+		}
+
+		if input.PreferenceRanges != nil {
+			assignments = append(assignments, fmt.Sprintf("PREFERENCE_RANGES_BODY = :%d", nextArg))
+			args = append(args, nullIfEmpty(strings.TrimSpace(*input.PreferenceRanges)))
+			nextArg++
+		}
 	}
 
 	if len(assignments) == 0 {
@@ -2232,4 +2282,18 @@ func minInt(left, right int) int {
 	}
 
 	return right
+}
+
+func parseOptionalStudentFloat(value string, label string) (any, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	parsedValue, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil {
+		return nil, fmt.Errorf("Please enter a valid %s.", label)
+	}
+
+	return parsedValue, nil
 }
