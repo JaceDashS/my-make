@@ -1,4 +1,4 @@
-import {Clipboard, Platform} from 'react-native';
+import {Clipboard} from 'react-native';
 
 type ClipboardModule = {
   setString?: (text: string) => void;
@@ -9,22 +9,6 @@ function getClipboardModule(): ClipboardModule | null {
 
   if (typeof reactNativeClipboard?.setString === 'function') {
     return reactNativeClipboard;
-  }
-
-  if (Platform.OS === 'windows') {
-    try {
-      const windowsClipboard = (
-        require('react-native-windows') as {
-          Clipboard?: ClipboardModule;
-        }
-      ).Clipboard;
-
-      if (windowsClipboard?.setString) {
-        return windowsClipboard;
-      }
-    } catch {
-      return null;
-    }
   }
 
   return null;

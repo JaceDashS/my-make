@@ -1,9 +1,11 @@
+// Windows開発環境の起動スクリプト（Electron版）
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const {spawn} = require('child_process');
 
 const rootDir = path.join(__dirname, '..');
+const clientDir = path.join(rootDir, 'client');
 const logsDir = path.join(rootDir, 'logs', 'dev', 'windows');
 const logFilePath = path.join(logsDir, 'dev-windows.log');
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -109,7 +111,7 @@ function checkUrlReady(url) {
   });
 }
 
-function runStep({name, command, args}) {
+function runStep({name, command, args, cwd}) {
   return new Promise((resolve, reject) => {
     writeHeader(`DEV WINDOWS STEP: ${name}`);
     writeLine(colorize(`command: ${command} ${args.join(' ')}`, ANSI.dim));
@@ -127,14 +129,14 @@ function runStep({name, command, args}) {
             [command, ...args].map(quoteForShell).join(' '),
             [],
             {
-              cwd: rootDir,
+              cwd: cwd || rootDir,
               env: childEnv,
               shell: commandShell,
               stdio: ['ignore', 'pipe', 'pipe'],
             },
           )
         : spawn(command, args, {
-            cwd: rootDir,
+            cwd: cwd || rootDir,
             env: childEnv,
             shell: false,
             stdio: ['ignore', 'pipe', 'pipe'],
@@ -158,7 +160,7 @@ function runStep({name, command, args}) {
       activeChild = null;
       writeError(
         colorize(
-          `[run-dev-windows] failed to start step "${name}": ${error.message}`,
+          `[run-dev-windows] ステップ "${name}" の起動に失敗: ${error.message}`,
           ANSI.red,
           ANSI.bold,
         ),
@@ -170,13 +172,13 @@ function runStep({name, command, args}) {
       activeChild = null;
       writeLine(
         colorize(
-          `[run-dev-windows] step "${name}" exited with code ${code ?? 0}`,
+          `[run-dev-windows] ステップ "${name}" 終了コード: ${code ?? 0}`,
           (code ?? 0) === 0 ? ANSI.green : ANSI.yellow,
         ),
       );
 
       if ((code ?? 0) !== 0) {
-        reject(new Error(`step "${name}" failed with exit code ${code}`));
+        reject(new Error(`ステップ "${name}" が終了コード ${code} で失敗`));
         return;
       }
 
@@ -185,7 +187,7 @@ function runStep({name, command, args}) {
   });
 }
 
-function startPersistentStep({name, command, args}) {
+function startPersistentStep({name, command, args, cwd}) {
   return new Promise((resolve, reject) => {
     writeHeader(`DEV WINDOWS STEP: ${name}`);
     writeLine(colorize(`command: ${command} ${args.join(' ')}`, ANSI.dim));
@@ -203,14 +205,14 @@ function startPersistentStep({name, command, args}) {
             [command, ...args].map(quoteForShell).join(' '),
             [],
             {
-              cwd: rootDir,
+              cwd: cwd || rootDir,
               env: childEnv,
               shell: commandShell,
               stdio: ['ignore', 'pipe', 'pipe'],
             },
           )
         : spawn(command, args, {
-            cwd: rootDir,
+            cwd: cwd || rootDir,
             env: childEnv,
             shell: false,
             stdio: ['ignore', 'pipe', 'pipe'],
@@ -234,7 +236,7 @@ function startPersistentStep({name, command, args}) {
       activeChild = null;
       writeError(
         colorize(
-          `[run-dev-windows] failed to start persistent step "${name}": ${error.message}`,
+          `[run-dev-windows] 常駐ステップ "${name}" の起動に失敗: ${error.message}`,
           ANSI.red,
           ANSI.bold,
         ),
@@ -250,7 +252,7 @@ function startPersistentStep({name, command, args}) {
       activeChild = null;
       writeLine(
         colorize(
-          `[run-dev-windows] persistent step "${name}" exited with code ${code ?? 0}`,
+          `[run-dev-windows] 常駐ステップ "${name}" 終了コード: ${code ?? 0}`,
           (code ?? 0) === 0 ? ANSI.green : ANSI.yellow,
         ),
       );
@@ -299,7 +301,7 @@ function cleanupDevTargets() {
 
 function forwardSignal(signal) {
   process.on(signal, () => {
-    writeLine(colorize(`[run-dev-windows] received ${signal}`, ANSI.yellow, ANSI.bold));
+    writeLine(colorize(`[run-dev-windows] ${signal} を受信`, ANSI.yellow, ANSI.bold));
 
     if (activeChild && !activeChild.killed) {
       activeChild.kill(signal);
@@ -321,58 +323,40 @@ async function main() {
     ].join('\n'),
   );
 
-  writeLine(colorize(`[run-dev-windows] cleared previous logs at ${logsDir}`, ANSI.blue));
-  writeLine(colorize(`[run-dev-windows] writing combined output to ${logFilePath}`, ANSI.blue));
+  writeLine(colorize(`[run-dev-windows] 前回のログを削除: ${logsDir}`, ANSI.blue));
+  writeLine(colorize(`[run-dev-windows] ログ出力先: ${logFilePath}`, ANSI.blue));
 
+  // 前回のElectronプロセスを停止
   await runStep({
     name: 'cleanup previous dev targets',
     command: nodeCommand,
     args: [path.join(rootDir, 'scripts', 'stop-dev-windows-targets.js')],
   });
 
+  // ランタイム設定を同期
   await runStep({
     name: 'sync runtime config',
     command: npmCommand,
     args: ['run', 'sync:runtime-config:dev'],
   });
 
+  // Electronの存在確認
   await runStep({
     name: 'windows platform check',
     command: nodeCommand,
     args: [path.join(rootDir, 'scripts', 'run-platform-target.js'), 'windows'],
   });
 
-  writeHeader('DEV WINDOWS STEP: wait for metro');
-  writeLine(colorize('command: wait for http://127.0.0.1:8081/status', ANSI.dim));
-
-  let metroReady = false;
-
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    metroReady = await checkUrlReady('http://127.0.0.1:8081/status');
-    if (metroReady) {
-      break;
-    }
-
-    await sleep(1000);
-  }
-
-  if (!metroReady) {
-    throw new Error(
-      'Metro did not become ready on http://127.0.0.1:8081/status. Start it first with `npm run dev:metro`.',
-    );
-  }
-
-  writeLine(colorize('[run-dev-windows] metro is ready', ANSI.green, ANSI.bold));
-
-  await runStep({
-    name: 'start windows client',
+  // webpack-dev-serverを起動してブラウザで確認する（Electronは別途ビルド）
+  await startPersistentStep({
+    name: 'start webpack-dev-server',
     command: npmCommand,
-    args: ['--prefix', 'client', 'run', 'windows', '--', '--no-packager'],
+    args: ['--prefix', 'client', 'run', 'electron:dev:renderer'],
   });
 
   writeLine(
     colorize(
-      '[run-dev-windows] windows client launched; keeping dev session alive until you stop it',
+      '[run-dev-windows] webpack-dev-server 起動完了: http://localhost:3001',
       ANSI.green,
       ANSI.bold,
     ),

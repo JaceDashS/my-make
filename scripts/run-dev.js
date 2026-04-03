@@ -82,6 +82,24 @@ function sleep(ms) {
   });
 }
 
+function waitForShutdownSignal() {
+  return new Promise(resolve => {
+    let settled = false;
+
+    const done = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      resolve();
+    };
+
+    process.once('SIGINT', done);
+    process.once('SIGTERM', done);
+  });
+}
+
 function run(command, args, timeout = 5000) {
   return spawnSync(command, args, {
     cwd: rootDir,
@@ -578,11 +596,27 @@ async function runAndroidMode() {
     );
   }
 
-  await runPersistentStep({
+  await runStep({
+    name: 'reverse metro port',
+    command: adbPath,
+    args: ['reverse', 'tcp:8081', 'tcp:8081'],
+  });
+
+  await runStep({
     name: 'start android client',
     command: npmCommand,
     args: ['--prefix', 'client', 'run', 'android', '--', '--no-packager'],
   });
+
+  writeLine(
+    colorize(
+      '[run-dev] android client launched. Press Ctrl+C to stop the app and clean up dev targets.',
+      ANSI.green,
+      ANSI.bold,
+    ),
+  );
+
+  await waitForShutdownSignal();
 }
 
 async function main() {

@@ -1,0 +1,6 @@
+dist-electron/
+release/
+build/
+android/build/
+android/app/build/
+coverage/

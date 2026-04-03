@@ -3,6 +3,20 @@
   "compilerOptions": {
     "types": ["jest"]
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods"]
+  "include": [
+    "__tests__/**/*.ts",
+    "__tests__/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src-shared/**/*.ts",
+    "src-shared/**/*.tsx"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/Pods",
+    "dist-electron",
+    "electron",
+    "release",
+    "src-web"
+  ]
 }

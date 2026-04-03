@@ -3,9 +3,15 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 const fs = require('fs');
 const path = require('node:path');
 
-const rnwPath = fs.realpathSync(
-  path.resolve(require.resolve('react-native-windows/package.json'), '..'),
-);
+let rnwPath = null;
+
+try {
+  rnwPath = fs.realpathSync(
+    path.resolve(require.resolve('react-native-windows/package.json'), '..'),
+  );
+} catch {
+  // react-native-windows is optional in this workspace.
+}
 
 //
 
@@ -24,10 +30,15 @@ const config = {
       new RegExp(
         `${path.resolve(__dirname, 'windows').replace(/[/\\]/g, '/')}.*`,
       ),
-      // This prevents "npx @react-native-community/cli run-windows" from hitting: EBUSY: resource busy or locked, open msbuild.ProjectImports.zip or other files produced by msbuild
-      new RegExp(`${rnwPath}/build/.*`),
-      new RegExp(`${rnwPath}/target/.*`),
       /.*\.ProjectImports\.zip/,
+      ...(rnwPath
+        ? [
+            // This prevents "npx @react-native-community/cli run-windows" from hitting:
+            // EBUSY: resource busy or locked for files produced by msbuild.
+            new RegExp(`${rnwPath}/build/.*`),
+            new RegExp(`${rnwPath}/target/.*`),
+          ]
+        : []),
     ],
     //
   },

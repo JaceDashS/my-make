@@ -129,14 +129,18 @@ if (target === 'ios') {
 }
 
 if (target === 'windows') {
-  if (!hasWindowsProject || !windowsDependency) {
+  // Electron版: node_modulesにelectronが存在するかを確認
+  const electronPath = path.join(rootDir, 'client', 'node_modules', 'electron');
+  const hasElectron = fs.existsSync(electronPath);
+
+  if (!hasElectron) {
     fail([
       'MY-MAKE TARGET STATUS',
       'target         : windows',
-      `windows project: ${hasWindowsProject ? 'present' : 'missing'}`,
-      `rn-windows dep : ${windowsDependency || 'missing'}`,
-      'result         : not configured',
-      'action         : approve and add react-native-windows support first',
+      'electron       : missing',
+      'result         : blocked',
+      'reason         : electron package is not installed',
+      'action         : run npm install in client/ directory',
     ]);
   }
 
@@ -147,18 +151,6 @@ if (target === 'windows') {
       `host os        : ${hostOs}`,
       'result         : blocked',
       'reason         : Windows desktop target should be built on Windows',
-    ]);
-  }
-
-  if (!dotnetPath || !msbuildPath) {
-    fail([
-      'MY-MAKE TARGET STATUS',
-      'target         : windows',
-      `dotnet         : ${dotnetPath ? 'found' : 'missing'}`,
-      `msbuild        : ${msbuildPath ? 'found' : 'missing'}`,
-      'result         : blocked',
-      'reason         : Windows build toolchain is incomplete on this host',
-      'action         : install .NET SDK and Visual Studio/MSBuild components',
     ]);
   }
 

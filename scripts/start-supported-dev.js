@@ -14,6 +14,8 @@ const pathKey =
   Object.keys(process.env).find(key => key.toLowerCase() === 'path') || 'Path';
 const commandShell =
   process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+const PREFERRED_ANDROID_DEVICE_MODEL = 'SM-S911N';
+const FALLBACK_ANDROID_AVD = 'Pixel_7';
 
 function exists(relativePath) {
   return fs.existsSync(path.join(rootDir, relativePath));
@@ -184,6 +186,80 @@ function getAndroidDevices(adbPath) {
     .map(line => line.split(/\s+/)[0]);
 }
 
+function getAndroidProperty(adbPath, serial, propertyName) {
+  const result = run(adbPath, ['-s', serial, 'shell', 'getprop', propertyName]);
+  if (result.error || result.status !== 0) {
+    return '';
+  }
+
+  return (result.stdout || '').trim();
+}
+
+function getAndroidAvdName(adbPath, serial) {
+  if (!serial.startsWith('emulator-')) {
+    return '';
+  }
+
+  const emuResult = run(adbPath, ['-s', serial, 'emu', 'avd', 'name']);
+  const emuName = (emuResult.stdout || '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(line => line && line !== 'OK');
+  if (!emuResult.error && emuResult.status === 0 && emuName) {
+    return emuName;
+  }
+
+  return getAndroidProperty(adbPath, serial, 'ro.kernel.qemu.avd_name');
+}
+
+function getAndroidDeviceInfo(adbPath, serial) {
+  const model = getAndroidProperty(adbPath, serial, 'ro.product.model');
+  const apiLevel = getAndroidProperty(adbPath, serial, 'ro.build.version.sdk');
+  const avdName = getAndroidAvdName(adbPath, serial);
+
+  return {
+    serial,
+    model,
+    apiLevel,
+    avdName,
+  };
+}
+
+function describeAndroidTarget(deviceInfo) {
+  const label = deviceInfo.avdName || deviceInfo.model || deviceInfo.serial;
+  return deviceInfo.apiLevel ? `${label} - ${deviceInfo.apiLevel}` : label;
+}
+
+function selectAndroidDevice(deviceInfos) {
+  const preferredPhysical = deviceInfos.find(
+    deviceInfo =>
+      !deviceInfo.serial.startsWith('emulator-') &&
+      deviceInfo.model === PREFERRED_ANDROID_DEVICE_MODEL,
+  );
+
+  if (preferredPhysical) {
+    return preferredPhysical;
+  }
+
+  const fallbackAvd = deviceInfos.find(
+    deviceInfo => deviceInfo.avdName === FALLBACK_ANDROID_AVD,
+  );
+
+  if (fallbackAvd) {
+    return fallbackAvd;
+  }
+
+  const firstPhysical = deviceInfos.find(
+    deviceInfo => !deviceInfo.serial.startsWith('emulator-'),
+  );
+
+  if (firstPhysical) {
+    return firstPhysical;
+  }
+
+  return deviceInfos[0] || null;
+}
+
 function getAvds(emulatorPath) {
   const result = run(emulatorPath, ['-list-avds']);
   if (result.error || result.status !== 0) {
@@ -330,6 +406,7 @@ const lines = [
 async function main() {
   let activeAndroidDevices = [...androidDevices];
   let launchedAvdName = null;
+  let selectedAndroidTarget = null;
 
   if (
     !dryRun &&
@@ -338,7 +415,9 @@ async function main() {
     adbPath &&
     emulatorPath
   ) {
-    launchedAvdName = androidAvds[0];
+    launchedAvdName = androidAvds.includes(FALLBACK_ANDROID_AVD)
+      ? FALLBACK_ANDROID_AVD
+      : androidAvds[0];
 
     console.log(
       [
@@ -373,6 +452,12 @@ async function main() {
     }
   }
 
+  if (adbPath && activeAndroidDevices.length > 0) {
+    selectedAndroidTarget = selectAndroidDevice(
+      activeAndroidDevices.map(serial => getAndroidDeviceInfo(adbPath, serial)),
+    );
+  }
+
   const effectiveAndroidSupported =
     exists('client/android') &&
     Boolean(adbPath) &&
@@ -388,6 +473,7 @@ async function main() {
     `host os         : ${hostOs}`,
     `android target  : ${effectiveAndroidSupported ? 'auto-run' : 'skip'}`,
     `android devices : ${activeAndroidDevices.join(', ') || 'none'}`,
+    `android select  : ${selectedAndroidTarget ? describeAndroidTarget(selectedAndroidTarget) : 'none'}`,
     `android avds    : ${androidAvds.join(', ') || 'none'}`,
     `windows target  : ${windowsSupported ? 'auto-run' : 'skip'}`,
     `windows project : ${exists('client/windows') ? 'present' : 'missing'}`,
@@ -436,7 +522,9 @@ async function main() {
   if (effectiveAndroidSupported) {
     launchCommands.push({
       color: 'magenta',
-      command: 'npm --prefix client run android -- --no-packager',
+      command: selectedAndroidTarget
+        ? `npm --prefix client run android -- --no-packager --device ${selectedAndroidTarget.serial}`
+        : 'npm --prefix client run android -- --no-packager',
       name: 'android',
     });
   }

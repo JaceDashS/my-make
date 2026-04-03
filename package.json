@@ -3,6 +3,10 @@
   "private": true,
   "scripts": {
     "install:all": "npm install --include=dev && npm --prefix client install",
+    "icons:generate": "node ./scripts/generate-app-icons.js",
+    "test:classes-render": "npm --prefix client run test:classes-render",
+    "typecheck": "npm --prefix client run typecheck",
+    "lint:client": "npm --prefix client run lint",
     "cache:clean": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$paths=@('.\\\\node_modules\\\\.cache','.\\\\client\\\\node_modules\\\\.cache','.\\\\.next','.\\\\.turbo','.\\\\client\\\\.vite'); npm cache clean --force; foreach($path in $paths){ Remove-Item -Recurse -Force $path -ErrorAction SilentlyContinue }; Get-ChildItem -Path . -Recurse -Include *.tsbuildinfo -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"",
     "sync:runtime-config:dev": "node ./scripts/generate-runtime-config.js development",
     "sync:runtime-config:prod": "node ./scripts/generate-runtime-config.js production",
@@ -21,12 +25,20 @@
     "dev:ios": "node ./scripts/run-platform-target.js ios",
     "dev:macos": "node ./scripts/run-platform-target.js macos",
     "dev:server": "node ./scripts/run-dev.js --server",
+    "android:emulator": "node ./scripts/launch-android-emulator.js",
+    "android:apk": "npm --prefix client run android:apk",
+    "android:apk:release": "npm --prefix client run android:apk:release",
     "dev:metro": "node ./scripts/run-dev.js --metro",
+    "dev:android": "node ./scripts/run-dev.js --android",
+    "dev:SM-S911N": "node ./scripts/run-dev.js --android --device-model SM-S911N --fallback-avd Pixel_7",
     "dev:windows": "node ./scripts/run-dev.js --windows",
-    "dev:android": "node ./scripts/run-dev.js --android"
+    "electron:build": "npm --prefix client run electron:build",
+    "electron:run": "npm --prefix client run electron:run"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "nodemon": "^3.1.10"
+    "jimp": "^1.6.0",
+    "nodemon": "^3.1.10",
+    "png-to-ico": "^3.0.1"
   }
 }

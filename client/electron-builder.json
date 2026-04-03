@@ -1,0 +1,30 @@
+{
+  "appId": "com.mymake.app",
+  "productName": "MyMake",
+  "files": [
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "directories": {
+    "output": "release"
+  },
+  "extraResources": [
+    {
+      "from": "build/icons/runtime",
+      "to": "icons",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "win": {
+    "target": "nsis",
+    "icon": "build/icons/win/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerLanguages": ["ja", "en"],
+    "language": "1041"
+  }
+}

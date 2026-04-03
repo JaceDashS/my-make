@@ -47,6 +47,9 @@ docs/agents
 # Node
 node_modules
 *.log
+
+# Electron build output
+client/dist-electron/
 .nvm
 # package-lock.json (uncomment if you want to ignore this file)
 
