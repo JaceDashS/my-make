@@ -1,7 +1,16 @@
-import {requestLocalJson, FALLBACK_API_URL_STRATEGY} from './httpClient';
+import {
+  LOCALHOST_HOST,
+  requestLocalJson,
+  type LocalUrlStrategy,
+} from './httpClient';
 import {RUNTIME_CONFIG} from '../../config/runtime/runtime-config';
 
-const REQUEST_TIMEOUT_MS = 60000;
+const REQUEST_TIMEOUT_MS = 180000;
+const DEVTOOLS_API_URL_STRATEGY: LocalUrlStrategy = {
+  androidHosts: () => [RUNTIME_CONFIG.DEV_HOST_IP],
+  defaultHosts: [LOCALHOST_HOST],
+  windowsHosts: [LOCALHOST_HOST],
+};
 
 export type DevToolsResult = {
   academyName?: string;
@@ -11,6 +20,7 @@ export type DevToolsResult = {
   pendingStudents?: number;
   pendingTeachers?: number;
   rootLoginId?: string;
+  seedPasswordHint?: string;
   status: string;
   error?: string;
   licenseCode?: string;
@@ -22,7 +32,7 @@ function runDevToolsAction(path: string): Promise<DevToolsResult> {
     method: 'POST',
     path,
     timeoutMs: REQUEST_TIMEOUT_MS,
-    urlStrategy: FALLBACK_API_URL_STRATEGY,
+    urlStrategy: DEVTOOLS_API_URL_STRATEGY,
   });
 }
 

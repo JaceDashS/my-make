@@ -1,10 +1,23 @@
-import React, { useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
-import { RUNTIME_CONFIG } from '../../../../../config/runtime/runtime-config';
+import {
+  resetRuntimeConfigOverride,
+  RUNTIME_CONFIG,
+  setRuntimeConfigOverride,
+} from '../../../../../config/runtime/runtime-config';
 import { ActionButton } from '../../../../../shared/components/ActionButton';
 import { HealthCheckButton } from '../../../../../shared/components/HealthCheckButton';
 import { copyText } from '../../../../../shared/lib/clipboard';
+import { useRuntimeConfig } from '../../../../../shared/lib/useRuntimeConfig';
 import {
   createLicense,
   emitServerLog,
@@ -13,7 +26,10 @@ import {
   type DevToolsResult,
 } from '../../../../../shared/lib/devTools';
 import {
+  buildCustomHealthCheckUrl,
   getHealthCheckCandidates,
+  runCustomHealthCheck,
+  type HealthCheckResult,
   type HealthCheckTarget,
 } from '../../../../../shared/lib/healthCheck';
 import type { TargetState } from '../../../../shared/shell-model';
@@ -59,6 +75,7 @@ export function DevHealthSection({
     result: string;
     academyName: string;
     rootLoginId: string;
+    seedPasswordHint: string;
     memberRoleStudent: string;
     memberRoleTeacher: string;
     memberRoleAdmin: string;
@@ -76,6 +93,33 @@ export function DevHealthSection({
     'tables' | 'seed' | 'license' | 'server-log' | null
   >(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [devHostIpDraft, setDevHostIpDraft] = useState('');
+  const [localPortDraft, setLocalPortDraft] = useState('');
+  const [dockerPortDraft, setDockerPortDraft] = useState('');
+  const [renderBaseUrlDraft, setRenderBaseUrlDraft] = useState('');
+  const [runtimeConfigMessage, setRuntimeConfigMessage] = useState<string | null>(
+    null,
+  );
+  const [customHealthCheckResult, setCustomHealthCheckResult] =
+    useState<HealthCheckResult | null>(null);
+  const [customHealthCheckMessage, setCustomHealthCheckMessage] = useState(
+    'Custom base URL health check is ready.',
+  );
+  const [customHealthCheckLoading, setCustomHealthCheckLoading] = useState(false);
+  const {runtimeConfig, runtimeConfigBase, runtimeConfigOverride} =
+    useRuntimeConfig();
+
+  useEffect(() => {
+    setDevHostIpDraft(runtimeConfig.DEV_HOST_IP);
+    setLocalPortDraft(runtimeConfig.CLIENT_LOCAL_PORT);
+    setDockerPortDraft(runtimeConfig.CLIENT_DOCKER_PORT);
+    setRenderBaseUrlDraft(runtimeConfig.CLIENT_RENDER_BASE_URL);
+  }, [
+    runtimeConfig.CLIENT_DOCKER_PORT,
+    runtimeConfig.CLIENT_LOCAL_PORT,
+    runtimeConfig.CLIENT_RENDER_BASE_URL,
+    runtimeConfig.DEV_HOST_IP,
+  ]);
 
   const resetTargetMessage = (target: HealthCheckTarget) => {
     if (target === 'local') {
@@ -88,7 +132,7 @@ export function DevHealthSection({
   };
 
   const runDeveloperAction = async (
-    action: 'tables' | 'seed' | 'license',
+    action: 'tables' | 'seed' | 'license' | 'server-log',
     runner: () => Promise<DevToolsResult>,
   ) => {
     setLoadingAction(action);
@@ -128,6 +172,71 @@ export function DevHealthSection({
     });
   };
 
+  const localBaseUrl = `http://${runtimeConfig.DEV_HOST_IP}:${runtimeConfig.CLIENT_LOCAL_PORT}`;
+  const dockerBaseUrl = `http://${runtimeConfig.DEV_HOST_IP}:${runtimeConfig.CLIENT_DOCKER_PORT}`;
+  const renderHealthUrl = `${runtimeConfig.CLIENT_RENDER_BASE_URL}${runtimeConfig.CLIENT_HEALTH_PATH}`;
+
+  const applyRenderBaseUrl = () => {
+    const nextDevHostIp = devHostIpDraft.trim();
+    const nextLocalPort = localPortDraft.trim();
+    const nextDockerPort = dockerPortDraft.trim();
+    const nextRenderBaseUrl = renderBaseUrlDraft.trim();
+
+    if (!nextDevHostIp || !nextLocalPort || !nextDockerPort || !nextRenderBaseUrl) {
+      resetRuntimeConfigOverride();
+      setDevHostIpDraft(runtimeConfigBase.DEV_HOST_IP);
+      setLocalPortDraft(runtimeConfigBase.CLIENT_LOCAL_PORT);
+      setDockerPortDraft(runtimeConfigBase.CLIENT_DOCKER_PORT);
+      setRenderBaseUrlDraft(runtimeConfigBase.CLIENT_RENDER_BASE_URL);
+      setRuntimeConfigMessage(
+        'Runtime config reset because one or more fields were empty.',
+      );
+      return;
+    }
+
+    setRuntimeConfigOverride({
+      DEV_HOST_IP: nextDevHostIp,
+      CLIENT_LOCAL_PORT: nextLocalPort,
+      CLIENT_DOCKER_PORT: nextDockerPort,
+      CLIENT_RENDER_BASE_URL: nextRenderBaseUrl,
+    });
+    setRuntimeConfigMessage('Runtime config override applied.');
+  };
+
+  const resetRenderBaseUrl = () => {
+    resetRuntimeConfigOverride();
+    setDevHostIpDraft(runtimeConfigBase.DEV_HOST_IP);
+    setLocalPortDraft(runtimeConfigBase.CLIENT_LOCAL_PORT);
+    setDockerPortDraft(runtimeConfigBase.CLIENT_DOCKER_PORT);
+    setRenderBaseUrlDraft(runtimeConfigBase.CLIENT_RENDER_BASE_URL);
+    setRuntimeConfigMessage('Runtime config reset to the injected values.');
+  };
+
+  const runCustomBaseUrlHealthCheck = async () => {
+    const targetBaseUrl = renderBaseUrlDraft.trim();
+
+    if (!targetBaseUrl) {
+      setCustomHealthCheckResult(null);
+      setCustomHealthCheckMessage('Enter a custom base URL first.');
+      return;
+    }
+
+    setCustomHealthCheckLoading(true);
+    setCustomHealthCheckMessage(
+      `Checking ${buildCustomHealthCheckUrl(targetBaseUrl)} ...`,
+    );
+
+    try {
+      const result = await runCustomHealthCheck(targetBaseUrl);
+      setCustomHealthCheckResult(result);
+      setCustomHealthCheckMessage(
+        result.ok ? 'Custom base URL is reachable.' : 'Custom base URL check failed.',
+      );
+    } finally {
+      setCustomHealthCheckLoading(false);
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.stack}>
       <Card palette={palette} title={labels.devHealth}>
@@ -136,6 +245,188 @@ export function DevHealthSection({
           {labels.env}: {RUNTIME_CONFIG.APP_ENV} / Host:{' '}
           {RUNTIME_CONFIG.DEV_HOST_IP}
         </BodyStrong>
+        <View
+          style={[
+            styles.resultPanel,
+            {backgroundColor: palette.soft, marginTop: 12},
+          ]}>
+          <Text style={[styles.resultLabel, {color: palette.primary}]}>
+            Runtime Config
+          </Text>
+          <BodyText palette={palette}>
+            APP_ENV={runtimeConfig.APP_ENV}
+            {'\n'}
+            DEV_HOST_IP={runtimeConfig.DEV_HOST_IP}
+            {'\n'}
+            CLIENT_LOCAL_PORT={runtimeConfig.CLIENT_LOCAL_PORT}
+            {'\n'}
+            CLIENT_DOCKER_PORT={runtimeConfig.CLIENT_DOCKER_PORT}
+            {'\n'}
+            CLIENT_HEALTH_PATH={runtimeConfig.CLIENT_HEALTH_PATH}
+            {'\n'}
+            CLIENT_RENDER_BASE_URL={runtimeConfig.CLIENT_RENDER_BASE_URL}
+          </BodyText>
+          <Text style={[styles.metaText, {color: palette.textMuted}]}>
+            Injected cloud base URL: {runtimeConfigBase.CLIENT_RENDER_BASE_URL}
+            {'\n'}
+            Override active:{' '}
+            {Object.keys(runtimeConfigOverride).length > 0 ? 'yes' : 'no'}
+            {'\n'}
+            Local base URL: {localBaseUrl}
+            {'\n'}
+            Docker base URL: {dockerBaseUrl}
+            {'\n'}
+            Cloud health URL: {renderHealthUrl}
+          </Text>
+          <Text style={[styles.fieldLabel, {color: palette.text}]}>
+            Dev Host IP
+          </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={value => {
+              setDevHostIpDraft(value);
+              setRuntimeConfigMessage(null);
+            }}
+            placeholder="192.168.1.2"
+            placeholderTextColor={palette.textMuted}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+            value={devHostIpDraft}
+          />
+          <Text style={[styles.fieldLabel, {color: palette.text}]}>
+            Local API Port
+          </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="number-pad"
+            onChangeText={value => {
+              setLocalPortDraft(value);
+              setRuntimeConfigMessage(null);
+            }}
+            placeholder="8080"
+            placeholderTextColor={palette.textMuted}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+            value={localPortDraft}
+          />
+          <Text style={[styles.fieldLabel, {color: palette.text}]}>
+            Docker API Port
+          </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="number-pad"
+            onChangeText={value => {
+              setDockerPortDraft(value);
+              setRuntimeConfigMessage(null);
+            }}
+            placeholder="18080"
+            placeholderTextColor={palette.textMuted}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+            value={dockerPortDraft}
+          />
+          <Text style={[styles.fieldLabel, {color: palette.text}]}>
+            Cloud Base URL
+          </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={value => {
+              setRenderBaseUrlDraft(value);
+              setRuntimeConfigMessage(null);
+            }}
+            placeholder="https://your-render-service.onrender.com"
+            placeholderTextColor={palette.textMuted}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+            value={renderBaseUrlDraft}
+          />
+          <View style={styles.optionRow}>
+            <ActionButton
+              backgroundColor={palette.primary}
+              label="Apply Base URL"
+              onPress={applyRenderBaseUrl}
+              style={styles.actionButton}
+              textColor={palette.primaryText}
+              titleStyle={styles.actionText}
+            />
+            <ActionButton
+              backgroundColor={palette.soft}
+              label="Reset Base URL"
+              onPress={resetRenderBaseUrl}
+              style={styles.actionButton}
+              textColor={palette.text}
+              titleStyle={styles.actionText}
+            />
+            <ActionButton
+              backgroundColor={palette.soft}
+              isLoading={customHealthCheckLoading}
+              label="Check Custom URL"
+              onPress={() => {
+                runCustomBaseUrlHealthCheck().catch(() => undefined);
+              }}
+              style={styles.actionButton}
+              textColor={palette.text}
+              titleStyle={styles.actionText}
+            />
+          </View>
+          {runtimeConfigMessage ? (
+            <BodyText palette={palette}>{runtimeConfigMessage}</BodyText>
+          ) : null}
+          <View
+            style={[
+              styles.resultPanel,
+              {backgroundColor: palette.card, marginTop: 12},
+            ]}>
+            <Text style={[styles.resultLabel, {color: palette.primary}]}>
+              Custom Base URL Health
+            </Text>
+            <BodyText palette={palette}>{customHealthCheckMessage}</BodyText>
+            <Text style={[styles.metaText, {color: palette.textMuted}]}>
+              Target: {buildCustomHealthCheckUrl(renderBaseUrlDraft || runtimeConfig.CLIENT_RENDER_BASE_URL)}
+            </Text>
+            <Text style={[styles.metaText, {color: palette.textMuted}]}>
+              {customHealthCheckResult?.ok
+                ? `URL: ${customHealthCheckResult.url}\nStatus: ${customHealthCheckResult.status}`
+                : `Candidates: ${
+                    customHealthCheckResult?.candidates.join(', ') ||
+                    buildCustomHealthCheckUrl(
+                      renderBaseUrlDraft || runtimeConfig.CLIENT_RENDER_BASE_URL,
+                    )
+                  }`}
+            </Text>
+            {!customHealthCheckResult?.ok && customHealthCheckResult?.error ? (
+              <Text style={styles.errorText}>{customHealthCheckResult.error}</Text>
+            ) : null}
+          </View>
+        </View>
         <Pressable
           onPress={onToggleShowStudentSkinPreview}
           style={{flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12}}>
@@ -239,6 +530,11 @@ export function DevHealthSection({
           {actionResult.rootLoginId ? (
             <BodyText palette={palette}>
               {labels.rootLoginId}: {actionResult.rootLoginId}
+            </BodyText>
+          ) : null}
+          {actionResult.seedPasswordHint ? (
+            <BodyText palette={palette}>
+              {labels.seedPasswordHint}: {actionResult.seedPasswordHint}
             </BodyText>
           ) : null}
           {actionResult.licenseCode ? (

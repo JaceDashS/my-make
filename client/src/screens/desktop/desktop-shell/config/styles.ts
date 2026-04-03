@@ -3,7 +3,7 @@ import {StyleSheet} from 'react-native';
 export const desktopShellStyles = StyleSheet.create({
   safeArea: {flex: 1},
   shell: {flex: 1, flexDirection: 'row'},
-  sidebar: {width: 220, paddingTop: 24, paddingHorizontal: 16},
+  sidebar: {width: 250, paddingTop: 24, paddingHorizontal: 16},
   sidebarItem: {
     borderRadius: 18,
     height: 56,

@@ -19,36 +19,144 @@ const (
 	defaultLicenseDuration = 365 * 24 * time.Hour
 	seededAcademyName      = "Test Academy"
 	seededRootLoginID      = "root"
-	seededRootDisplayName  = "root"
+	seededRootDisplayName  = "Haruto Sato"
 	seededRootEmail        = "root@example.com"
 	seededRootPassword     = "root"
+	seededPasswordHint     = "Seed account passwords match their login IDs (example: student-hold / student-hold)."
 )
 
 type seededMemberAccount struct {
+	displayName string
+	loginID     string
+	roleCode    string
+	statusCode  string
+}
+
+type seededStudentTeacherLink struct {
+	studentLoginID string
+	teacherLoginID string
+}
+
+type seededTeacherSchedule struct {
+	loginID      string
+	scheduleBody string
+}
+
+type seededTeacherPreset struct {
 	loginID    string
-	roleCode   string
-	statusCode string
+	presetBody string
+}
+
+type seededStudentProfile struct {
+	loginID          string
+	skinLValue       float64
+	skinCValue       float64
+	skinHValue       float64
+	skinTraits       string
+	preferenceRanges string
+}
+
+type seededInventoryItem struct {
+	sku        string
+	itemName   string
+	category   string
+	cost       float64
+	price      float64
+	lValue     float64
+	cValue     float64
+	hValue     float64
+	imageURL   string
+	stockCount int
+	noteBody   string
 }
 
 var seededMemberAccounts = []seededMemberAccount{
-	{loginID: "admin", roleCode: "ADMIN", statusCode: "ACTIVE"},
-	{loginID: "teacher", roleCode: "TEACHER", statusCode: "ACTIVE"},
-	{loginID: "student", roleCode: "STUDENT", statusCode: "ACTIVE"},
-	{loginID: "admin-active", roleCode: "ADMIN", statusCode: "ACTIVE"},
-	{loginID: "teacher-active", roleCode: "TEACHER", statusCode: "ACTIVE"},
-	{loginID: "student-active", roleCode: "STUDENT", statusCode: "ACTIVE"},
-	{loginID: "admin-pending", roleCode: "ADMIN", statusCode: "PENDING"},
-	{loginID: "teacher-pending", roleCode: "TEACHER", statusCode: "PENDING"},
-	{loginID: "student-pending", roleCode: "STUDENT", statusCode: "PENDING"},
-	{loginID: "admin-hold", roleCode: "ADMIN", statusCode: "HOLD"},
-	{loginID: "teacher-hold", roleCode: "TEACHER", statusCode: "HOLD"},
-	{loginID: "student-hold", roleCode: "STUDENT", statusCode: "HOLD"},
-	{loginID: "admin-inactive", roleCode: "ADMIN", statusCode: "INACTIVE"},
-	{loginID: "teacher-inactive", roleCode: "TEACHER", statusCode: "INACTIVE"},
-	{loginID: "student-inactive", roleCode: "STUDENT", statusCode: "INACTIVE"},
+	{displayName: "Yuki Tanaka", loginID: "admin", roleCode: "ADMIN", statusCode: "ACTIVE"},
+	{displayName: "Taro Yamada", loginID: "teacher", roleCode: "TEACHER", statusCode: "ACTIVE"},
+	{displayName: "Hana Suzuki", loginID: "student", roleCode: "STUDENT", statusCode: "ACTIVE"},
+	{displayName: "Kento Watanabe", loginID: "admin-active", roleCode: "ADMIN", statusCode: "ACTIVE"},
+	{displayName: "Aoi Nakamura", loginID: "teacher-active", roleCode: "TEACHER", statusCode: "ACTIVE"},
+	{displayName: "Yui Kobayashi", loginID: "student-active", roleCode: "STUDENT", statusCode: "ACTIVE"},
+	{displayName: "Sota Ito", loginID: "admin-pending", roleCode: "ADMIN", statusCode: "PENDING"},
+	{displayName: "Rin Takahashi", loginID: "teacher-pending", roleCode: "TEACHER", statusCode: "PENDING"},
+	{displayName: "Mei Kato", loginID: "student-pending", roleCode: "STUDENT", statusCode: "PENDING"},
+	{displayName: "My Teacher", loginID: "myteacher", roleCode: "TEACHER", statusCode: "PENDING"},
+	{displayName: "My Student", loginID: "mystudent", roleCode: "STUDENT", statusCode: "PENDING"},
+	{displayName: "Daiki Yoshida", loginID: "admin-hold", roleCode: "ADMIN", statusCode: "HOLD"},
+	{displayName: "Mio Yamamoto", loginID: "teacher-hold", roleCode: "TEACHER", statusCode: "HOLD"},
+	{displayName: "Riko Saito", loginID: "student-hold", roleCode: "STUDENT", statusCode: "HOLD"},
+	{displayName: "Sho Matsumoto", loginID: "admin-inactive", roleCode: "ADMIN", statusCode: "INACTIVE"},
+	{displayName: "Nanami Inoue", loginID: "teacher-inactive", roleCode: "TEACHER", statusCode: "INACTIVE"},
+	{displayName: "Sara Kimura", loginID: "student-inactive", roleCode: "STUDENT", statusCode: "INACTIVE"},
+}
+
+var seededStudentTeacherLinks = []seededStudentTeacherLink{
+	{studentLoginID: "student", teacherLoginID: "teacher"},
+	{studentLoginID: "student-active", teacherLoginID: "teacher-active"},
+	{studentLoginID: "student-pending", teacherLoginID: "teacher-pending"},
+	{studentLoginID: "student-hold", teacherLoginID: "teacher-hold"},
+	{studentLoginID: "student-inactive", teacherLoginID: "teacher-inactive"},
+}
+
+var seededTeacherSchedules = []seededTeacherSchedule{
+	{
+		loginID:      "teacher",
+		scheduleBody: `{"timezone":"Asia/Seoul","weekly":{"mon":[{"start":"10:00","end":"18:00"}],"tue":[{"start":"10:00","end":"18:00"}],"wed":[{"start":"10:00","end":"18:00"}],"thu":[{"start":"10:00","end":"18:00"}],"fri":[{"start":"10:00","end":"18:00"}],"sat":[],"sun":[]},"exceptions":[]}`,
+	},
+	{
+		loginID:      "teacher-active",
+		scheduleBody: `{"timezone":"Asia/Seoul","weekly":{"mon":[{"start":"10:00","end":"18:00"}],"tue":[{"start":"10:00","end":"18:00"}],"wed":[{"start":"10:00","end":"18:00"}],"thu":[{"start":"10:00","end":"18:00"}],"fri":[{"start":"10:00","end":"18:00"}],"sat":[],"sun":[]},"exceptions":[]}`,
+	},
+}
+
+var seededTeacherPresets = []seededTeacherPreset{
+	{
+		loginID:    "teacher",
+		presetBody: `{"version":2,"presets":[{"id":"1","name":"Soft Daily Coral","createdAt":"2026-04-02T09:00:00+09:00","updatedAt":"2026-04-02T09:00:00+09:00","note":"Mostly aligned with the student's soft warm preference.","items":{"base_foundation":[{"source":"inventory","sku":"FND-001","itemName":"Soft Natural Foundation 01","imageUrl":"https://example.com/images/fnd-001.jpg"},{"source":"manual","sku":null,"itemName":"Glow Veil Mixing Base","imageUrl":"https://example.com/images/manual-glow-veil-base.jpg"}],"blush":[{"source":"inventory","sku":"BLS-002","itemName":"Soft Peach Blush","imageUrl":"https://example.com/images/bls-002.jpg"}],"lip_color":[{"source":"inventory","sku":"LIP-022","itemName":"Warm Peach Lip","imageUrl":"https://example.com/images/lip-022.jpg"}],"eyeshadow":null,"contour":null,"highlighter":[{"source":"inventory","sku":"HIL-003","itemName":"Soft Gold Highlighter","imageUrl":"https://example.com/images/hil-003.jpg"},{"source":"manual","sku":null,"itemName":"Pearl Balm Topper","imageUrl":null}],"etc":[{"source":"inventory","sku":"FIX-002","itemName":"Primer Base","imageUrl":"https://example.com/images/fix-002.jpg"},{"source":"manual","sku":null,"itemName":"Makeup Spatula Set","imageUrl":null}]}},{"id":"2","name":"Warm Contrast Coral","createdAt":"2026-04-02T09:30:00+09:00","updatedAt":"2026-04-02T10:10:00+09:00","note":"Intentionally contains partial mismatch for demo explanation.","items":{"base_foundation":[{"source":"inventory","sku":"FND-001","itemName":"Soft Natural Foundation 01","imageUrl":"https://example.com/images/fnd-001.jpg"}],"blush":[{"source":"inventory","sku":"BLS-003","itemName":"Warm Coral Blush","imageUrl":"https://example.com/images/bls-003.jpg"},{"source":"manual","sku":null,"itemName":"Apricot Cream Blush Pot","imageUrl":"https://example.com/images/manual-apricot-cream-blush.jpg"}],"lip_color":[{"source":"inventory","sku":"LIP-014","itemName":"Muted Coral Lip","imageUrl":"https://example.com/images/lip-014.jpg"}],"eyeshadow":[{"source":"inventory","sku":"EYE-031","itemName":"Rose Plum Eyeshadow","imageUrl":"https://example.com/images/eye-031.jpg"}],"contour":null,"highlighter":null,"etc":[{"source":"manual","sku":null,"itemName":"Disposable Lip Brush Set","imageUrl":null}]}}]}`,
+	},
+	{
+		loginID:    "teacher-active",
+		presetBody: `{"version":2,"presets":[{"id":"1","name":"Soft Daily Coral","createdAt":"2026-04-02T09:00:00+09:00","updatedAt":"2026-04-02T09:00:00+09:00","note":"Mostly aligned with the student's soft warm preference.","items":{"base_foundation":[{"source":"inventory","sku":"FND-001","itemName":"Soft Natural Foundation 01","imageUrl":"https://example.com/images/fnd-001.jpg"},{"source":"manual","sku":null,"itemName":"Glow Veil Mixing Base","imageUrl":"https://example.com/images/manual-glow-veil-base.jpg"}],"blush":[{"source":"inventory","sku":"BLS-002","itemName":"Soft Peach Blush","imageUrl":"https://example.com/images/bls-002.jpg"}],"lip_color":[{"source":"inventory","sku":"LIP-022","itemName":"Warm Peach Lip","imageUrl":"https://example.com/images/lip-022.jpg"}],"eyeshadow":null,"contour":null,"highlighter":[{"source":"inventory","sku":"HIL-003","itemName":"Soft Gold Highlighter","imageUrl":"https://example.com/images/hil-003.jpg"},{"source":"manual","sku":null,"itemName":"Pearl Balm Topper","imageUrl":null}],"etc":[{"source":"inventory","sku":"FIX-002","itemName":"Primer Base","imageUrl":"https://example.com/images/fix-002.jpg"},{"source":"manual","sku":null,"itemName":"Makeup Spatula Set","imageUrl":null}]}},{"id":"2","name":"Warm Contrast Coral","createdAt":"2026-04-02T09:30:00+09:00","updatedAt":"2026-04-02T10:10:00+09:00","note":"Intentionally contains partial mismatch for demo explanation.","items":{"base_foundation":[{"source":"inventory","sku":"FND-001","itemName":"Soft Natural Foundation 01","imageUrl":"https://example.com/images/fnd-001.jpg"}],"blush":[{"source":"inventory","sku":"BLS-003","itemName":"Warm Coral Blush","imageUrl":"https://example.com/images/bls-003.jpg"},{"source":"manual","sku":null,"itemName":"Apricot Cream Blush Pot","imageUrl":"https://example.com/images/manual-apricot-cream-blush.jpg"}],"lip_color":[{"source":"inventory","sku":"LIP-014","itemName":"Muted Coral Lip","imageUrl":"https://example.com/images/lip-014.jpg"}],"eyeshadow":[{"source":"inventory","sku":"EYE-031","itemName":"Rose Plum Eyeshadow","imageUrl":"https://example.com/images/eye-031.jpg"}],"contour":null,"highlighter":null,"etc":[{"source":"manual","sku":null,"itemName":"Disposable Lip Brush Set","imageUrl":null}]}}]}`,
+	},
+}
+
+var seededStudentProfiles = []seededStudentProfile{
+	{
+		loginID:          "student",
+		skinLValue:       65.5,
+		skinCValue:       14.2,
+		skinHValue:       58.1,
+		skinTraits:       "Neutral undertone, soft natural finish preferred.",
+		preferenceRanges: `{"version":3,"space":"hcl","matchMode":"point-distance","categories":{"base_foundation":{"pointMode":"multi","points":[{"l":64.5,"c":13.2,"h":57.0,"radius":6.0},{"l":66.2,"c":15.0,"h":60.0,"radius":5.0}]},"blush":{"pointMode":"multi","points":[{"l":66.0,"c":22.0,"h":42.0,"radius":10.0},{"l":68.0,"c":18.0,"h":48.0,"radius":6.0}]},"lip_color":{"pointMode":"single","points":[{"l":58.0,"c":22.0,"h":42.0,"radius":8.0}]}}}`,
+	},
+	{
+		loginID:          "student-active",
+		skinLValue:       65.5,
+		skinCValue:       14.2,
+		skinHValue:       58.1,
+		skinTraits:       "Neutral undertone, soft natural finish preferred.",
+		preferenceRanges: `{"version":3,"space":"hcl","matchMode":"point-distance","categories":{"base_foundation":{"pointMode":"multi","points":[{"l":64.5,"c":13.2,"h":57.0,"radius":6.0},{"l":66.2,"c":15.0,"h":60.0,"radius":5.0}]},"blush":{"pointMode":"multi","points":[{"l":66.0,"c":22.0,"h":42.0,"radius":10.0},{"l":68.0,"c":18.0,"h":48.0,"radius":6.0}]},"lip_color":{"pointMode":"single","points":[{"l":58.0,"c":22.0,"h":42.0,"radius":8.0}]}}}`,
+	},
+}
+
+var seededInventoryItems = []seededInventoryItem{
+	{sku: "FND-001", itemName: "Soft Natural Foundation 01", category: "base_foundation", cost: 32000, price: 48000, lValue: 64.5, cValue: 13.2, hValue: 57.0, imageURL: "https://example.com/items/fnd-001.png", stockCount: 12, noteBody: "Demo match foundation"},
+	{sku: "FND-003", itemName: "Warm Natural Foundation 03", category: "base_foundation", cost: 32000, price: 48000, lValue: 70.0, cValue: 20.0, hValue: 74.0, imageURL: "https://example.com/items/fnd-003.png", stockCount: 8, noteBody: "Demo mismatch foundation"},
+	{sku: "BLS-002", itemName: "Soft Peach Blush", category: "blush", cost: 18000, price: 29000, lValue: 67.0, cValue: 24.0, hValue: 44.0, imageURL: "https://example.com/items/bls-002.png", stockCount: 10, noteBody: "Demo match blush"},
+	{sku: "BLS-003", itemName: "Warm Coral Blush", category: "blush", cost: 18000, price: 29000, lValue: 60.0, cValue: 36.0, hValue: 28.0, imageURL: "https://example.com/items/bls-003.png", stockCount: 9, noteBody: "Demo partial mismatch blush"},
+	{sku: "LIP-014", itemName: "Muted Coral Lip", category: "lip_color", cost: 15000, price: 24000, lValue: 52.0, cValue: 40.0, hValue: 25.0, imageURL: "https://example.com/items/lip-014.png", stockCount: 15, noteBody: "Demo mismatch lip"},
+	{sku: "LIP-022", itemName: "Warm Peach Lip", category: "lip_color", cost: 15000, price: 24000, lValue: 58.0, cValue: 22.0, hValue: 42.0, imageURL: "https://example.com/items/lip-022.png", stockCount: 14, noteBody: "Demo match lip"},
+	{sku: "EYE-021", itemName: "Soft Brown Eyeshadow", category: "eyeshadow", cost: 21000, price: 34000, lValue: 48.0, cValue: 18.0, hValue: 42.0, imageURL: "https://example.com/items/eye-021.png", stockCount: 11, noteBody: "Demo support eyeshadow"},
+	{sku: "EYE-031", itemName: "Rose Plum Eyeshadow", category: "eyeshadow", cost: 21000, price: 34000, lValue: 44.0, cValue: 26.0, hValue: 342.0, imageURL: "https://example.com/items/eye-031.png", stockCount: 7, noteBody: "Demo mismatch eyeshadow"},
+	{sku: "CON-004", itemName: "Neutral Soft Contour", category: "contour", cost: 17000, price: 26000, lValue: 40.0, cValue: 14.0, hValue: 36.0, imageURL: "https://example.com/items/con-004.png", stockCount: 10, noteBody: "Demo contour"},
+	{sku: "HIL-003", itemName: "Soft Gold Highlighter", category: "highlighter", cost: 17000, price: 27000, lValue: 84.0, cValue: 20.0, hValue: 52.0, imageURL: "https://example.com/items/hil-003.png", stockCount: 10, noteBody: "Demo highlighter"},
+	{sku: "FIX-002", itemName: "Primer Base", category: "etc", cost: 14000, price: 22000, lValue: 62.0, cValue: 6.0, hValue: 52.0, imageURL: "https://example.com/items/fix-002.png", stockCount: 16, noteBody: "Demo primer"},
 }
 
 var managedDropStatements = []string{
+	"DROP TABLE MAIMEI_LESSON_RESERVATIONS CASCADE CONSTRAINTS PURGE",
+	"DROP TABLE MAIMEI_INVENTORIES CASCADE CONSTRAINTS PURGE",
+	"DROP TABLE MAIMEI_TEACHER_AVAILABLE_SCHEDULES CASCADE CONSTRAINTS PURGE",
 	"DROP TABLE MAIMEI_STUDENTS CASCADE CONSTRAINTS PURGE",
 	"DROP TABLE MAIMEI_TEACHERS CASCADE CONSTRAINTS PURGE",
 	"DROP TABLE MAIMEI_ADMINS CASCADE CONSTRAINTS PURGE",
@@ -56,6 +164,10 @@ var managedDropStatements = []string{
 	"DROP TABLE MAIMEI_ACADEMIES CASCADE CONSTRAINTS PURGE",
 	"DROP SEQUENCE MAIMEI_STUDENT_CODE_SEQ",
 	"DROP SEQUENCE MAIMEI_STUDENTS_SEQ",
+	"DROP SEQUENCE MAIMEI_INVENTORY_CODE_SEQ",
+	"DROP SEQUENCE MAIMEI_INVENTORIES_SEQ",
+	"DROP SEQUENCE MAIMEI_RESERVATION_CODE_SEQ",
+	"DROP SEQUENCE MAIMEI_LESSON_RESERVATIONS_SEQ",
 	"DROP SEQUENCE MAIMEI_TEACHER_CODE_SEQ",
 	"DROP SEQUENCE MAIMEI_TEACHERS_SEQ",
 	"DROP SEQUENCE MAIMEI_ADMIN_CODE_SEQ",
@@ -65,16 +177,17 @@ var managedDropStatements = []string{
 }
 
 type devToolsResponse struct {
-	Status          string   `json:"status"`
-	Message         string   `json:"message"`
-	Migrations      []string `json:"migrations,omitempty"`
-	LicenseCode     string   `json:"licenseCode,omitempty"`
-	ExpiresAt       string   `json:"expiresAt,omitempty"`
-	AcademyName     string   `json:"academyName,omitempty"`
-	RootLoginID     string   `json:"rootLoginId,omitempty"`
-	PendingStudents int      `json:"pendingStudents,omitempty"`
-	PendingTeachers int      `json:"pendingTeachers,omitempty"`
-	PendingAdmins   int      `json:"pendingAdmins,omitempty"`
+	Status           string   `json:"status"`
+	Message          string   `json:"message"`
+	Migrations       []string `json:"migrations,omitempty"`
+	LicenseCode      string   `json:"licenseCode,omitempty"`
+	ExpiresAt        string   `json:"expiresAt,omitempty"`
+	AcademyName      string   `json:"academyName,omitempty"`
+	RootLoginID      string   `json:"rootLoginId,omitempty"`
+	SeedPasswordHint string   `json:"seedPasswordHint,omitempty"`
+	PendingStudents  int      `json:"pendingStudents,omitempty"`
+	PendingTeachers  int      `json:"pendingTeachers,omitempty"`
+	PendingAdmins    int      `json:"pendingAdmins,omitempty"`
 }
 
 type devToolsRunner interface {
@@ -205,6 +318,7 @@ func (s *devToolsService) InitializeTablesAndInjectTestData(ctx context.Context)
 	result.ExpiresAt = seedResult.ExpiresAt
 	result.AcademyName = seedResult.AcademyName
 	result.RootLoginID = seedResult.RootLoginID
+	result.SeedPasswordHint = seedResult.SeedPasswordHint
 	result.PendingStudents = seedResult.PendingStudents
 	result.PendingTeachers = seedResult.PendingTeachers
 	result.PendingAdmins = seedResult.PendingAdmins
@@ -372,21 +486,50 @@ func (s *devToolsService) injectTestData(ctx context.Context) (devToolsResponse,
 		})
 	}
 
+	if err := linkSeedStudentsToTeachers(ctx, tx); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	if err := seedTeacherAvailableSchedules(ctx, tx); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	if err := seedTeacherPresets(ctx, tx); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	if err := seedDemoInventories(ctx, tx, academyCode); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	if err := seedStudentProfiles(ctx, tx); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	if err := seedStudentPassCounts(ctx, tx); err != nil {
+		return devToolsResponse{}, err
+	}
+
+	if err := seedDemoReservation(ctx, tx, academyCode, now()); err != nil {
+		return devToolsResponse{}, err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return devToolsResponse{}, fmt.Errorf("complete test data injection: %w", err)
 	}
 	tx = nil
 
 	result := devToolsResponse{
-		Status:          "ok",
-		Message:         "Test data has been injected.",
-		LicenseCode:     licenseCode,
-		ExpiresAt:       expiresAt.Format(time.RFC3339),
-		AcademyName:     seededAcademyName,
-		RootLoginID:     seededRootLoginID,
-		PendingStudents: pendingCounts["STUDENT"],
-		PendingTeachers: pendingCounts["TEACHER"],
-		PendingAdmins:   pendingCounts["ADMIN"],
+		Status:           "ok",
+		Message:          "Test data has been injected.",
+		LicenseCode:      licenseCode,
+		ExpiresAt:        expiresAt.Format(time.RFC3339),
+		AcademyName:      seededAcademyName,
+		RootLoginID:      seededRootLoginID,
+		SeedPasswordHint: seededPasswordHint,
+		PendingStudents:  pendingCounts["STUDENT"],
+		PendingTeachers:  pendingCounts["TEACHER"],
+		PendingAdmins:    pendingCounts["ADMIN"],
 	}
 
 	logServerRuntime("dev-tools", "init-and-inject:seed:success", map[string]any{
@@ -540,7 +683,7 @@ func seedMemberAccount(
 
 	input := memberRegisterInput{
 		LoginID:           account.loginID,
-		DisplayName:       account.loginID,
+		DisplayName:       account.displayName,
 		Email:             fmt.Sprintf("%s@example.com", account.loginID),
 		Phone:             phone,
 		Password:          account.loginID,
@@ -560,7 +703,7 @@ func seedMemberAccount(
 		return nil
 	}
 
-	if err := approvePendingMemberProfile(ctx, tx, spec, academyCode, account.loginID); err != nil {
+	if err := approvePendingMemberProfile(ctx, tx, spec, academyCode, account.loginID, 0); err != nil {
 		return err
 	}
 
@@ -582,6 +725,353 @@ func seedMemberAccount(
 	}
 
 	return nil
+}
+
+func linkSeedStudentsToTeachers(ctx context.Context, tx *sql.Tx) error {
+	if tx == nil {
+		return fmt.Errorf("link seed students to teachers: transaction is nil")
+	}
+
+	updateQuery := `
+UPDATE MAIMEI_STUDENTS stu
+   SET stu.PRIMARY_TEACHER_ID = (
+       SELECT tch.TEACHER_ID
+         FROM MAIMEI_TEACHERS tch
+        WHERE tch.LOGIN_ID = :1
+   )
+ WHERE stu.LOGIN_ID = :2`
+
+	for _, link := range seededStudentTeacherLinks {
+		result, err := tx.ExecContext(ctx, updateQuery, link.teacherLoginID, link.studentLoginID)
+		if err != nil {
+			return fmt.Errorf(
+				"link seed student %s to teacher %s: %w",
+				link.studentLoginID,
+				link.teacherLoginID,
+				err,
+			)
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf(
+				"link seed student %s to teacher %s: %w",
+				link.studentLoginID,
+				link.teacherLoginID,
+				err,
+			)
+		}
+
+		if rowsAffected == 0 {
+			return fmt.Errorf(
+				"link seed student %s to teacher %s: no student rows updated",
+				link.studentLoginID,
+				link.teacherLoginID,
+			)
+		}
+
+		logServerRuntime("dev-tools", "init-and-inject:seed:student-teacher-linked", map[string]any{
+			"studentLoginId": link.studentLoginID,
+			"teacherLoginId": link.teacherLoginID,
+		})
+	}
+
+	return nil
+}
+
+func seedStudentPassCounts(ctx context.Context, tx *sql.Tx) error {
+	if tx == nil {
+		return fmt.Errorf("seed student pass counts: transaction is nil")
+	}
+
+	query := `
+UPDATE MAIMEI_STUDENTS
+   SET PASS_TOTAL_COUNT = 20,
+       PASS_REMAINING_COUNT = 10`
+
+	if _, err := tx.ExecContext(ctx, query); err != nil {
+		return fmt.Errorf("seed student pass counts: %w", err)
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:student-pass-counts", map[string]any{
+		"passRemainingCount": 10,
+		"passTotalCount":     20,
+	})
+
+	return nil
+}
+
+func seedStudentProfiles(ctx context.Context, tx *sql.Tx) error {
+	if tx == nil {
+		return fmt.Errorf("seed student profiles: transaction is nil")
+	}
+
+	query := `
+UPDATE MAIMEI_STUDENTS
+   SET SKIN_L_VALUE = :1,
+       SKIN_C_VALUE = :2,
+       SKIN_H_VALUE = :3,
+       SKIN_TRAITS_BODY = :4,
+       PREFERENCE_RANGES_BODY = :5,
+       UPDATED_BY = 'devtools'
+ WHERE LOGIN_ID = :6`
+
+	for _, profile := range seededStudentProfiles {
+		if _, err := tx.ExecContext(
+			ctx,
+			query,
+			profile.skinLValue,
+			profile.skinCValue,
+			profile.skinHValue,
+			profile.skinTraits,
+			profile.preferenceRanges,
+			profile.loginID,
+		); err != nil {
+			return fmt.Errorf("seed student profile for %s: %w", profile.loginID, err)
+		}
+
+		logServerRuntime("dev-tools", "init-and-inject:seed:student-profile", map[string]any{
+			"loginId": profile.loginID,
+		})
+	}
+
+	return nil
+}
+
+func seedDemoInventories(ctx context.Context, tx *sql.Tx, academyCode string) error {
+	if tx == nil {
+		return fmt.Errorf("seed demo inventories: transaction is nil")
+	}
+
+	query := `
+INSERT INTO MAIMEI_INVENTORIES (
+    ACADEMY_CODE,
+    SKU,
+    ITEM_NAME,
+    CATEGORY_CODE,
+    COST,
+    PRICE,
+    L_VALUE,
+    C_VALUE,
+    H_VALUE,
+    IMAGE_URL,
+    STOCK_COUNT,
+    NOTE_BODY,
+    STATUS_CODE,
+    CREATED_BY,
+    UPDATED_BY
+) VALUES (
+    :1,
+    :2,
+    :3,
+    :4,
+    :5,
+    :6,
+    :7,
+    :8,
+    :9,
+    :10,
+    :11,
+    :12,
+    'ACTIVE',
+    'devtools',
+    'devtools'
+)`
+
+	for _, item := range seededInventoryItems {
+		if _, err := tx.ExecContext(
+			ctx,
+			query,
+			academyCode,
+			item.sku,
+			item.itemName,
+			item.category,
+			item.cost,
+			item.price,
+			item.lValue,
+			item.cValue,
+			item.hValue,
+			item.imageURL,
+			item.stockCount,
+			item.noteBody,
+		); err != nil {
+			return fmt.Errorf("seed demo inventory %s: %w", item.sku, err)
+		}
+
+		logServerRuntime("dev-tools", "init-and-inject:seed:inventory", map[string]any{
+			"category": item.category,
+			"sku":      item.sku,
+		})
+	}
+
+	return nil
+}
+
+func seedTeacherAvailableSchedules(ctx context.Context, tx *sql.Tx) error {
+	if tx == nil {
+		return fmt.Errorf("seed teacher available schedules: transaction is nil")
+	}
+
+	scheduleTableQuery := `
+MERGE INTO MAIMEI_TEACHER_AVAILABLE_SCHEDULES target
+USING (
+    SELECT TEACHER_ID
+      FROM MAIMEI_TEACHERS
+     WHERE LOGIN_ID = :1
+) source
+ON (target.TEACHER_ID = source.TEACHER_ID)
+WHEN MATCHED THEN
+    UPDATE SET TIMEZONE = 'Asia/Seoul',
+               SCHEDULE_BODY = :2,
+               UPDATED_BY = 'devtools'
+WHEN NOT MATCHED THEN
+    INSERT (TEACHER_ID, TIMEZONE, SCHEDULE_BODY, CREATED_BY, UPDATED_BY)
+    VALUES (source.TEACHER_ID, 'Asia/Seoul', :2, 'devtools', 'devtools')`
+
+	legacyTeacherQuery := `
+UPDATE MAIMEI_TEACHERS
+   SET AVAILABLE_SCHEDULE = :1,
+       UPDATED_BY = 'devtools'
+ WHERE LOGIN_ID = :2`
+
+	for _, teacherSchedule := range seededTeacherSchedules {
+		if _, err := tx.ExecContext(
+			ctx,
+			scheduleTableQuery,
+			teacherSchedule.loginID,
+			teacherSchedule.scheduleBody,
+		); err != nil {
+			return fmt.Errorf(
+				"seed teacher available schedule for %s: %w",
+				teacherSchedule.loginID,
+				err,
+			)
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			legacyTeacherQuery,
+			teacherSchedule.scheduleBody,
+			teacherSchedule.loginID,
+		); err != nil {
+			return fmt.Errorf(
+				"seed legacy teacher available schedule for %s: %w",
+				teacherSchedule.loginID,
+				err,
+			)
+		}
+
+		logServerRuntime("dev-tools", "init-and-inject:seed:teacher-schedule", map[string]any{
+			"loginId": teacherSchedule.loginID,
+		})
+	}
+
+	return nil
+}
+
+func seedTeacherPresets(ctx context.Context, tx *sql.Tx) error {
+	if tx == nil {
+		return fmt.Errorf("seed teacher presets: transaction is nil")
+	}
+
+	query := `
+UPDATE MAIMEI_TEACHERS
+   SET PRESET = :1,
+       UPDATED_BY = 'devtools'
+ WHERE LOGIN_ID = :2`
+
+	for _, preset := range seededTeacherPresets {
+		if _, err := tx.ExecContext(ctx, query, preset.presetBody, preset.loginID); err != nil {
+			return fmt.Errorf("seed teacher preset for %s: %w", preset.loginID, err)
+		}
+
+		logServerRuntime("dev-tools", "init-and-inject:seed:teacher-preset", map[string]any{
+			"loginId": preset.loginID,
+		})
+	}
+
+	return nil
+}
+
+func seedDemoReservation(ctx context.Context, tx *sql.Tx, academyCode string, baseTime time.Time) error {
+	if tx == nil {
+		return fmt.Errorf("seed demo reservation: transaction is nil")
+	}
+
+	reservationTime, err := nextSeedReservationTime(baseTime)
+	if err != nil {
+		return fmt.Errorf("seed demo reservation: %w", err)
+	}
+
+	query := `
+INSERT INTO MAIMEI_LESSON_RESERVATIONS (
+    ACADEMY_CODE,
+    STUDENT_ID,
+    TEACHER_ID,
+    PRESET_ID,
+    STARTS_AT_UTC,
+    RESERVATION_AT,
+    STATUS_CODE,
+    NOTE_BODY,
+    CREATED_BY,
+    UPDATED_BY
+) VALUES (
+    :1,
+    (SELECT STUDENT_ID FROM MAIMEI_STUDENTS WHERE LOGIN_ID = :2),
+    (SELECT TEACHER_ID FROM MAIMEI_TEACHERS WHERE LOGIN_ID = :3),
+    NULL,
+    :4,
+    :5,
+    'PENDING',
+    :6,
+    'devtools',
+    'devtools'
+)`
+
+	noteBody := "Demo pending reservation for student booking and teacher approval flow."
+	if _, err := tx.ExecContext(
+		ctx,
+		query,
+		academyCode,
+		"student",
+		"teacher",
+		reservationTime.UTC(),
+		reservationTime,
+		noteBody,
+	); err != nil {
+		return fmt.Errorf("seed demo reservation: %w", err)
+	}
+
+	logServerRuntime("dev-tools", "init-and-inject:seed:reservation", map[string]any{
+		"startsAtUtc": reservationTime.UTC().Format(time.RFC3339),
+		"student":     "student",
+		"teacher":     "teacher",
+	})
+
+	return nil
+}
+
+func nextSeedReservationTime(baseTime time.Time) (time.Time, error) {
+	location, err := time.LoadLocation("Asia/Seoul")
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	currentLocal := baseTime.In(location)
+	candidateDate := time.Date(currentLocal.Year(), currentLocal.Month(), currentLocal.Day(), 10, 0, 0, 0, location)
+	if !candidateDate.After(currentLocal.Add(2 * time.Hour)) {
+		candidateDate = candidateDate.AddDate(0, 0, 1)
+	}
+
+	for {
+		switch candidateDate.Weekday() {
+		case time.Saturday, time.Sunday:
+			candidateDate = candidateDate.AddDate(0, 0, 1)
+			candidateDate = time.Date(candidateDate.Year(), candidateDate.Month(), candidateDate.Day(), 10, 0, 0, 0, location)
+			continue
+		default:
+			return candidateDate, nil
+		}
+	}
 }
 
 func generateSeedPhoneNumber() (string, error) {

@@ -31,15 +31,15 @@ export function GeneralSection({
       <Card palette={palette} title={labels.language}>
         <View style={styles.optionRow}>
           <OptionChip
-            active={language === 'ja'}
-            label="日本語"
-            onPress={() => onLanguageChange('ja')}
-            palette={palette}
-          />
-          <OptionChip
             active={language === 'en'}
             label="English"
             onPress={() => onLanguageChange('en')}
+            palette={palette}
+          />
+          <OptionChip
+            active={language === 'ja'}
+            label="日本語"
+            onPress={() => onLanguageChange('ja')}
             palette={palette}
           />
         </View>

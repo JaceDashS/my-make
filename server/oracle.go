@@ -15,6 +15,8 @@ import (
 )
 
 const healthcheckTableName = "HEALTHCHECK_TEST"
+const oracleConnectRetryCount = 3
+const oracleConnectRetryDelay = 300 * time.Millisecond
 
 type oracleConfig struct {
 	user             string
@@ -68,20 +70,30 @@ func openOracleDB(cfg oracleConfig) (*sql.DB, error) {
 		return nil, err
 	}
 
-	db, err := sql.Open("oracle", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("open oracle connection: %w", err)
-	}
+	var lastErr error
+	for attempt := 1; attempt <= oracleConnectRetryCount; attempt++ {
+		db, err := sql.Open("oracle", dsn)
+		if err != nil {
+			return nil, fmt.Errorf("open oracle connection: %w", err)
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err = db.PingContext(ctx)
+		cancel()
+		if err == nil {
+			return db, nil
+		}
 
-	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("ping oracle connection: %w", err)
+		lastErr = err
+		if attempt == oracleConnectRetryCount || !shouldRetryOracleConnectError(err) {
+			break
+		}
+
+		time.Sleep(oracleConnectRetryDelay)
 	}
 
-	return db, nil
+	return nil, fmt.Errorf("ping oracle connection: %w", lastErr)
 }
 
 func buildOracleDSN(cfg oracleConfig) (string, error) {
@@ -109,6 +121,18 @@ func buildOracleDSN(cfg oracleConfig) (string, error) {
 		url.QueryEscape(cfg.password),
 		cfg.connectionString,
 	), nil
+}
+
+func shouldRetryOracleConnectError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "use of closed network connection") ||
+		strings.Contains(message, "connection reset by peer") ||
+		strings.Contains(message, "broken pipe") ||
+		strings.Contains(message, "eof")
 }
 
 func (s *oracleHealthStore) TableExists(ctx context.Context) (bool, error) {
