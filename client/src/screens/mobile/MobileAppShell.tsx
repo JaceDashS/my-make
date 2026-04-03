@@ -4,11 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { windowsPressableFocusProps } from '../../shared/ui/windowsFocusProps';
 import { AcademyMembersSection } from '../../domains/members/AcademyMembersSection';
+import { InventoryHomeScreen } from '../../domains/inventory/InventoryHomeScreen';
 import { MembersHomeScreen } from '../../domains/members/MembersHomeScreen';
 import { useManagedAppShell } from '../shared/useManagedAppShell';
 import { getMobileShellLabels } from './mobile-shell/config/labels';
 import { MenuPanel } from './mobile-shell/components/MenuPanel';
-import { AccountSectionV2 as AccountSection } from './mobile-shell/pages/account/AccountSectionV2';
+import { AccountFeatureSection as AccountSection } from './mobile-shell/pages/account/AccountFeatureSection';
 import { DevHealthSection } from './mobile-shell/pages/settings/DevHealthSection';
 import { GeneralSection } from './mobile-shell/pages/settings/GeneralSection';
 import { mobileShellStyles as styles } from './mobile-shell/config/styles';
@@ -21,7 +22,7 @@ export function MobileAppShell() {
   const [showStudentSkinPreview, setShowStudentSkinPreview] = useState(false);
   const toggleAnimation = useRef(new Animated.Value(0)).current;
 
-  const [language, setLanguage] = useState<'ja' | 'en'>('ja');
+  const [language, setLanguage] = useState<'ja' | 'en'>('en');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const t = getMobileShellLabels(language);
   const p = getMobileShellPalette(theme);
@@ -31,6 +32,7 @@ export function MobileAppShell() {
     authError,
     authNotice,
     canAccessMembersPage,
+    canShowInventoryPage,
     canEditAuthPolicy,
     canEditStatus,
     confirmPassword,
@@ -72,6 +74,8 @@ export function MobileAppShell() {
     section,
     selectPage,
     selectSection,
+    showStudentReservationItem,
+    showTeacherReservationItem,
     targetStates,
   } = useManagedAppShell<MobileMenuSection>({
     closeMenu: () => setIsMenuOpen(false),
@@ -95,8 +99,15 @@ export function MobileAppShell() {
       return true;
     }
 
-    if (typeof globalThis.confirm === 'function') {
-      return globalThis.confirm(
+    const confirmDialog =
+      typeof globalThis === 'object' && 'confirm' in globalThis
+        ? (((globalThis as Record<string, unknown>).confirm as
+            | ((message?: string) => boolean)
+            | undefined))
+        : undefined;
+
+    if (typeof confirmDialog === 'function') {
+      return confirmDialog(
         'Student options has unsaved changes. Leave without saving?',
       );
     }
@@ -109,24 +120,35 @@ export function MobileAppShell() {
   };
 
   const choosePage = (
-    nextPage: 'settings' | 'account' | 'members',
+    nextPage: 'settings' | 'account' | 'members' | 'inventory',
     nextSection?: MobileMenuSection,
   ) => {
     if (!confirmStudentOptionsDiscard()) {
       return;
     }
+
+    const shouldCloseMenu =
+      page !== nextPage || (nextSection != null && section !== nextSection);
+
     selectPage(nextPage, {
-      closeMenuOnSelect: true,
+      closeMenuOnSelect: shouldCloseMenu,
       nextSection,
     });
   };
 
-  const choosePageGroup = (nextPage: 'settings' | 'account' | 'members') => {
-    if (!confirmStudentOptionsDiscard()) {
+  useEffect(() => {
+    const globalDocument =
+      typeof globalThis === 'object' && 'document' in globalThis
+        ? ((globalThis as Record<string, unknown>).document as {
+            documentElement?: {lang?: string};
+          })
+        : undefined;
+
+    if (!globalDocument?.documentElement) {
       return;
     }
-    selectPage(nextPage);
-  };
+    globalDocument.documentElement.lang = language === 'ja' ? 'ja' : 'en';
+  }, [language]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: p.appBg }]}>
@@ -198,9 +220,14 @@ export function MobileAppShell() {
           <Text style={[styles.topBarTitle, { color: p.text }]}>
             {page === 'settings'
               ? t.settings
-              : page === 'members'
-              ? t.members
-              : t.account}
+              : page === 'account' &&
+                  (section === 'login' ||
+                    section === 'register' ||
+                    section === 'student-options')
+                ? (t.myInfo ?? t.account)
+                : page === 'account'
+                  ? (t.classroom ?? t.account)
+                  : (t.adminMenu ?? t.members)}
           </Text>
         </View>
 
@@ -208,13 +235,15 @@ export function MobileAppShell() {
           {isMenuOpen ? (
             <MenuPanel
               isAuthenticated={isAuthenticated}
+              showInventoryPage={canShowInventoryPage}
               showMembersPage={canShowMembersPage}
+              showStudentReservationItem={showStudentReservationItem}
               showTeacherAccountItems={showTeacherAccountItems}
+              showTeacherReservationItem={showTeacherReservationItem}
               showStudentAccountItems={showStudentAccountItems}
               currentPage={page}
               currentSection={section}
               labels={t}
-              onSelectGroup={choosePageGroup}
               onSelectSection={choosePage}
               palette={p}
             />
@@ -260,6 +289,7 @@ export function MobileAppShell() {
               displayName={session?.displayName ?? displayName}
               email={session?.email ?? email}
               isAuthenticated={isAuthenticated}
+              language={language}
               profileDetails={session?.profileDetails ?? []}
               isSubmitting={authAction !== null}
               licenseCode={session?.licenseCode ?? licenseCode}
@@ -274,6 +304,7 @@ export function MobileAppShell() {
               onLogin={handleLogin}
               onLoginIdChange={setLoginId}
               onNoteChange={() => {}}
+              onOpenRegister={() => selectSection('register')}
               onLogout={handleLogout}
               onPasswordChange={setPassword}
               onProfilePasswordChange={() => {}}
@@ -325,20 +356,19 @@ export function MobileAppShell() {
               roleCode={session?.roleCode ?? ''}
             />
           ) : null}
+
+          {!isMenuOpen && page === 'inventory' && canShowInventoryPage ? (
+            <InventoryHomeScreen
+              language={language}
+              palette={p}
+              texts={t}
+            />
+          ) : null}
         </View>
       </View>
     </SafeAreaView>
   );
 }
-
-
-
-
-
-
-
-
-
 
 
 

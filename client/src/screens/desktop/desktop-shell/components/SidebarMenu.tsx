@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Pressable, Text, View} from 'react-native';
 
 import type {AppPage} from '../../../shared/shell-model';
@@ -12,10 +12,14 @@ export function SidebarMenu({
   disableConditionalVisibility,
   isOpen,
   isAuthenticated,
+  showInventoryPage,
   showMembersPage,
+  showStudentReservationItem,
   showTeacherAccountItems,
+  showTeacherReservationItem,
   showStudentAccountItems,
   labels,
+  onNavigate,
   onPageChange,
   onSectionChange,
   page,
@@ -26,17 +30,25 @@ export function SidebarMenu({
   disableConditionalVisibility: boolean;
   isOpen: boolean;
   isAuthenticated: boolean;
+  showInventoryPage: boolean;
   showMembersPage: boolean;
+  showStudentReservationItem: boolean;
   showTeacherAccountItems: boolean;
+  showTeacherReservationItem: boolean;
   showStudentAccountItems: boolean;
   labels: {
     account: string;
+    adminMenu?: string;
     academyMembers: string;
     availableSchedule: string;
+    classroom?: string;
     devHealth: string;
     general: string;
+    inventory: string;
+    inventoryList: string;
     login: string;
     members: string;
+    myInfo?: string;
     pendingApproval: string;
     preset: string;
     profile: string;
@@ -46,46 +58,88 @@ export function SidebarMenu({
     settings: string;
     studentOptions: string;
   };
-  onPageChange: (page: AppPage) => void;
-  onSectionChange: (section: DesktopMenuSection) => void;
+  onNavigate: (page: AppPage, section: DesktopMenuSection) => void;
+  onPageChange?: (page: AppPage) => void;
+  onSectionChange?: (section: DesktopMenuSection) => void;
   page: AppPage;
   palette: DesktopShellPalette;
   section: DesktopMenuSection;
 }) {
-  const academyMembersLabel = labels.academyMembers;
-  const accountItemCount =
+  const [settingsTapCount, setSettingsTapCount] = useState(0);
+  const [devHealthUnlocked, setDevHealthUnlocked] = useState(
+    section === 'dev-health',
+  );
+  const myInfoLabel = labels.myInfo ?? labels.account;
+  const classroomLabel = labels.classroom ?? labels.account;
+  const adminMenuLabel = labels.adminMenu ?? labels.members;
+  const myInfoItemCount =
     (!isAuthenticated || disableConditionalVisibility ? 2 : 1) +
-    (showTeacherAccountItems ? 3 : 0) +
-    (showStudentAccountItems ? 2 : 0);
+    (showStudentAccountItems ? 1 : 0);
+  const classroomItemCount =
+    (showTeacherAccountItems ? 2 : 0) +
+    (showTeacherReservationItem ? 1 : 0) +
+    (showStudentReservationItem ? 1 : 0);
+  const adminMenuItemCount =
+    (showMembersPage ? 2 : 0) + (showInventoryPage ? 1 : 0);
+  const settingsActive = page === 'settings';
+  const myInfoActive =
+    page === 'account' &&
+    (section === 'login' ||
+      section === 'register' ||
+      section === 'student-options');
+  const classroomActive =
+    page === 'account' &&
+    (section === 'preset' ||
+      section === 'available-schedule' ||
+      section === 'reservation-view' ||
+      section === 'reservation');
+  const adminMenuActive = page === 'members' || page === 'inventory';
   const settingsAnimation = useRef(
-    new Animated.Value(page === 'settings' ? 1 : 0),
+    new Animated.Value(settingsActive ? 1 : 0),
   ).current;
   const accountAnimation = useRef(
-    new Animated.Value(page === 'account' ? 1 : 0),
+    new Animated.Value(myInfoActive ? 1 : 0),
   ).current;
   const membersAnimation = useRef(
-    new Animated.Value(page === 'members' ? 1 : 0),
+    new Animated.Value(classroomActive ? 1 : 0),
+  ).current;
+  const inventoryAnimation = useRef(
+    new Animated.Value(adminMenuActive ? 1 : 0),
   ).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(settingsAnimation, {
         duration: 180,
-        toValue: page === 'settings' ? 1 : 0,
+        toValue: settingsActive ? 1 : 0,
         useNativeDriver: false,
       }),
       Animated.timing(accountAnimation, {
         duration: 180,
-        toValue: page === 'account' ? 1 : 0,
+        toValue: myInfoActive ? 1 : 0,
         useNativeDriver: false,
       }),
       Animated.timing(membersAnimation, {
         duration: 180,
-        toValue: page === 'members' ? 1 : 0,
+        toValue: classroomActive ? 1 : 0,
+        useNativeDriver: false,
+      }),
+      Animated.timing(inventoryAnimation, {
+        duration: 180,
+        toValue: adminMenuActive ? 1 : 0,
         useNativeDriver: false,
       }),
     ]).start();
-  }, [accountAnimation, membersAnimation, page, settingsAnimation]);
+  }, [
+    accountAnimation,
+    adminMenuActive,
+    classroomActive,
+    inventoryAnimation,
+    membersAnimation,
+    myInfoActive,
+    settingsActive,
+    settingsAnimation,
+  ]);
 
   const getTopLevelTextStyle = () => [
     styles.sidebarItemLabel,
@@ -95,6 +149,43 @@ export function SidebarMenu({
       opacity: 1,
     },
   ];
+  const showDevHealthItem = devHealthUnlocked || section === 'dev-health';
+  const settingsSubmenuHeight = showDevHealthItem ? 96 : 52;
+
+  const resetSettingsTapCount = () => {
+    setSettingsTapCount(0);
+  };
+
+  const handleSettingsPress = () => {
+    setSettingsTapCount(currentCount => {
+      const nextCount = currentCount + 1;
+      if (nextCount >= 5) {
+        setDevHealthUnlocked(true);
+        return 0;
+      }
+      return nextCount;
+    });
+    navigate('settings', 'general');
+  };
+
+  const navigate = (nextPage: AppPage, nextSection: DesktopMenuSection) => {
+    const staysOnSettingsTrigger =
+      nextPage === 'settings' && nextSection === 'general';
+    if (!staysOnSettingsTrigger) {
+      resetSettingsTapCount();
+    }
+
+    if (onNavigate) {
+      onNavigate(nextPage, nextSection);
+      return;
+    }
+
+    if (page !== nextPage) {
+      onPageChange?.(nextPage);
+    }
+
+    onSectionChange?.(nextSection);
+  };
 
   return (
     <Animated.View
@@ -105,7 +196,7 @@ export function SidebarMenu({
           backgroundColor: palette.sidebar,
           width: animation.interpolate({
             inputRange: [0, 1],
-            outputRange: [0, 220],
+            outputRange: [0, 250],
           }),
           paddingHorizontal: animation.interpolate({
             inputRange: [0, 1],
@@ -133,20 +224,20 @@ export function SidebarMenu({
           <>
             <Pressable
               {...windowsPressableFocusProps}
-              onPress={() => onPageChange('settings')}
+              onPress={handleSettingsPress}
               style={[styles.sidebarItem, {backgroundColor: palette.sidebarItem}]}>
               <Text style={getTopLevelTextStyle()}>{labels.settings}</Text>
             </Pressable>
             {/* 設定配下の項目は同じサイドバー内で展開する。 */}
             <Animated.View
-              pointerEvents={page === 'settings' ? 'auto' : 'none'}
+              pointerEvents={settingsActive ? 'auto' : 'none'}
               style={[
                 styles.sidebarSubmenuAnimated,
                 {
                   opacity: settingsAnimation,
                   maxHeight: settingsAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, 96],
+                    outputRange: [0, settingsSubmenuHeight],
                   }),
                   transform: [
                     {
@@ -162,36 +253,38 @@ export function SidebarMenu({
                 <SidebarSubItem
                   active={section === 'general'}
                   label={labels.general}
-                  onPress={() => onSectionChange('general')}
+                  onPress={() => navigate('settings', 'general')}
                   palette={palette}
                 />
-                <SidebarSubItem
-                  active={section === 'dev-health'}
-                  label={labels.devHealth}
-                  onPress={() => onSectionChange('dev-health')}
-                  palette={palette}
-                />
+                {showDevHealthItem ? (
+                  <SidebarSubItem
+                    active={section === 'dev-health'}
+                    label={labels.devHealth}
+                    onPress={() => navigate('settings', 'dev-health')}
+                    palette={palette}
+                  />
+                ) : null}
               </View>
             </Animated.View>
             <Pressable
               {...windowsPressableFocusProps}
-              onPress={() => onPageChange('account')}
+              onPress={() => navigate('account', 'login')}
               style={[
                 styles.sidebarItem,
                 styles.sidebarItemSpaced,
                 {backgroundColor: palette.sidebarItem},
               ]}>
-              <Text style={getTopLevelTextStyle()}>{labels.account}</Text>
+              <Text style={getTopLevelTextStyle()}>{myInfoLabel}</Text>
             </Pressable>
             <Animated.View
-              pointerEvents={page === 'account' ? 'auto' : 'none'}
+              pointerEvents={myInfoActive ? 'auto' : 'none'}
               style={[
                 styles.sidebarSubmenuAnimated,
                 {
                   opacity: accountAnimation,
                   maxHeight: accountAnimation.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, 52 + accountItemCount * 48],
+                    outputRange: [0, 52 + myInfoItemCount * 48],
                   }),
                   transform: [
                     {
@@ -207,78 +300,57 @@ export function SidebarMenu({
                 <SidebarSubItem
                   active={section === 'login'}
                   label={isAuthenticated ? labels.profile : labels.login}
-                  onPress={() => onSectionChange('login')}
+                  onPress={() => navigate('account', 'login')}
                   palette={palette}
                 />
                 {!isAuthenticated || disableConditionalVisibility ? (
                   <SidebarSubItem
                     active={section === 'register'}
                     label={labels.register}
-                    onPress={() => onSectionChange('register')}
+                    onPress={() => navigate('account', 'register')}
                     palette={palette}
                   />
                 ) : null}
-                {showTeacherAccountItems ? (
-                  <>
-                    <SidebarSubItem
-                      active={section === 'preset'}
-                      label={labels.preset}
-                      onPress={() => onSectionChange('preset')}
-                      palette={palette}
-                    />
-                    <SidebarSubItem
-                      active={section === 'available-schedule'}
-                      label={labels.availableSchedule}
-                      onPress={() => onSectionChange('available-schedule')}
-                      palette={palette}
-                    />
-                    <SidebarSubItem
-                      active={section === 'reservation-view'}
-                      label={labels.reservationView}
-                      onPress={() => onSectionChange('reservation-view')}
-                      palette={palette}
-                    />
-                  </>
-                ) : null}
                 {showStudentAccountItems ? (
-                  <>
-                    <SidebarSubItem
-                      active={section === 'student-options'}
-                      label={labels.studentOptions}
-                      onPress={() => onSectionChange('student-options')}
-                      palette={palette}
-                    />
-                    <SidebarSubItem
-                      active={section === 'reservation'}
-                      label={labels.reservation}
-                      onPress={() => onSectionChange('reservation')}
-                      palette={palette}
-                    />
-                  </>
+                  <SidebarSubItem
+                    active={section === 'student-options'}
+                    label={labels.studentOptions}
+                    onPress={() => navigate('account', 'student-options')}
+                    palette={palette}
+                  />
                 ) : null}
               </View>
             </Animated.View>
-            {showMembersPage ? (
+            {classroomItemCount > 0 ? (
               <>
                 <Pressable
                   {...windowsPressableFocusProps}
-                  onPress={() => onPageChange('members')}
+                  onPress={() =>
+                    navigate(
+                      'account',
+                      showTeacherReservationItem
+                        ? 'reservation-view'
+                        : showTeacherAccountItems
+                        ? 'available-schedule'
+                        : 'reservation',
+                    )
+                  }
                   style={[
                     styles.sidebarItem,
                     styles.sidebarItemSpaced,
                     {backgroundColor: palette.sidebarItem},
                   ]}>
-                  <Text style={getTopLevelTextStyle()}>{labels.members}</Text>
+                  <Text style={getTopLevelTextStyle()}>{classroomLabel}</Text>
                 </Pressable>
                 <Animated.View
-                  pointerEvents={page === 'members' ? 'auto' : 'none'}
+                  pointerEvents={classroomActive ? 'auto' : 'none'}
                   style={[
                     styles.sidebarSubmenuAnimated,
                     {
                       opacity: membersAnimation,
                       maxHeight: membersAnimation.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0, 116],
+                        outputRange: [0, 20 + classroomItemCount * 48],
                       }),
                       transform: [
                         {
@@ -291,18 +363,104 @@ export function SidebarMenu({
                     },
                   ]}>
                   <View style={styles.sidebarSubmenu}>
-                    <SidebarSubItem
-                      active={section === 'pending-approval'}
-                      label={labels.pendingApproval}
-                      onPress={() => onSectionChange('pending-approval')}
-                      palette={palette}
-                    />
-                    <SidebarSubItem
-                      active={section === 'academy-members'}
-                      label={academyMembersLabel}
-                      onPress={() => onSectionChange('academy-members')}
-                      palette={palette}
-                    />
+                    {showTeacherReservationItem ? (
+                      <SidebarSubItem
+                        active={section === 'reservation-view'}
+                        label={labels.reservationView}
+                        onPress={() => navigate('account', 'reservation-view')}
+                        palette={palette}
+                      />
+                    ) : null}
+                    {showTeacherAccountItems ? (
+                      <SidebarSubItem
+                        active={section === 'available-schedule'}
+                        label={labels.availableSchedule}
+                        onPress={() => navigate('account', 'available-schedule')}
+                        palette={palette}
+                      />
+                    ) : null}
+                    {showTeacherAccountItems ? (
+                      <SidebarSubItem
+                        active={section === 'preset'}
+                        label={labels.preset}
+                        onPress={() => navigate('account', 'preset')}
+                        palette={palette}
+                      />
+                    ) : null}
+                    {showStudentReservationItem ? (
+                      <SidebarSubItem
+                        active={section === 'reservation'}
+                        label={labels.reservation}
+                        onPress={() => navigate('account', 'reservation')}
+                        palette={palette}
+                      />
+                    ) : null}
+                  </View>
+                </Animated.View>
+              </>
+            ) : null}
+            {adminMenuItemCount > 0 ? (
+              <>
+                <Pressable
+                  {...windowsPressableFocusProps}
+                  onPress={() =>
+                    navigate(
+                      showMembersPage ? 'members' : 'inventory',
+                      showMembersPage ? 'pending-approval' : 'inventory-list',
+                    )
+                  }
+                  style={[
+                    styles.sidebarItem,
+                    styles.sidebarItemSpaced,
+                    {backgroundColor: palette.sidebarItem},
+                  ]}>
+                  <Text style={getTopLevelTextStyle()}>{adminMenuLabel}</Text>
+                </Pressable>
+                <Animated.View
+                  pointerEvents={adminMenuActive ? 'auto' : 'none'}
+                  style={[
+                    styles.sidebarSubmenuAnimated,
+                    {
+                      opacity: inventoryAnimation,
+                      maxHeight: inventoryAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 20 + adminMenuItemCount * 48],
+                      }),
+                      transform: [
+                        {
+                          translateY: inventoryAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-8, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}>
+                  <View style={styles.sidebarSubmenu}>
+                    {showMembersPage ? (
+                      <SidebarSubItem
+                        active={section === 'pending-approval'}
+                        label={labels.pendingApproval}
+                        onPress={() => navigate('members', 'pending-approval')}
+                        palette={palette}
+                      />
+                    ) : null}
+                    {showMembersPage ? (
+                      <SidebarSubItem
+                        active={section === 'academy-members'}
+                        label={labels.academyMembers}
+                        onPress={() => navigate('members', 'academy-members')}
+                        palette={palette}
+                      />
+                    ) : null}
+                    {showInventoryPage ? (
+                      <SidebarSubItem
+                        active={section === 'inventory-list'}
+                        label={labels.inventoryList}
+                        onPress={() => navigate('inventory', 'inventory-list')}
+                        palette={palette}
+                      />
+                    ) : null}
                   </View>
                 </Animated.View>
               </>
