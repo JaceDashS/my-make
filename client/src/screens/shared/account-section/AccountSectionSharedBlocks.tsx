@@ -25,12 +25,12 @@ type SharedBlockProps = {
 
 type LoginCardProps = SharedBlockProps & {
   authError: string | null;
-  authNotice: string | null;
   isSubmitting: boolean;
   loginId: string;
   loginMutedPalette: any;
   onLogin: () => void;
   onLoginIdChange: (value: string) => void;
+  onOpenRegister: () => void;
   onPasswordChange: (value: string) => void;
   password: string;
 };
@@ -71,12 +71,12 @@ type RegisterSectionProps = SharedBlockProps & {
 
 export function AccountLoginCard({
   authError,
-  authNotice,
   isSubmitting,
   loginId,
   loginMutedPalette,
   onLogin,
   onLoginIdChange,
+  onOpenRegister,
   onPasswordChange,
   palette,
   password,
@@ -84,18 +84,18 @@ export function AccountLoginCard({
   texts,
   ui,
 }: LoginCardProps) {
-  const {BodyText, Card, FieldLabel} = ui;
+  const {Card, FieldLabel} = ui;
 
   return (
     <Card palette={loginMutedPalette} title={texts.login}>
-      <BodyText palette={loginMutedPalette}>{texts.guestHint}</BodyText>
       <FieldLabel palette={loginMutedPalette}>{texts.loginId}</FieldLabel>
       <TextInput
         {...windowsTextInputFocusProps}
         autoCapitalize="none"
+        autoComplete="username"
         onChangeText={onLoginIdChange}
         onSubmitEditing={onLogin}
-        placeholder="root-admin"
+        placeholder={texts.loginIdPlaceholder}
         placeholderTextColor={palette.textMuted}
         returnKeyType="done"
         style={[
@@ -111,9 +111,10 @@ export function AccountLoginCard({
       <FieldLabel palette={loginMutedPalette}>{texts.password}</FieldLabel>
       <TextInput
         {...windowsTextInputFocusProps}
+        autoComplete="current-password"
         onChangeText={onPasswordChange}
         onSubmitEditing={onLogin}
-        placeholder="••••••••"
+        placeholder={texts.passwordPlaceholder}
         placeholderTextColor={palette.textMuted}
         returnKeyType="done"
         secureTextEntry
@@ -127,11 +128,6 @@ export function AccountLoginCard({
         ]}
         value={password}
       />
-      {authNotice ? (
-        <Card palette={loginMutedPalette} title={texts.loginNotice}>
-          <BodyText palette={loginMutedPalette}>{authNotice}</BodyText>
-        </Card>
-      ) : null}
       {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
       <View style={styles.optionRow}>
         <ActionButton
@@ -141,6 +137,15 @@ export function AccountLoginCard({
           onPress={onLogin}
           style={styles.actionButton}
           textColor={palette.primaryText}
+          titleStyle={styles.actionText}
+        />
+        <ActionButton
+          backgroundColor={palette.soft}
+          isLoading={false}
+          label={texts.register}
+          onPress={onOpenRegister}
+          style={styles.actionButton}
+          textColor={palette.text}
           titleStyle={styles.actionText}
         />
       </View>
@@ -216,7 +221,6 @@ export function AccountRegisterSection({
   return (
     <>
       <Card palette={palette} title={texts.register}>
-        <BodyText palette={palette}>{texts.registerBody}</BodyText>
         <FieldLabel palette={palette}>{texts.registerType}</FieldLabel>
         <View style={styles.optionRow}>
           <OptionChip active={registerType === 'user'} label={texts.registerTypeUser} onPress={() => onRegisterTypeChange('user')} palette={palette} />
@@ -226,9 +230,8 @@ export function AccountRegisterSection({
 
       {registerType === 'user' ? (
         <Card palette={palette} title={texts.registerTypeUser}>
-          <BodyText palette={palette}>{texts.memberRegisterBody}</BodyText>
           <FieldLabel palette={palette}>{requiredLabel(texts.loginId)}</FieldLabel>
-          <TextInput {...windowsTextInputFocusProps} autoCapitalize="none" onChangeText={onLoginIdChange} onSubmitEditing={handleRegisterSubmit} placeholder="new-member" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={loginId} />
+          <TextInput {...windowsTextInputFocusProps} autoCapitalize="none" autoComplete="username" onChangeText={onLoginIdChange} onSubmitEditing={handleRegisterSubmit} placeholder="new-member" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={loginId} />
           <FieldLabel palette={palette}>{requiredLabel(texts.displayName)}</FieldLabel>
           <TextInput {...windowsTextInputFocusProps} onChangeText={onDisplayNameChange} onSubmitEditing={handleRegisterSubmit} placeholder="New Member" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={displayName} />
           <FieldLabel palette={palette}>{texts.email}</FieldLabel>
@@ -242,9 +245,9 @@ export function AccountRegisterSection({
             <OptionChip active={requestedRoleCode === 'ADMIN'} label={texts.memberRoleAdmin} onPress={() => onRequestedRoleCodeChange('ADMIN')} palette={palette} />
           </View>
           <FieldLabel palette={palette}>{requiredLabel(texts.password)}</FieldLabel>
-          <TextInput {...windowsTextInputFocusProps} onChangeText={onPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={password} />
+          <TextInput {...windowsTextInputFocusProps} autoComplete="new-password" onChangeText={onPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={password} />
           <FieldLabel palette={palette}>{requiredLabel(texts.confirmPassword)}</FieldLabel>
-          <TextInput {...windowsTextInputFocusProps} onChangeText={onConfirmPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={confirmPassword} />
+          <TextInput {...windowsTextInputFocusProps} autoComplete="new-password" onChangeText={onConfirmPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={confirmPassword} />
           {registerError ? <Text style={styles.errorText}>{registerError}</Text> : null}
           {registerSuccess ? <Text style={[styles.bodyText, {color: palette.text}]}>{registerSuccess}</Text> : null}
           <View style={styles.optionRow}>
@@ -254,13 +257,12 @@ export function AccountRegisterSection({
       ) : (
         <>
           <Card palette={palette} title={texts.registerRoot}>
-            <BodyText palette={palette}>{texts.registerRootBody}</BodyText>
             <FieldLabel palette={palette}>{requiredLabel(texts.licenseCode)}</FieldLabel>
             <TextInput {...windowsTextInputFocusProps} autoCapitalize="characters" onChangeText={onLicenseCodeChange} onSubmitEditing={handleRegisterSubmit} placeholder="LICENSE-CODE" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={licenseCode} />
             <FieldLabel palette={palette}>{requiredLabel(texts.academyName)}</FieldLabel>
             <TextInput {...windowsTextInputFocusProps} onChangeText={onAcademyNameChange} onSubmitEditing={handleRegisterSubmit} placeholder="My Academy" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={academyName} />
             <FieldLabel palette={palette}>{requiredLabel(texts.rootLoginId)}</FieldLabel>
-            <TextInput {...windowsTextInputFocusProps} autoCapitalize="none" onChangeText={onLoginIdChange} onSubmitEditing={handleRegisterSubmit} placeholder="root-admin" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={loginId} />
+            <TextInput {...windowsTextInputFocusProps} autoCapitalize="none" autoComplete="username" onChangeText={onLoginIdChange} onSubmitEditing={handleRegisterSubmit} placeholder="root-admin" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={loginId} />
             <FieldLabel palette={palette}>{requiredLabel(texts.displayName)}</FieldLabel>
             <TextInput {...windowsTextInputFocusProps} onChangeText={onDisplayNameChange} onSubmitEditing={handleRegisterSubmit} placeholder="Root Admin" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={displayName} />
             <FieldLabel palette={palette}>{texts.email}</FieldLabel>
@@ -268,20 +270,15 @@ export function AccountRegisterSection({
             <FieldLabel palette={palette}>{requiredLabel(texts.phone)}</FieldLabel>
             <TextInput {...windowsTextInputFocusProps} keyboardType="phone-pad" onChangeText={value => onPhoneChange(formatAccountPhoneNumber(value))} onSubmitEditing={handleRegisterSubmit} placeholder="010-0000-0000" placeholderTextColor={palette.textMuted} returnKeyType="done" style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={phone} />
             <FieldLabel palette={palette}>{requiredLabel(texts.password)}</FieldLabel>
-            <TextInput {...windowsTextInputFocusProps} onChangeText={onPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={password} />
+            <TextInput {...windowsTextInputFocusProps} autoComplete="new-password" onChangeText={onPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={password} />
             <FieldLabel palette={palette}>{requiredLabel(texts.confirmPassword)}</FieldLabel>
-            <TextInput {...windowsTextInputFocusProps} onChangeText={onConfirmPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={confirmPassword} />
+            <TextInput {...windowsTextInputFocusProps} autoComplete="new-password" onChangeText={onConfirmPasswordChange} onSubmitEditing={handleRegisterSubmit} placeholder="••••••••" placeholderTextColor={palette.textMuted} returnKeyType="done" secureTextEntry style={[styles.input, {backgroundColor: palette.muted, borderColor: palette.border, color: palette.text}]} value={confirmPassword} />
             {registerError ? <Text style={styles.errorText}>{registerError}</Text> : null}
             {registerSuccess ? <Text style={[styles.bodyText, {color: palette.text}]}>{registerSuccess}</Text> : null}
             <View style={styles.optionRow}>
               <ActionButton backgroundColor={palette.primary} isLoading={isSubmitting} label={texts.createAccount} onPress={onRegister} style={styles.actionButton} textColor={palette.primaryText} titleStyle={styles.actionText} />
             </View>
           </Card>
-          {texts.registerHint ? (
-            <Card palette={palette} title={texts.registerCta ?? ''}>
-              <BodyText palette={palette}>{texts.registerHint ?? ''}</BodyText>
-            </Card>
-          ) : null}
         </>
       )}
     </>

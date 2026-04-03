@@ -18,6 +18,7 @@ type ActionButtonProps = {
   backgroundColor: string;
   disabled?: boolean;
   hint?: string;
+  testID?: string;
   isLoading?: boolean;
   label: string;
   onPress: () => void;
@@ -31,6 +32,7 @@ export function ActionButton({
   backgroundColor,
   disabled = false,
   hint,
+  testID,
   isLoading = false,
   label,
   onPress,
@@ -66,7 +68,8 @@ export function ActionButton({
       onPress={onPress}
       onPressIn={() => animateTo(pressValue, 1, 80)}
       onPressOut={() => animateTo(pressValue, 0, 140)}
-      style={styles.pressable}>
+      style={styles.pressable}
+      testID={testID}>
       <Animated.View
         style={[
           styles.surface,

@@ -3,6 +3,7 @@ import {
   Alert,
   DeviceEventEmitter,
   Image,
+  type LayoutChangeEvent,
   NativeModules,
   PanResponder,
   Platform,
@@ -29,6 +30,7 @@ import {buildHclPickerImageDataUri, hclToHexColor} from './hclColorRaster';
 
 type PaletteLike = {
   border: string;
+  card?: string;
   muted: string;
   primary: string;
   primaryText: string;
@@ -45,6 +47,34 @@ type UiComponents = {
   OptionChip: React.ComponentType<any>;
 };
 
+type SkinTexts = {
+  cancel: string;
+  studentOptionsSkinData: string;
+  studentOptionsMySkin: string;
+  studentOptionsTraits: string;
+  studentOptionsPreferencePoints: string;
+  studentOptionsCategory: string;
+  studentOptionsActions: string;
+  studentOptionsLightness: string;
+  studentOptionsHue: string;
+  studentOptionsChroma: string;
+  studentOptionsRangeRadius: string;
+  studentOptionsSave: string;
+  studentOptionsReset: string;
+  studentOptionsDone: string;
+  studentOptionsToolSelect: string;
+  studentOptionsToolRange: string;
+  studentOptionsZoom: string;
+  studentOptionsTraitsPlaceholder: string;
+  studentOptionsNoTraits: string;
+  studentOptionsNoPoints: string;
+  studentOptionsPoints: string;
+  studentOptionsDeleteTitle: string;
+  studentOptionsDeleteMessage: string;
+  studentOptionsDeleteConfirm: string;
+  studentOptionsUseFullSkinRange: string;
+};
+
 type Props = {
   isSubmitting: boolean;
   onDirtyChange?: (isDirty: boolean) => void;
@@ -53,6 +83,7 @@ type Props = {
   profileDetails: ProfileDetail[];
   showDevPreview: boolean;
   styles: any;
+  texts: SkinTexts;
   title: string;
   ui: UiComponents;
   onSaveProfile: (overrides?: {
@@ -79,11 +110,8 @@ type SkinSelection = {
 };
 
 type SliderEventLike = {
-  nativeEvent?: {
-    layout?: {width?: number};
-    locationX?: number;
-    pageX?: number;
-  };
+  currentTarget?: any;
+  nativeEvent?: any;
 };
 
 type SliderGestureLike = {
@@ -92,8 +120,6 @@ type SliderGestureLike = {
 };
 
 type SliderInputPhase = 'grant' | 'move';
-type SkinFieldKey = 'skinLValue' | 'skinCValue' | 'skinHValue';
-
 const SKIN_L_MIN = 35;
 const SKIN_L_MAX = 75;
 const SKIN_C_MIN = 10;
@@ -110,6 +136,41 @@ const POINT_H_MIN = 0;
 const POINT_H_MAX = 359;
 const PREF_PICKER_RASTER_WIDTH = 200;
 const PREF_PICKER_RASTER_HEIGHT = 140;
+const RANGE_RADIUS_MAX = 120;
+const RANGE_RADIUS_GROWTH = 3.5;
+const DEFAULT_POINT_RANGE = 10;
+
+function getSkinPlaneBounds(useFullRange: boolean) {
+  if (useFullRange) {
+    return {
+      cMax: POINT_C_MAX,
+      cMin: POINT_C_MIN,
+      hMax: POINT_H_MAX,
+      hMin: POINT_H_MIN,
+    };
+  }
+
+  return {
+    cMax: SKIN_C_MAX,
+    cMin: SKIN_C_MIN,
+    hMax: SKIN_H_MAX,
+    hMin: SKIN_H_MIN,
+  };
+}
+
+function getSkinLightnessBounds(useFullRange: boolean) {
+  if (useFullRange) {
+    return {
+      lMax: POINT_L_MAX,
+      lMin: 0,
+    };
+  }
+
+  return {
+    lMax: SKIN_L_MAX,
+    lMin: SKIN_L_MIN,
+  };
+}
 
 
 type ViewBounds = {hMin: number; hMax: number; cMin: number; cMax: number};
@@ -119,28 +180,137 @@ const DEFAULT_VIEW_BOUNDS: ViewBounds = {
   cMin: POINT_C_MIN,
   cMax: POINT_C_MAX,
 };
+const FIXED_BOARD_ASPECT_RATIO =
+  (DEFAULT_VIEW_BOUNDS.hMax - DEFAULT_VIEW_BOUNDS.hMin) /
+  Math.max(1, DEFAULT_VIEW_BOUNDS.cMax - DEFAULT_VIEW_BOUNDS.cMin);
 
 type PickerTool = 'select' | 'range';
-const PICKER_TOOLS: Array<{id: PickerTool; icon: string; label: string}> = [
-  {id: 'select', icon: '◎', label: 'Select point'},
-  {id: 'range', icon: '⬡', label: 'Set range'},
-];
+const PICKER_TOOL_IDS: PickerTool[] = ['select', 'range'];
 
-function resolvePointerButton(nativeEvent?: {
-  button?: number;
-  buttons?: number;
-}): number | null {
-  if (typeof nativeEvent?.button === 'number') {
-    return nativeEvent.button;
+function PickerSidebarIcon({
+  palette,
+  type,
+  active,
+}: {
+  palette: PaletteLike;
+  type: PickerTool | 'grip' | 'zoom';
+  active: boolean;
+}) {
+  const stroke = active ? palette.primaryText : palette.text;
+  const softStroke = active ? palette.primaryText : palette.textMuted;
+
+  if (type === 'select') {
+    return (
+      <View style={{width: 16, height: 16, alignItems: 'center', justifyContent: 'center'}}>
+        <View
+          style={{
+            position: 'absolute',
+            width: 12,
+            height: 12,
+            borderRadius: 999,
+            borderWidth: 1.5,
+            borderColor: stroke,
+          }}
+        />
+        <View
+          style={{
+            position: 'absolute',
+            width: 2,
+            height: 12,
+            backgroundColor: stroke,
+          }}
+        />
+        <View
+          style={{
+            position: 'absolute',
+            width: 12,
+            height: 2,
+            backgroundColor: stroke,
+          }}
+        />
+        <View
+          style={{
+            width: 4,
+            height: 4,
+            borderRadius: 999,
+            backgroundColor: stroke,
+          }}
+        />
+      </View>
+    );
   }
-  if (typeof nativeEvent?.buttons === 'number') {
-    if ((nativeEvent.buttons & 2) === 2) {
+
+  if (type === 'range') {
+    return (
+      <View style={{width: 16, height: 16, alignItems: 'center', justifyContent: 'center'}}>
+        <View
+          style={{
+            position: 'absolute',
+            width: 14,
+            height: 14,
+            borderRadius: 999,
+            borderWidth: 1.5,
+            borderColor: stroke,
+          }}
+        />
+        <View
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 999,
+            borderWidth: 1.5,
+            borderColor: stroke,
+            backgroundColor: 'transparent',
+          }}
+        />
+      </View>
+    );
+  }
+
+  if (type === 'grip') {
+    return (
+      <Text
+        style={{
+          fontSize: 12,
+          lineHeight: 14,
+          fontWeight: '700',
+          color: stroke,
+          letterSpacing: -1,
+        }}>
+        |||
+      </Text>
+    );
+  }
+
+  return (
+    <Text
+      style={{
+        fontSize: 14,
+        lineHeight: 16,
+        fontWeight: '700',
+        color: stroke,
+      }}>
+      Q
+    </Text>
+  );
+}
+
+function resolvePointerButton(nativeEvent?: unknown): number | null {
+  const pointerEvent = nativeEvent as
+    | {button?: number; buttons?: number}
+    | undefined;
+
+  if (typeof pointerEvent?.button === 'number') {
+    return pointerEvent.button;
+  }
+  if (typeof pointerEvent?.buttons === 'number') {
+    if ((pointerEvent.buttons & 2) === 2) {
       return 2;
     }
-    if ((nativeEvent.buttons & 4) === 4) {
+    if ((pointerEvent.buttons & 4) === 4) {
       return 1;
     }
-    if ((nativeEvent.buttons & 1) === 1) {
+    if ((pointerEvent.buttons & 1) === 1) {
       return 0;
     }
   }
@@ -168,19 +338,78 @@ function zoomViewBounds(
   bWidth: number,
   bHeight: number,
 ): ViewBounds {
+  const defaultHRange = DEFAULT_VIEW_BOUNDS.hMax - DEFAULT_VIEW_BOUNDS.hMin;
+  const defaultCRange = DEFAULT_VIEW_BOUNDS.cMax - DEFAULT_VIEW_BOUNDS.cMin;
   const hRange = bounds.hMax - bounds.hMin;
   const cRange = bounds.cMax - bounds.cMin;
   const hCursor = bounds.hMin + (cursorX / Math.max(1, bWidth)) * hRange;
   const cCursor = bounds.cMax - (cursorY / Math.max(1, bHeight)) * cRange;
-  const newHRange = Math.max(10, hRange / factor);
-  const newCRange = Math.max(5, cRange / factor);
+  const currentScale = Math.min(hRange / defaultHRange, cRange / defaultCRange);
+  const minScale = Math.max(10 / defaultHRange, 5 / defaultCRange);
+  const nextScale = clamp(currentScale / factor, minScale, 1);
+  const newHRange = defaultHRange * nextScale;
+  const newCRange = defaultCRange * nextScale;
+
+  if (newHRange >= defaultHRange && newCRange >= defaultCRange) {
+    return {...DEFAULT_VIEW_BOUNDS};
+  }
+
   const hRatio = cursorX / Math.max(1, bWidth);
   const cRatio = cursorY / Math.max(1, bHeight);
   const rawHMin = hCursor - hRatio * newHRange;
   const rawCMax = cCursor + cRatio * newCRange;
-  const hMin = Math.max(POINT_H_MIN, Math.min(rawHMin, 360 - newHRange));
-  const cMax = Math.max(newCRange, Math.min(rawCMax, POINT_C_MAX));
+  const hMin =
+    newHRange >= defaultHRange
+      ? DEFAULT_VIEW_BOUNDS.hMin
+      : Math.max(POINT_H_MIN, Math.min(rawHMin, 360 - newHRange));
+  const cMax =
+    newCRange >= defaultCRange
+      ? DEFAULT_VIEW_BOUNDS.cMax
+      : Math.max(newCRange, Math.min(rawCMax, POINT_C_MAX));
   return {hMin, hMax: hMin + newHRange, cMin: cMax - newCRange, cMax};
+}
+
+function panViewBounds(
+  bounds: ViewBounds,
+  deltaX: number,
+  deltaY: number,
+  bWidth: number,
+  bHeight: number,
+): ViewBounds {
+  const hRange = bounds.hMax - bounds.hMin;
+  const cRange = bounds.cMax - bounds.cMin;
+  const nextHMin = clamp(
+    bounds.hMin - (deltaX / Math.max(1, bWidth)) * hRange,
+    DEFAULT_VIEW_BOUNDS.hMin,
+    DEFAULT_VIEW_BOUNDS.hMax - hRange,
+  );
+  const nextCMax = clamp(
+    bounds.cMax + (deltaY / Math.max(1, bHeight)) * cRange,
+    cRange,
+    DEFAULT_VIEW_BOUNDS.cMax,
+  );
+
+  return {
+    hMin: nextHMin,
+    hMax: nextHMin + hRange,
+    cMin: nextCMax - cRange,
+    cMax: nextCMax,
+  };
+}
+
+function rangeSliderRatioToRadius(ratio: number) {
+  const safeRatio = clamp(ratio, 0, 1);
+  const growthBase = Math.exp(RANGE_RADIUS_GROWTH) - 1;
+  return RANGE_RADIUS_MAX * ((Math.exp(RANGE_RADIUS_GROWTH * safeRatio) - 1) / growthBase);
+}
+
+function rangeRadiusToSliderRatio(radius: number) {
+  const safeRadius = clamp(radius, 0, RANGE_RADIUS_MAX);
+  if (safeRadius <= 0) {
+    return 0;
+  }
+  const growthBase = Math.exp(RANGE_RADIUS_GROWTH) - 1;
+  return Math.log(1 + (safeRadius / RANGE_RADIUS_MAX) * growthBase) / RANGE_RADIUS_GROWTH;
 }
 
 
@@ -189,6 +418,52 @@ const DEFAULT_SKIN_SELECTION = {
   c: 20,
   h: 57,
 } satisfies SkinSelection;
+
+function isLeftPointerPressed(nativeEvent?: unknown) {
+  const pointerEvent = nativeEvent as
+    | {button?: number; buttons?: number}
+    | undefined;
+
+  if (
+    pointerEvent &&
+    typeof pointerEvent.button !== 'number' &&
+    typeof pointerEvent.buttons !== 'number'
+  ) {
+    return true;
+  }
+
+  return (
+    pointerEvent?.button === 0 ||
+    pointerEvent?.buttons === 1 ||
+    (typeof pointerEvent?.buttons === 'number' && (pointerEvent.buttons & 1) === 1)
+  );
+}
+
+function isLeftPointerMoveActive(nativeEvent?: unknown) {
+  const pointerEvent = nativeEvent as {buttons?: number} | undefined;
+
+  if (!pointerEvent || typeof pointerEvent.buttons !== 'number') {
+    return true;
+  }
+
+  return pointerEvent.buttons === 1 || (pointerEvent.buttons & 1) === 1;
+}
+
+function resolveSliderLocalX(event: SliderEventLike, width: number) {
+  const nativeEvent = event.nativeEvent;
+  const rect =
+    event.currentTarget && typeof event.currentTarget.getBoundingClientRect === 'function'
+      ? event.currentTarget.getBoundingClientRect()
+      : null;
+  const rawX =
+    nativeEvent?.locationX ??
+    nativeEvent?.offsetX ??
+    (rect && typeof nativeEvent?.clientX === 'number'
+      ? nativeEvent.clientX - rect.left
+      : undefined);
+
+  return typeof rawX === 'number' ? clamp(rawX, 0, Math.max(1, width)) : undefined;
+}
 
 export function StudentSkinSection({
   isSubmitting,
@@ -199,11 +474,16 @@ export function StudentSkinSection({
   profileDetails,
   showDevPreview,
   styles,
+  texts,
   title,
   ui: {BodyStrong, Card, FieldLabel, OptionChip},
 }: Props) {
   const initialDraft = useMemo(() => buildInitialDraft(profileDetails), [profileDetails]);
-  const [draft, setDraft] = useState<DraftState>(initialDraft);
+  const normalizedInitialDraft = useMemo(
+    () => normalizeDraftSkinValues(initialDraft, false),
+    [initialDraft],
+  );
+  const [draft, setDraft] = useState<DraftState>(normalizedInitialDraft);
   const [isSkinTraitsEditing, setIsSkinTraitsEditing] = useState(false);
   const [selectedCategoryCode, setSelectedCategoryCode] =
     useState<PreferenceCategoryCode>('base_foundation');
@@ -212,21 +492,14 @@ export function StudentSkinSection({
     height: 180,
   });
   const [pickerSelection, setPickerSelection] = useState<SkinSelection>(() => ({
-    l: toNumberOrDefault(initialDraft.skinLValue, DEFAULT_SKIN_SELECTION.l),
-    c: toNumberOrDefault(initialDraft.skinCValue, DEFAULT_SKIN_SELECTION.c),
-    h: toNumberOrDefault(initialDraft.skinHValue, DEFAULT_SKIN_SELECTION.h),
+    l: toNumberOrDefault(normalizedInitialDraft.skinLValue, DEFAULT_SKIN_SELECTION.l),
+    c: toNumberOrDefault(normalizedInitialDraft.skinCValue, DEFAULT_SKIN_SELECTION.c),
+    h: toNumberOrDefault(normalizedInitialDraft.skinHValue, DEFAULT_SKIN_SELECTION.h),
   }));
   const [sliderWidths, setSliderWidths] = useState<Record<keyof SkinSelection, number>>({
     l: 1,
     c: 1,
     h: 1,
-  });
-  const [skinInputCommitVersion, setSkinInputCommitVersion] = useState<
-    Record<SkinFieldKey, number>
-  >({
-    skinLValue: 0,
-    skinCValue: 0,
-    skinHValue: 0,
   });
   const sliderInteractionState = useRef<
     Record<keyof SkinSelection, {originX: number | null}>
@@ -235,61 +508,45 @@ export function StudentSkinSection({
     c: {originX: null},
     h: {originX: null},
   });
-  const skinInputRefs = useRef<Record<SkinFieldKey, TextInput | null>>({
-    skinLValue: null,
-    skinCValue: null,
-    skinHValue: null,
-  });
-  const skinInputValueRef = useRef<Record<SkinFieldKey, string>>({
-    skinLValue: initialDraft.skinLValue,
-    skinCValue: initialDraft.skinCValue,
-    skinHValue: initialDraft.skinHValue,
-  });
   const skinPaletteOrigin = useRef<{x: number; y: number} | null>(null);
+  const isSkinPaletteDraggingRef = useRef(false);
+  const lastDirtyStateRef = useRef<boolean | null>(null);
+  const [isSkinFullRange, setIsSkinFullRange] = useState(false);
+  const skinPlaneBounds = useMemo(
+    () => getSkinPlaneBounds(isSkinFullRange),
+    [isSkinFullRange],
+  );
+  const skinLightnessBounds = useMemo(
+    () => getSkinLightnessBounds(isSkinFullRange),
+    [isSkinFullRange],
+  );
 
   const pickerPreview = pickerSelection;
   const pickerRasterLightness = Math.round(pickerPreview.l);
-  const currentSkinPoint = mapSkinLchToPalettePoint(pickerPreview, skinPaletteSize);
+  const currentSkinPoint = mapSkinLchToPalettePoint(
+    pickerPreview,
+    skinPaletteSize,
+    skinPlaneBounds,
+  );
   const pickerImageUri = useMemo(
     () =>
       buildHclPickerImageDataUri({
-        chromaMax: SKIN_C_MAX,
-        chromaMin: SKIN_C_MIN,
+        chromaMax: skinPlaneBounds.cMax,
+        chromaMin: skinPlaneBounds.cMin,
         height: PICKER_RASTER_HEIGHT,
-        hueMax: SKIN_H_MAX,
-        hueMin: SKIN_H_MIN,
+        hueMax: skinPlaneBounds.hMax,
+        hueMin: skinPlaneBounds.hMin,
         lightness: pickerRasterLightness,
         width: PICKER_RASTER_WIDTH,
       }),
-    [pickerRasterLightness],
+    [pickerRasterLightness, skinPlaneBounds],
   );
-  const pickerImageKey = `skin-picker-l-${pickerRasterLightness}`;
+  const pickerImageKey = `skin-picker-l-${pickerRasterLightness}-${skinPlaneBounds.hMin}-${skinPlaneBounds.hMax}-${skinPlaneBounds.cMin}-${skinPlaneBounds.cMax}`;
 
   useEffect(() => {
-    setDraft(initialDraft);
-    skinInputValueRef.current = {
-      skinLValue: initialDraft.skinLValue,
-      skinCValue: initialDraft.skinCValue,
-      skinHValue: initialDraft.skinHValue,
-    };
-    setPickerSelection({
-      l: toNumberOrDefault(initialDraft.skinLValue, DEFAULT_SKIN_SELECTION.l),
-      c: toNumberOrDefault(initialDraft.skinCValue, DEFAULT_SKIN_SELECTION.c),
-      h: toNumberOrDefault(initialDraft.skinHValue, DEFAULT_SKIN_SELECTION.h),
-    });
-    setIsSkinTraitsEditing(false);
-  }, [initialDraft]);
-
-  useEffect(() => {
-    const initialSkinLValue = formatSkinValue(
-      toNumberOrDefault(initialDraft.skinLValue, DEFAULT_SKIN_SELECTION.l),
-    );
-    const initialSkinCValue = formatSkinValue(
-      toNumberOrDefault(initialDraft.skinCValue, DEFAULT_SKIN_SELECTION.c),
-    );
-    const initialSkinHValue = formatSkinValue(
-      toNumberOrDefault(initialDraft.skinHValue, DEFAULT_SKIN_SELECTION.h),
-    );
+    const initialSkinLValue = normalizedInitialDraft.skinLValue;
+    const initialSkinCValue = normalizedInitialDraft.skinCValue;
+    const initialSkinHValue = normalizedInitialDraft.skinHValue;
     const currentSkinLValue = formatSkinValue(pickerSelection.l);
     const currentSkinCValue = formatSkinValue(pickerSelection.c);
     const currentSkinHValue = formatSkinValue(pickerSelection.h);
@@ -297,19 +554,22 @@ export function StudentSkinSection({
       currentSkinLValue !== initialSkinLValue ||
       currentSkinCValue !== initialSkinCValue ||
       currentSkinHValue !== initialSkinHValue ||
-      draft.skinTraits !== initialDraft.skinTraits ||
+      draft.skinTraits !== normalizedInitialDraft.skinTraits ||
       serializePreferencePointDocument(draft.preferencePoints) !==
-        serializePreferencePointDocument(initialDraft.preferencePoints);
+        serializePreferencePointDocument(normalizedInitialDraft.preferencePoints);
 
-    onDirtyChange?.(isDirty);
+    if (lastDirtyStateRef.current !== isDirty) {
+      lastDirtyStateRef.current = isDirty;
+      onDirtyChange?.(isDirty);
+    }
   }, [
     draft.preferencePoints,
     draft.skinTraits,
-    initialDraft.preferencePoints,
-    initialDraft.skinTraits,
-    initialDraft.skinCValue,
-    initialDraft.skinHValue,
-    initialDraft.skinLValue,
+    normalizedInitialDraft.preferencePoints,
+    normalizedInitialDraft.skinTraits,
+    normalizedInitialDraft.skinCValue,
+    normalizedInitialDraft.skinHValue,
+    normalizedInitialDraft.skinLValue,
     onDirtyChange,
     pickerSelection.c,
     pickerSelection.h,
@@ -319,15 +579,54 @@ export function StudentSkinSection({
   const handleSkinPaletteLayout = (event: LayoutChangeEvent) => {
     const {width, height} = event.nativeEvent.layout;
     if (width > 0 && height > 0) {
-      setSkinPaletteSize({width, height});
+      setSkinPaletteSize(current =>
+        current.width === width && current.height === height ? current : {width, height},
+      );
     }
   };
 
   const handleSkinPaletteInteraction = (event: any, phase: 'grant' | 'move') => {
-    const locationX: number = event.nativeEvent?.locationX ?? 0;
-    const locationY: number = event.nativeEvent?.locationY ?? 0;
+    const nativeEvent = event?.nativeEvent ?? event;
+    const currentTarget = event?.currentTarget;
+    const rect =
+      currentTarget && typeof currentTarget.getBoundingClientRect === 'function'
+        ? currentTarget.getBoundingClientRect()
+        : null;
+    const locationX: number =
+      nativeEvent?.locationX ??
+      nativeEvent?.offsetX ??
+      (rect && typeof nativeEvent?.clientX === 'number' ? nativeEvent.clientX - rect.left : 0);
+    const locationY: number =
+      nativeEvent?.locationY ??
+      nativeEvent?.offsetY ??
+      (rect && typeof nativeEvent?.clientY === 'number' ? nativeEvent.clientY - rect.top : 0);
     const pageX: number | undefined = event.nativeEvent?.pageX;
     const pageY: number | undefined = event.nativeEvent?.pageY;
+
+    const button = nativeEvent?.button;
+    const buttons = nativeEvent?.buttons;
+
+    if (phase === 'grant') {
+      const isLeftButtonDown =
+        button === 0 ||
+        buttons === 1 ||
+        (typeof buttons === 'number' && (buttons & 1) === 1);
+      if (!isLeftButtonDown) {
+        return;
+      }
+      isSkinPaletteDraggingRef.current = true;
+    }
+
+    if (phase === 'move') {
+      const isLeftButtonStillDown =
+        isSkinPaletteDraggingRef.current &&
+        (buttons == null ||
+          buttons === 1 ||
+          (typeof buttons === 'number' && (buttons & 1) === 1));
+      if (!isLeftButtonStillDown) {
+        return;
+      }
+    }
 
     if (phase === 'grant' && pageX != null && pageY != null) {
       skinPaletteOrigin.current = {x: pageX - locationX, y: pageY - locationY};
@@ -338,14 +637,18 @@ export function StudentSkinSection({
     const localY = pageY != null && origin != null ? pageY - origin.y : locationY;
 
     const h = clamp(
-      SKIN_H_MIN + (localX / Math.max(1, skinPaletteSize.width)) * (SKIN_H_MAX - SKIN_H_MIN),
-      SKIN_H_MIN,
-      SKIN_H_MAX,
+      skinPlaneBounds.hMin +
+        (localX / Math.max(1, skinPaletteSize.width)) *
+          (skinPlaneBounds.hMax - skinPlaneBounds.hMin),
+      skinPlaneBounds.hMin,
+      skinPlaneBounds.hMax,
     );
     const c = clamp(
-      SKIN_C_MIN + (1 - localY / PICKER_CANVAS_HEIGHT) * (SKIN_C_MAX - SKIN_C_MIN),
-      SKIN_C_MIN,
-      SKIN_C_MAX,
+      skinPlaneBounds.cMin +
+        (1 - localY / Math.max(1, skinPaletteSize.height)) *
+          (skinPlaneBounds.cMax - skinPlaneBounds.cMin),
+      skinPlaneBounds.cMin,
+      skinPlaneBounds.cMax,
     );
     setPickerSelection(current => ({
       ...current,
@@ -353,6 +656,29 @@ export function StudentSkinSection({
       c: Number(c.toFixed(4)),
     }));
   };
+
+  useEffect(() => {
+    const win = (globalThis as any).window;
+    if (!win?.addEventListener) {
+      return;
+    }
+
+    const stopSkinPaletteDrag = () => {
+      isSkinPaletteDraggingRef.current = false;
+    };
+
+    win.addEventListener('mouseup', stopSkinPaletteDrag);
+    win.addEventListener('pointerup', stopSkinPaletteDrag);
+    win.addEventListener('pointercancel', stopSkinPaletteDrag);
+    win.addEventListener('blur', stopSkinPaletteDrag);
+
+    return () => {
+      win.removeEventListener('mouseup', stopSkinPaletteDrag);
+      win.removeEventListener('pointerup', stopSkinPaletteDrag);
+      win.removeEventListener('pointercancel', stopSkinPaletteDrag);
+      win.removeEventListener('blur', stopSkinPaletteDrag);
+    };
+  }, []);
 
   const handlePreferencePickerHclChange = (
     code: PreferenceCategoryCode,
@@ -372,7 +698,7 @@ export function StudentSkinSection({
           if (cat.points.length === 0) {
             return {
               ...cat,
-              points: [{l: Number(l.toFixed(4)), c, h}],
+              points: [{l: Number(l.toFixed(4)), c, h, radius: DEFAULT_POINT_RANGE}],
             };
           }
           return {
@@ -384,15 +710,52 @@ export function StudentSkinSection({
     }));
   };
 
+  const handlePreferencePointRadiusChange = (
+    code: PreferenceCategoryCode,
+    radius: number,
+    pointIndex: number,
+  ) => {
+    setDraft(current => ({
+      ...current,
+      preferencePoints: {
+        ...current.preferencePoints,
+        categories: current.preferencePoints.categories.map(cat =>
+          cat.code === code
+            ? {
+                ...cat,
+                points: cat.points.map((pt, i) =>
+                  i === pointIndex ? {...pt, radius: Number(radius.toFixed(4))} : pt,
+                ),
+              }
+            : cat,
+        ),
+      },
+    }));
+  };
+
   const updatePickerSlider = (key: keyof SkinSelection, ratio: number) => {
+    const hBounds = {
+      max: skinPlaneBounds.hMax,
+      min: skinPlaneBounds.hMin,
+    };
+    const cBounds = {
+      max: skinPlaneBounds.cMax,
+      min: skinPlaneBounds.cMin,
+    };
     setPickerSelection(current => ({
       ...current,
       [key]:
         key === 'l'
-          ? Number(interpolate(SKIN_L_MIN, SKIN_L_MAX, clamp(ratio, 0, 1)).toFixed(4))
+          ? Number(
+              interpolate(
+                skinLightnessBounds.lMin,
+                skinLightnessBounds.lMax,
+                clamp(ratio, 0, 1),
+              ).toFixed(4),
+            )
           : key === 'h'
-          ? Number(interpolate(SKIN_H_MIN, SKIN_H_MAX, clamp(ratio, 0, 1)).toFixed(4))
-          : Number(interpolate(SKIN_C_MIN, SKIN_C_MAX, clamp(ratio, 0, 1)).toFixed(4)),
+          ? Number(interpolate(hBounds.min, hBounds.max, clamp(ratio, 0, 1)).toFixed(4))
+          : Number(interpolate(cBounds.min, cBounds.max, clamp(ratio, 0, 1)).toFixed(4)),
     }));
   };
 
@@ -407,13 +770,23 @@ export function StudentSkinSection({
       typeof measuredWidth === 'number' && measuredWidth > 0
         ? measuredWidth
         : sliderWidths[key];
-    const locationX = event.nativeEvent?.locationX;
+    const locationX = resolveSliderLocalX(event, width);
     const pageX = event.nativeEvent?.pageX;
     const moveX = gestureState?.moveX;
     const originXFromEvent =
       typeof pageX === 'number' && typeof locationX === 'number'
         ? pageX - locationX
         : null;
+
+    const nativeEvent = (event as any)?.nativeEvent;
+
+    if (phase === 'grant' && !isLeftPointerPressed(nativeEvent)) {
+      return;
+    }
+
+    if (phase === 'move' && !isLeftPointerMoveActive(nativeEvent)) {
+      return;
+    }
 
     if (phase === 'grant') {
       if (originXFromEvent !== null) {
@@ -430,7 +803,7 @@ export function StudentSkinSection({
         ? moveX
         : typeof pageX === 'number'
         ? pageX
-        : null;
+          : null;
     const originX = sliderInteractionState.current[key].originX;
     const localX =
       absoluteX !== null && originX !== null
@@ -459,37 +832,37 @@ export function StudentSkinSection({
   const sliderPanResponders = useMemo(
     () => ({
       l: PanResponder.create({
-        onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: event => isLeftPointerPressed(event?.nativeEvent),
         onPanResponderGrant: (event, gestureState) => {
           updatePickerSliderFromEvent('l', event, 'grant', gestureState);
         },
         onPanResponderMove: (event, gestureState) => {
           updatePickerSliderFromEvent('l', event, 'move', gestureState);
         },
-        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponder: event => isLeftPointerPressed(event?.nativeEvent),
       }),
       h: PanResponder.create({
-        onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: event => isLeftPointerPressed(event?.nativeEvent),
         onPanResponderGrant: (event, gestureState) => {
           updatePickerSliderFromEvent('h', event, 'grant', gestureState);
         },
         onPanResponderMove: (event, gestureState) => {
           updatePickerSliderFromEvent('h', event, 'move', gestureState);
         },
-        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponder: event => isLeftPointerPressed(event?.nativeEvent),
       }),
       c: PanResponder.create({
-        onMoveShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: event => isLeftPointerPressed(event?.nativeEvent),
         onPanResponderGrant: (event, gestureState) => {
           updatePickerSliderFromEvent('c', event, 'grant', gestureState);
         },
         onPanResponderMove: (event, gestureState) => {
           updatePickerSliderFromEvent('c', event, 'move', gestureState);
         },
-        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponder: event => isLeftPointerPressed(event?.nativeEvent),
       }),
     }),
-    [sliderWidths],
+    [skinPlaneBounds, sliderWidths],
   );
 
   const handleSave = async () => {
@@ -516,29 +889,31 @@ export function StudentSkinSection({
     );
   };
 
-  const applySkinFieldInput = (key: SkinFieldKey, rawValue?: string) => {
-    const config = getSkinFieldConfig(key);
-    const inputValue = rawValue ?? skinInputValueRef.current[key];
-    const parsed = Number(inputValue);
-    const nextValue = Number.isFinite(parsed)
-      ? clamp(parsed, config.min, config.max)
-      : pickerSelection[config.selectionKey];
-    const nextFormattedValue = formatSkinValue(nextValue);
+  const setSkinFullRange = (enabled: boolean) => {
+    const nextBounds = getSkinPlaneBounds(enabled);
+    const nextLightnessBounds = getSkinLightnessBounds(enabled);
+    const nextSelection = {
+      l: clamp(pickerSelection.l, nextLightnessBounds.lMin, nextLightnessBounds.lMax),
+      c: clamp(pickerSelection.c, nextBounds.cMin, nextBounds.cMax),
+      h: clamp(pickerSelection.h, nextBounds.hMin, nextBounds.hMax),
+    };
+    const nextSkinLValue = formatSkinValue(nextSelection.l);
+    const nextSkinCValue = formatSkinValue(nextSelection.c);
+    const nextSkinHValue = formatSkinValue(nextSelection.h);
 
-    skinInputRefs.current[key]?.setNativeProps?.({text: nextFormattedValue});
-    skinInputValueRef.current[key] = nextFormattedValue;
     setDraft(current => ({
       ...current,
-      [key]: nextFormattedValue,
-    }));
-    setSkinInputCommitVersion(current => ({
-      ...current,
-      [key]: current[key] + 1,
+      skinLValue: nextSkinLValue,
+      skinCValue: nextSkinCValue,
+      skinHValue: nextSkinHValue,
     }));
     setPickerSelection(current => ({
       ...current,
-      [config.selectionKey]: nextValue,
+      l: nextSelection.l,
+      c: nextSelection.c,
+      h: nextSelection.h,
     }));
+    setIsSkinFullRange(enabled);
   };
 
   const addPreferencePoint = (code: PreferenceCategoryCode) => {
@@ -546,6 +921,7 @@ export function StudentSkinSection({
       l: Number(pickerSelection.l.toFixed(4)),
       c: Number(pickerSelection.c.toFixed(4)),
       h: Number(pickerSelection.h.toFixed(4)),
+      radius: DEFAULT_POINT_RANGE,
     };
     setDraft(current => ({
       ...current,
@@ -578,15 +954,18 @@ export function StudentSkinSection({
   )!;
 
   return (
-    <View style={styles.stack}>
+    <View
+      style={[
+        styles.stack,
+        {
+          alignSelf: 'stretch',
+          backgroundColor: palette.card ?? '#ffffff',
+          minWidth: 0,
+          width: '100%',
+        },
+      ]}>
       <Card palette={palette} title={title}>
-        <FieldLabel palette={palette}>Color Picker</FieldLabel>
-        <Text style={{color: palette.textMuted, marginBottom: 12}}>
-          HCL Color Picker draft. Horizontal axis is Hue, vertical axis is Chroma, and the side controls show Lightness, Hue, and Chroma.
-        </Text>
-        <Text style={{color: palette.textMuted, marginBottom: 12}}>
-          Picker board lightness: {pickerRasterLightness}
-        </Text>
+        <FieldLabel palette={palette}>{texts.studentOptionsMySkin}</FieldLabel>
         <View style={{gap: 16}}>
           <View
             style={{
@@ -611,8 +990,51 @@ export function StudentSkinSection({
               <View
                 onLayout={handleSkinPaletteLayout}
                 onResponderGrant={e => handleSkinPaletteInteraction(e, 'grant')}
-                onResponderMove={e => handleSkinPaletteInteraction(e, 'move')}
-                onStartShouldSetResponder={() => true}
+                  onResponderMove={e => handleSkinPaletteInteraction(e, 'move')}
+                  onStartShouldSetResponder={e => {
+                    const nativeEvent = e?.nativeEvent ?? e;
+                    const pointerEvent = nativeEvent as
+                      | {button?: number; buttons?: number}
+                      | undefined;
+                    const button = pointerEvent?.button;
+                    const buttons = pointerEvent?.buttons;
+                    return (
+                      button === 0 ||
+                    buttons === 1 ||
+                    (typeof buttons === 'number' && (buttons & 1) === 1)
+                  );
+                }}
+                {...({
+                  onMouseDown: (e: any) => {
+                    if ((e?.nativeEvent?.button ?? e?.button ?? 0) !== 0) {
+                      return;
+                    }
+                    handleSkinPaletteInteraction(e, 'grant');
+                  },
+                  onMouseMove: (e: any) => {
+                    handleSkinPaletteInteraction(e, 'move');
+                  },
+                  onMouseUp: () => {
+                    isSkinPaletteDraggingRef.current = false;
+                  },
+                  onPointerDown: (e: any) => {
+                    if ((e?.nativeEvent?.button ?? e?.button ?? 0) !== 0) {
+                      return;
+                    }
+                    handleSkinPaletteInteraction(e, 'grant');
+                  },
+                  onPointerMove: (e: any) => {
+                    handleSkinPaletteInteraction(e, 'move');
+                  },
+                  onPointerUp: () => {
+                    isSkinPaletteDraggingRef.current = false;
+                  },
+                  onPointerLeave: () => {
+                    if (!isSkinPaletteDraggingRef.current) {
+                      return;
+                    }
+                  },
+                } as any)}
                 style={{
                   borderRadius: 8,
                   borderWidth: 1,
@@ -633,42 +1055,24 @@ export function StudentSkinSection({
                 <View
                   style={{
                     position: 'absolute',
-                    left: Math.max(0, Math.min(skinPaletteSize.width - 16, currentSkinPoint.x - 8)),
+                    left: Math.max(0, Math.min(skinPaletteSize.width - 16, currentSkinPoint.x - 2)),
                     top: Math.max(
                       0,
                       Math.min(
-                        PICKER_CANVAS_HEIGHT - 16,
-                        mapChromaToSurfaceY(pickerPreview.c, PICKER_CANVAS_HEIGHT) - 8,
+                        skinPaletteSize.height - 16,
+                        mapChromaToSurfaceY(
+                          pickerPreview.c,
+                          skinPaletteSize.height,
+                          skinPlaneBounds,
+                        ) - 2,
                       ),
                     ),
-                    width: 12,
-                    height: 12,
-                    borderRadius: 6,
-                    borderWidth: 2,
-                    borderColor: '#ffffff',
-                    backgroundColor: 'transparent',
-                  }}
-                />
-                <View
-                  style={{
-                    position: 'absolute',
-                    left: Math.max(
-                      0,
-                      Math.min(skinPaletteSize.width - 16, currentSkinPoint.x - 10),
-                    ),
-                    top: Math.max(
-                      0,
-                      Math.min(
-                        PICKER_CANVAS_HEIGHT - 16,
-                        mapChromaToSurfaceY(pickerPreview.c, PICKER_CANVAS_HEIGHT) - 10,
-                      ),
-                    ),
-                    width: 16,
-                    height: 16,
-                    borderRadius: 8,
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: '#ffffff',
                     borderWidth: 1,
                     borderColor: '#000000',
-                    backgroundColor: 'transparent',
                   }}
                 />
               </View>
@@ -689,29 +1093,55 @@ export function StudentSkinSection({
               {[
                 {
                   key: 'l' as const,
-                  label: 'Lightness (L)',
+                  label: texts.studentOptionsLightness,
+                  rangeLabel: formatSliderRangeLabel(
+                    skinLightnessBounds.lMin,
+                    skinLightnessBounds.lMax,
+                  ),
+                  rangeTestID: 'skin-slider-l-range',
                   testID: 'skin-slider-l',
                   value: pickerPreview.l.toFixed(0),
-                  ratio: (pickerPreview.l - SKIN_L_MIN) / (SKIN_L_MAX - SKIN_L_MIN),
+                  ratio:
+                    (pickerPreview.l - skinLightnessBounds.lMin) /
+                    Math.max(1, skinLightnessBounds.lMax - skinLightnessBounds.lMin),
                 },
                 {
                   key: 'h' as const,
-                  label: 'Hue (H)',
+                  label: texts.studentOptionsHue,
+                  rangeLabel: formatSliderRangeLabel(
+                    skinPlaneBounds.hMin,
+                    skinPlaneBounds.hMax,
+                  ),
+                  rangeTestID: 'skin-slider-h-range',
                   testID: 'skin-slider-h',
                   value: pickerPreview.h.toFixed(0),
-                  ratio: (pickerPreview.h - SKIN_H_MIN) / (SKIN_H_MAX - SKIN_H_MIN),
+                  ratio:
+                    (pickerPreview.h - skinPlaneBounds.hMin) /
+                    Math.max(1, skinPlaneBounds.hMax - skinPlaneBounds.hMin),
                 },
                 {
                   key: 'c' as const,
-                  label: 'Chroma (C)',
+                  label: texts.studentOptionsChroma,
+                  rangeLabel: formatSliderRangeLabel(
+                    skinPlaneBounds.cMin,
+                    skinPlaneBounds.cMax,
+                  ),
+                  rangeTestID: 'skin-slider-c-range',
                   testID: 'skin-slider-c',
                   value: pickerPreview.c.toFixed(0),
-                  ratio: (pickerPreview.c - SKIN_C_MIN) / (SKIN_C_MAX - SKIN_C_MIN),
+                  ratio:
+                    (pickerPreview.c - skinPlaneBounds.cMin) /
+                    Math.max(1, skinPlaneBounds.cMax - skinPlaneBounds.cMin),
                 },
               ].map(control => (
                 <View key={control.label} style={{marginBottom: 16}}>
                   <Text style={{fontWeight: '700', color: '#222222', marginBottom: 6}}>
                     {control.label}
+                  </Text>
+                  <Text
+                    style={{fontSize: 12, color: '#666666', marginBottom: 6}}
+                    testID={control.rangeTestID}>
+                    {control.rangeLabel}
                   </Text>
                   <View
                     testID={control.testID}
@@ -720,7 +1150,11 @@ export function StudentSkinSection({
                       const width = event.nativeEvent.layout.width;
                       if (width > 0) {
                         logSliderEvent('layout', {key: control.key, width});
-                        setSliderWidths(current => ({...current, [control.key]: width}));
+                        setSliderWidths(current =>
+                          current[control.key] === width
+                            ? current
+                            : {...current, [control.key]: width},
+                        );
                       }
                     }}
                     onResponderGrant={event =>
@@ -729,12 +1163,25 @@ export function StudentSkinSection({
                     onResponderMove={event =>
                       updatePickerSliderFromEvent(control.key, event, 'move')
                     }
-                    onStartShouldSetResponder={() => true}
+                    onStartShouldSetResponder={event =>
+                      isLeftPointerPressed(event?.nativeEvent)
+                    }
+                    {...({
+                      onMouseDown: (event: any) =>
+                        updatePickerSliderFromEvent(control.key, event, 'grant'),
+                      onMouseMove: (event: any) =>
+                        updatePickerSliderFromEvent(control.key, event, 'move'),
+                      onPointerDown: (event: any) =>
+                        updatePickerSliderFromEvent(control.key, event, 'grant'),
+                      onPointerMove: (event: any) =>
+                        updatePickerSliderFromEvent(control.key, event, 'move'),
+                    } as any)}
                     style={{
                       height: 18,
                       borderRadius: 999,
                       backgroundColor: '#ececec',
                       overflow: 'hidden',
+                      position: 'relative',
                       justifyContent: 'center',
                     }}>
                     <View
@@ -766,6 +1213,39 @@ export function StudentSkinSection({
                   </Text>
                 </View>
               ))}
+              <Pressable
+                onPress={() => setSkinFullRange(!isSkinFullRange)}
+                style={{
+                  alignItems: 'center',
+                  borderTopWidth: 1,
+                  borderTopColor: '#e5e5e5',
+                  flexDirection: 'row',
+                  gap: 8,
+                  marginTop: 4,
+                  paddingTop: 12,
+                }}
+                testID="skin-use-full-range-toggle">
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 4,
+                    borderWidth: 1,
+                    borderColor: palette.border,
+                    backgroundColor: isSkinFullRange ? palette.primary : '#ffffff',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  {isSkinFullRange ? (
+                    <Text style={{color: palette.primaryText, fontSize: 12, fontWeight: '700'}}>
+                      ✓
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={{color: palette.text, fontSize: 13}}>
+                  {texts.studentOptionsUseFullSkinRange}
+                </Text>
+              </Pressable>
             </View>
 
             <View
@@ -798,54 +1278,10 @@ export function StudentSkinSection({
               <Text style={{fontSize: 14, lineHeight: 21, color: '#222222'}}>
                 H: {pickerPreview.h.toFixed(0)}{'\n'}
                 C: {pickerPreview.c.toFixed(0)}{'\n'}
-                L: {pickerPreview.l.toFixed(0)}{'\n\n'}
-                Preview only
-              </Text>
-              <Text style={{fontSize: 12, color: '#666666', marginTop: 8}}>
-                Zoomed to a reasonable human-skin HCL range so subtle undertone differences are easier to inspect.
+                L: {pickerPreview.l.toFixed(0)}
               </Text>
             </View>
           </View>
-        </View>
-
-        <View style={[styles.optionRow, {alignItems: 'flex-start'}]}>
-          {(['skinLValue', 'skinCValue', 'skinHValue'] as const).map(key => (
-            <View key={key} style={{flex: 1}}>
-              <FieldLabel palette={palette}>{key.replace('skin', '').replace('Value', ' Value')}</FieldLabel>
-              <TextInput
-                {...windowsTextInputFocusProps}
-                key={`${key}:${skinInputCommitVersion[key]}`}
-                ref={node => {
-                  skinInputRefs.current[key] = node;
-                }}
-                keyboardType="decimal-pad"
-                onFocus={() => logFocusEvent('skin-field-focus', {field: key})}
-                onBlur={() => applySkinFieldInput(key)}
-                onEndEditing={event => applySkinFieldInput(key, event?.nativeEvent?.text)}
-                onChangeText={value => {
-                  skinInputValueRef.current[key] = value;
-                  setDraft(current => ({...current, [key]: value}));
-                }}
-                onSubmitEditing={event => {
-                  applySkinFieldInput(key, event?.nativeEvent?.text);
-                  skinInputRefs.current[key]?.blur?.();
-                }}
-                placeholder="0.0000"
-                placeholderTextColor={palette.textMuted}
-                returnKeyType="done"
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: palette.muted,
-                    borderColor: palette.border,
-                    color: palette.text,
-                  },
-                ]}
-                testID={key}
-                value={draft[key]}
-              />
-            </View>
-          ))}
         </View>
 
         <View
@@ -855,11 +1291,11 @@ export function StudentSkinSection({
             justifyContent: 'space-between',
             marginBottom: 8,
           }}>
-          <FieldLabel palette={palette}>Skin Traits</FieldLabel>
+          <FieldLabel palette={palette}>{texts.studentOptionsTraits}</FieldLabel>
           <ActionButton
             backgroundColor={palette.soft}
             isLoading={false}
-            label={isSkinTraitsEditing ? 'Done' : '✎'}
+            label={isSkinTraitsEditing ? texts.studentOptionsDone : '✎'}
             onPress={() => {
               logFocusEvent('skin-traits-toggle-press', {editing: isSkinTraitsEditing});
               setIsSkinTraitsEditing(current => !current);
@@ -890,7 +1326,7 @@ export function StudentSkinSection({
               <Text
                 style={{color: draft.skinTraits ? palette.text : palette.textMuted}}
                 testID="skin-traits-display">
-                {draft.skinTraits || 'No skin traits note yet.'}
+                {draft.skinTraits || texts.studentOptionsNoTraits}
               </Text>
             </View>
           </View>
@@ -908,7 +1344,7 @@ export function StudentSkinSection({
               onChangeText={value =>
                 setDraft(current => ({...current, skinTraits: value}))
               }
-              placeholder="Free memo for undertone, sensitivity, finish, or any other note."
+              placeholder={texts.studentOptionsTraitsPlaceholder}
               placeholderTextColor={palette.textMuted}
               style={[
                 styles.input,
@@ -926,8 +1362,8 @@ export function StudentSkinSection({
         </View>
       </Card>
 
-      <Card palette={palette} title="Preference Points">
-        <FieldLabel palette={palette}>Category</FieldLabel>
+      <Card palette={palette} title={texts.studentOptionsPreferencePoints}>
+        <FieldLabel palette={palette}>{texts.studentOptionsCategory}</FieldLabel>
         <View style={[styles.optionRow, {flexWrap: 'wrap', marginBottom: 16}]}>
           {PREFERENCE_CATEGORIES.map(cat => (
             <OptionChip
@@ -955,19 +1391,23 @@ export function StudentSkinSection({
           onAddPoint={selectedCategoryEntry.points.length < 10 ? () => addPreferencePoint(selectedCategoryCode) : undefined}
           onOuterScrollLockChange={onOuterScrollLockChange}
           onHclChange={(h, c, l, idx) => handlePreferencePickerHclChange(selectedCategoryCode, h, c, l, idx)}
+          onRadiusChange={(radius, idx) =>
+            handlePreferencePointRadiusChange(selectedCategoryCode, radius, idx)
+          }
           onRemovePoint={idx => removePreferencePoint(selectedCategoryCode, idx)}
           palette={palette}
           points={selectedCategoryEntry.points}
+          texts={texts}
         />
 
       </Card>
 
-      <Card palette={palette} title="Actions">
+      <Card palette={palette} title={texts.studentOptionsActions}>
         <View style={styles.optionRow}>
           <ActionButton
             backgroundColor={palette.primary}
             isLoading={isSubmitting}
-            label="Save Student Skin"
+            label={texts.studentOptionsSave}
             onPress={() => {
               logFocusEvent('save-button-press', {});
               handleSave();
@@ -979,13 +1419,23 @@ export function StudentSkinSection({
           <ActionButton
             backgroundColor={palette.soft}
             isLoading={false}
-            label="Reset Draft"
+            label={texts.studentOptionsReset}
             onPress={() => {
-              setDraft(initialDraft);
+              setDraft(normalizedInitialDraft);
+              setIsSkinFullRange(false);
               setPickerSelection({
-                l: toNumberOrDefault(initialDraft.skinLValue, DEFAULT_SKIN_SELECTION.l),
-                c: toNumberOrDefault(initialDraft.skinCValue, DEFAULT_SKIN_SELECTION.c),
-                h: toNumberOrDefault(initialDraft.skinHValue, DEFAULT_SKIN_SELECTION.h),
+                l: toNumberOrDefault(
+                  normalizedInitialDraft.skinLValue,
+                  DEFAULT_SKIN_SELECTION.l,
+                ),
+                c: toNumberOrDefault(
+                  normalizedInitialDraft.skinCValue,
+                  DEFAULT_SKIN_SELECTION.c,
+                ),
+                h: toNumberOrDefault(
+                  normalizedInitialDraft.skinHValue,
+                  DEFAULT_SKIN_SELECTION.h,
+                ),
               });
             }}
             style={styles.actionButton}
@@ -1000,7 +1450,7 @@ export function StudentSkinSection({
         const doc = draft.preferencePoints;
         const filledCategories = doc.categories.filter(c => c.points.length > 0);
         return (
-          <Card palette={palette} title="Student Skin Data">
+          <Card palette={palette} title={texts.studentOptionsSkinData}>
 
             {/* Base skin values */}
             <View
@@ -1042,7 +1492,7 @@ export function StudentSkinSection({
 
             {/* Preference points per category */}
             {filledCategories.length === 0 ? (
-              <Text style={{fontSize: 12, color: palette.textMuted}}>No preference points set.</Text>
+              <Text style={{fontSize: 12, color: palette.textMuted}}>{texts.studentOptionsNoPoints}</Text>
             ) : (
               filledCategories.map((cat, catIdx) => {
                 const label = PREFERENCE_CATEGORIES.find(c => c.code === cat.code)?.label ?? cat.code;
@@ -1124,6 +1574,37 @@ function buildInitialDraft(profileDetails: ProfileDetail[]): DraftState {
   };
 }
 
+function normalizeSkinSelection(selection: SkinSelection, useFullRange: boolean): SkinSelection {
+  const bounds = getSkinPlaneBounds(useFullRange);
+  const lightnessBounds = getSkinLightnessBounds(useFullRange);
+  return {
+    l: clamp(selection.l, lightnessBounds.lMin, lightnessBounds.lMax),
+    c: clamp(selection.c, bounds.cMin, bounds.cMax),
+    h: clamp(selection.h, bounds.hMin, bounds.hMax),
+  };
+}
+
+function normalizeDraftSkinValues(
+  draft: DraftState,
+  useFullRange: boolean,
+): DraftState {
+  const normalizedSelection = normalizeSkinSelection(
+    {
+      l: toNumberOrDefault(draft.skinLValue, DEFAULT_SKIN_SELECTION.l),
+      c: toNumberOrDefault(draft.skinCValue, DEFAULT_SKIN_SELECTION.c),
+      h: toNumberOrDefault(draft.skinHValue, DEFAULT_SKIN_SELECTION.h),
+    },
+    useFullRange,
+  );
+
+  return {
+    ...draft,
+    skinLValue: formatSkinValue(normalizedSelection.l),
+    skinCValue: formatSkinValue(normalizedSelection.c),
+    skinHValue: formatSkinValue(normalizedSelection.h),
+  };
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -1135,16 +1616,21 @@ function interpolate(start: number, end: number, ratio: number) {
 function mapSkinLchToPalettePoint(
   input: {l: number; c: number; h: number},
   size: {width: number; height: number},
+  bounds: {hMin: number; hMax: number; cMin: number; cMax: number},
 ) {
-  const xRatio = clamp((input.h - SKIN_H_MIN) / (SKIN_H_MAX - SKIN_H_MIN), 0, 1);
+  const xRatio = clamp((input.h - bounds.hMin) / Math.max(1, bounds.hMax - bounds.hMin), 0, 1);
   return {
     x: xRatio * size.width,
-    y: mapChromaToSurfaceY(input.c, size.height),
+    y: mapChromaToSurfaceY(input.c, size.height, bounds),
   };
 }
 
-function mapChromaToSurfaceY(chroma: number, height: number) {
-  const ratio = clamp((chroma - SKIN_C_MIN) / (SKIN_C_MAX - SKIN_C_MIN), 0, 1);
+function mapChromaToSurfaceY(
+  chroma: number,
+  height: number,
+  bounds: {cMin: number; cMax: number},
+) {
+  const ratio = clamp((chroma - bounds.cMin) / Math.max(1, bounds.cMax - bounds.cMin), 0, 1);
   return height - ratio * height;
 }
 
@@ -1157,30 +1643,30 @@ function formatSkinValue(value: number) {
   return value.toFixed(4);
 }
 
-function getSkinFieldConfig(key: SkinFieldKey) {
-  if (key === 'skinLValue') {
-    return {max: SKIN_L_MAX, min: SKIN_L_MIN, selectionKey: 'l' as const};
+function formatSliderRangeLabel(min: number, max: number) {
+  return `${Math.round(min)}-${Math.round(max)}`;
+}
+
+function logSliderEvent(_event: string, _payload: Record<string, unknown>) {}
+
+function logFocusEvent(_event: string, _payload: Record<string, unknown>) {}
+const middleZoomProbeThrottleState: Record<string, number> = {};
+const zoomStateThrottleState: Record<string, number> = {};
+
+function logMiddleZoomEvent(event: string, payload: Record<string, unknown>) {
+  const now = Date.now();
+  const last = middleZoomProbeThrottleState[event] ?? 0;
+  if (now - last < 120) {
+    return;
   }
-
-  if (key === 'skinCValue') {
-    return {max: SKIN_C_MAX, min: SKIN_C_MIN, selectionKey: 'c' as const};
-  }
-
-  return {max: SKIN_H_MAX, min: SKIN_H_MIN, selectionKey: 'h' as const};
+  middleZoomProbeThrottleState[event] = now;
+  console.log('[middle-zoom-probe]', event, payload);
 }
 
-
-function logSliderEvent(event: string, payload: Record<string, unknown>) {
-  console.log(`[student-skin-slider] ${event}`, payload);
-}
-
-function logFocusEvent(event: string, payload: Record<string, unknown>) {
-  console.log(`[student-skin-focus] ${event}`, payload);
-}
 
 function logWheelEvent(
-  event: string,
-  payload: {
+  _event: string,
+  _payload: {
     boardRect?: {left: number; top: number; right: number; bottom: number} | null;
     clientX?: number;
     clientY?: number;
@@ -1197,8 +1683,26 @@ function logWheelEvent(
     pressedCtrl?: boolean;
     targetName?: string;
   },
-) {
-  console.log(`[student-skin-wheel] ${event}`, payload);
+) {}
+
+function logThrottledZoomState(event: string, payload: Record<string, unknown>) {
+  const now = Date.now();
+  const last = zoomStateThrottleState[event] ?? 0;
+  if (now - last < 200) {
+    return;
+  }
+  zoomStateThrottleState[event] = now;
+  console.log('[student-options-zoom]', event, payload);
+}
+
+function logZoomTransition(event: string, payload: Record<string, unknown>) {
+  const now = Date.now();
+  const last = zoomStateThrottleState[event] ?? 0;
+  if (now - last < 120) {
+    return;
+  }
+  zoomStateThrottleState[event] = now;
+  console.log('[student-options-zoom-transition]', event, payload);
 }
 
 type PreferenceCategoryPickerProps = {
@@ -1207,7 +1711,9 @@ type PreferenceCategoryPickerProps = {
   onAddPoint?: () => void;
   onOuterScrollLockChange?: (isLocked: boolean) => void;
   onHclChange?: (h: number, c: number, l: number, pointIndex: number) => void;
+  onRadiusChange?: (radius: number, pointIndex: number) => void;
   onRemovePoint?: (pointIndex: number) => void;
+  texts: SkinTexts;
 };
 
 function PreferenceCategoryPicker({
@@ -1216,28 +1722,36 @@ function PreferenceCategoryPicker({
   onAddPoint,
   onOuterScrollLockChange,
   onHclChange,
+  onRadiusChange,
   onRemovePoint,
+  texts,
 }: PreferenceCategoryPickerProps) {
-  const [activeTool, setActiveTool] = useState<PickerTool>('select');
   const [isRangeHoldActive, setIsRangeHoldActive] = useState(false);
   const [isBoardFocused, setIsBoardFocused] = useState(false);
   const [isBoardHovered, setIsBoardHovered] = useState(false);
-  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [isPanHoldActive, setIsPanHoldActive] = useState(false);
+  const [isWheelZoomFlashActive, setIsWheelZoomFlashActive] = useState(false);
+  const [isPrimaryDragActive, setIsPrimaryDragActive] = useState(false);
   const activeButtonRef = useRef<number | null>(null); // 0=left 1=middle 2=right
   const isRightHeldRef = useRef(false); // true while right button is physically held down
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(
     points.length > 0 ? 0 : null,
   );
+  const [boardFrameSize, setBoardFrameSize] = useState({width: 1, height: 180});
   const [boardSize, setBoardSize] = useState({width: 1, height: 180});
   const [previewL, setPreviewL] = useState(points[0]?.l ?? 58);
   const [hoverSampleText, setHoverSampleText] = useState<string | null>(null);
-  const [pointRanges, setPointRanges] = useState<Record<number, number>>({});
   const [viewBounds, setViewBounds] = useState<ViewBounds>(DEFAULT_VIEW_BOUNDS);
   const boardRef = useRef<any>(null);
   const boardOrigin = useRef<{x: number; y: number} | null>(null);
   const boardPageOriginRef = useRef<{x: number; y: number} | null>(null);
+  const boardLeftDragOriginRef = useRef<{x: number; y: number} | null>(null);
+  const isBoardLeftDraggingRef = useRef(false);
   const lSliderWidth = useRef(1);
   const lSliderOrigin = useRef<number | null>(null);
+  const rangeSliderWidth = useRef(1);
+  const rangeSliderOrigin = useRef<number | null>(null);
+  const wheelZoomFlashTimeoutRef = useRef<any>(null);
   const prevLengthRef = useRef(points.length);
   const selectedIndexRef = useRef(selectedPointIndex);
   selectedIndexRef.current = selectedPointIndex;
@@ -1253,7 +1767,7 @@ function PreferenceCategoryPicker({
   isBoardFocusedRef.current = isBoardFocused;
   const isBoardHoveredRef = useRef(false);
   isBoardHoveredRef.current = isBoardHovered;
-  const effectiveActiveTool: PickerTool = isRangeHoldActive ? 'range' : activeTool;
+  const effectiveActiveTool: PickerTool = isRangeHoldActive ? 'range' : 'select';
 
   useEffect(() => {
     const prev = prevLengthRef.current;
@@ -1283,20 +1797,8 @@ function PreferenceCategoryPicker({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPointIndex]);
 
-  // Drop ranges for removed points
-  useEffect(() => {
-    setPointRanges(prev => {
-      const next: Record<number, number> = {};
-      for (const [k, v] of Object.entries(prev)) {
-        if (Number(k) < points.length) {
-          next[Number(k)] = v;
-        }
-      }
-      return next;
-    });
-  }, [points.length]);
-
-  // Zoom via scroll when zoom mode active; middle-mouse drag → pan (DOM events, web only)
+  // Mouse rules:
+  // left drag -> point select, right drag -> range, middle drag -> pan, wheel -> zoom.
   useEffect(() => {
     const doc = (globalThis as any).document;
     const win = (globalThis as any).window;
@@ -1356,6 +1858,29 @@ function PreferenceCategoryPicker({
       logWheelEvent(label, buildWheelPayload(e));
     };
 
+    const getSelectedPointLocalCoords = (
+      bounds: ViewBounds,
+      width: number,
+      height: number,
+    ) => {
+      const selectedIndex = selectedIndexRef.current;
+      if (selectedIndex === null) {
+        return null;
+      }
+
+      const point = pointsRef.current[selectedIndex];
+      if (!point) {
+        return null;
+      }
+
+      const hSpan = Math.max(1, bounds.hMax - bounds.hMin);
+      const cSpan = Math.max(1, bounds.cMax - bounds.cMin);
+      return {
+        x: ((point.h - bounds.hMin) / hSpan) * width,
+        y: ((bounds.cMax - point.c) / cSpan) * height,
+      };
+    };
+
     const onWheel = (e: any) => {
       logWheelEvent('zoom-handler-entry', buildWheelPayload(e));
       if (!isBoardHoveredRef.current) {
@@ -1378,20 +1903,42 @@ function PreferenceCategoryPicker({
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
       const factor = e.deltaY < 0 ? 1.25 : 1 / 1.25;
-      const {width, height} = boardSizeRef.current;
-      setViewBounds(prev => zoomViewBounds(prev, cx, cy, factor, width, height));
+      const width = Math.max(1, rect.right - rect.left);
+      const height = Math.max(1, rect.bottom - rect.top);
+      triggerWheelZoomFlash();
+      setViewBounds(prev => {
+        const next = zoomViewBounds(prev, cx, cy, factor, width, height);
+        logZoomTransition('wheel', {
+          cursorX: Number(cx.toFixed(2)),
+          cursorY: Number(cy.toFixed(2)),
+          factor: Number(factor.toFixed(4)),
+          nextRangeC: Number((next.cMax - next.cMin).toFixed(4)),
+          nextRangeH: Number((next.hMax - next.hMin).toFixed(4)),
+          prevRangeC: Number((prev.cMax - prev.cMin).toFixed(4)),
+          prevRangeH: Number((prev.hMax - prev.hMin).toFixed(4)),
+          rectHeight: Number(height.toFixed(2)),
+          rectWidth: Number(width.toFixed(2)),
+        });
+        return next;
+      });
     };
 
-    // Middle-button drag: right = zoom in, left = zoom out
-    let midDragStart: {pageX: number; bounds: ViewBounds; cx: number; cy: number} | null = null;
+    let midDragStart:
+      | {
+          startClientX: number;
+          startClientY: number;
+          startBounds: ViewBounds;
+        }
+      | null = null;
     // Right-button drag: set range from selected point to cursor
     let rightDragActive = false;
 
     const localCoordsFromClient = (clientX: number, clientY: number, rect: {left: number; top: number; right: number; bottom: number}) => {
       const {hMin, hMax, cMin, cMax} = viewBoundsRef.current;
-      const {width, height} = boardSizeRef.current;
-      const localX = clientX - rect.left;
-      const localY = clientY - rect.top;
+      const width = Math.max(1, rect.right - rect.left);
+      const height = Math.max(1, rect.bottom - rect.top);
+      const localX = clamp(clientX - rect.left, 0, Math.max(1, width));
+      const localY = clamp(clientY - rect.top, 0, Math.max(1, height));
       const h = clamp(hMin + (localX / Math.max(1, width)) * (hMax - hMin), POINT_H_MIN, POINT_H_MAX);
       const c = clamp(cMax - (localY / Math.max(1, height)) * (cMax - cMin), POINT_C_MIN, POINT_C_MAX);
       return {h, c};
@@ -1407,19 +1954,27 @@ function PreferenceCategoryPicker({
         e.preventDefault();
         const rect = getBoardDomRect();
         if (!rect) return;
+        const width = Math.max(1, rect.right - rect.left);
+        const height = Math.max(1, rect.bottom - rect.top);
         midDragStart = {
-          pageX: e.pageX,
-          bounds: viewBoundsRef.current,
-          cx: e.clientX - rect.left,
-          cy: e.clientY - rect.top,
+          startClientX: e.clientX,
+          startClientY: e.clientY,
+          startBounds: viewBoundsRef.current,
         };
+        logMiddleZoomEvent('start', {
+          mode: 'pan',
+          startClientX: Number(e.clientX.toFixed(2)),
+          startClientY: Number(e.clientY.toFixed(2)),
+          boardWidth: width,
+          boardHeight: height,
+        });
+        setIsPanHoldActive(true);
       } else if (e.button === 2) {
         e.preventDefault();
         logFocusEvent('picker-right-click', {x: e.clientX, y: e.clientY});
         rightDragActive = true;
         isRightHeldRef.current = true;
         setIsRangeHoldActive(true);
-        setActiveTool('range');
         const rect = getBoardDomRect();
         if (!rect) return;
         const ptIdx = selectedIndexRef.current;
@@ -1432,7 +1987,7 @@ function PreferenceCategoryPicker({
             const dL = previewLRef.current - pt.l;
             const radius = Math.sqrt(dH * dH + dC * dC + dL * dL);
             if (radius > 0) {
-              setPointRanges(prev => ({...prev, [ptIdx]: radius}));
+              onRadiusChange?.(radius, ptIdx);
             }
           }
         }
@@ -1441,41 +1996,90 @@ function PreferenceCategoryPicker({
     // pointermove/up stay on document so dragging outside the board still works
     const onPointerMove = (e: any) => {
       if (midDragStart) {
-        const dx = e.pageX - midDragStart.pageX;
-        const factor = Math.pow(1.01, dx);
-        const {width, height} = boardSizeRef.current;
-        setViewBounds(zoomViewBounds(midDragStart.bounds, midDragStart.cx, midDragStart.cy, factor, width, height));
+        const dragStart = midDragStart;
+        const rect = getBoardDomRect();
+        if (!rect) return;
+        const deltaX = e.clientX - dragStart.startClientX;
+        const deltaY = e.clientY - dragStart.startClientY;
+        logMiddleZoomEvent('move', {
+          mode: 'pan',
+          deltaX: Number(deltaX.toFixed(2)),
+          deltaY: Number(deltaY.toFixed(2)),
+        });
+        if (Math.abs(deltaX) < 0.001 && Math.abs(deltaY) < 0.001) {
+          return;
+        }
+        logMiddleZoomEvent('pan', {
+          deltaX: Number(deltaX.toFixed(2)),
+          deltaY: Number(deltaY.toFixed(2)),
+        });
+        const width = Math.max(1, rect.right - rect.left);
+        const height = Math.max(1, rect.bottom - rect.top);
+        setViewBounds(
+          prev => {
+            const next = panViewBounds(
+              dragStart.startBounds,
+              deltaX,
+              deltaY,
+              width,
+              height,
+            );
+            logZoomTransition('middle-drag-pan', {
+              deltaX: Number(deltaX.toFixed(2)),
+              deltaY: Number(deltaY.toFixed(2)),
+              nextRangeC: Number((next.cMax - next.cMin).toFixed(4)),
+              nextRangeH: Number((next.hMax - next.hMin).toFixed(4)),
+              prevRangeC: Number((dragStart.startBounds.cMax - dragStart.startBounds.cMin).toFixed(4)),
+              prevRangeH: Number((dragStart.startBounds.hMax - dragStart.startBounds.hMin).toFixed(4)),
+              rectHeight: Number(height.toFixed(2)),
+              rectWidth: Number(width.toFixed(2)),
+              nextBounds: next,
+            });
+            return prev.hMin === next.hMin &&
+              prev.hMax === next.hMax &&
+              prev.cMin === next.cMin &&
+              prev.cMax === next.cMax
+              ? prev
+              : next;
+          },
+        );
       } else if (rightDragActive) {
         const rect = getBoardDomRect();
         if (!rect) return;
         const idx = selectedIndexRef.current;
         if (idx === null) return;
         const {h, c} = localCoordsFromClient(e.clientX, e.clientY, rect);
-        setPointRanges(prev => {
-          const ptIdx = selectedIndexRef.current;
-          if (ptIdx === null) return prev;
-          const pt = pointsRef.current[ptIdx];
-          if (!pt) return prev;
-          const dH = h - pt.h;
-          const dC = c - pt.c;
-          const dL = previewLRef.current - pt.l;
-          const radius = Math.sqrt(dH * dH + dC * dC + dL * dL);
-          if (radius <= 0) return prev;
-          return {...prev, [ptIdx]: radius};
-        });
+        const ptIdx = selectedIndexRef.current;
+        if (ptIdx === null) return;
+        const pt = pointsRef.current[ptIdx];
+        if (!pt) return;
+        const dH = h - pt.h;
+        const dC = c - pt.c;
+        const dL = previewLRef.current - pt.l;
+        const radius = Math.sqrt(dH * dH + dC * dC + dL * dL);
+        if (radius <= 0) return;
+        onRadiusChange?.(radius, ptIdx);
       }
     };
     const onPointerUp = (e: any) => {
       if (e.button === activeButtonRef.current) activeButtonRef.current = null;
-      if (e.button === 1) midDragStart = null;
+      if (e.button === 1) {
+        midDragStart = null;
+        setIsPanHoldActive(false);
+      }
       if (e.button === 2) {
         rightDragActive = false;
         isRightHeldRef.current = false;
         setIsRangeHoldActive(false);
-        setActiveTool('select');
       }
     };
     const onBoardContextMenu = (e: any) => {
+      e.preventDefault();
+    };
+    const onBoardDragStart = (e: any) => {
+      e.preventDefault();
+    };
+    const onBoardSelectStart = (e: any) => {
       e.preventDefault();
     };
 
@@ -1493,19 +2097,6 @@ function PreferenceCategoryPicker({
     const attachBoardListeners = () => {
       const raw = boardRef.current;
       const el = getBoardDomEl();
-      console.log('[board-dom-probe]', {
-        rawExists: !!raw,
-        rawType: raw ? typeof raw : 'null',
-        rawConstructor: raw?.constructor?.name,
-        rawKeys: raw ? Object.keys(raw).slice(0, 20) : [],
-        hasBCR: !!raw?.getBoundingClientRect,
-        hasHostNode: !!(raw as any)?._hostNode,
-        hasNativeNode: !!(raw as any)?._nativeNode,
-        hasGetNode: typeof (raw as any)?.getNode === 'function',
-        hasSetNativeProps: typeof (raw as any)?.setNativeProps === 'function',
-        elExists: !!el,
-        elHasAddEventListener: !!el?.addEventListener,
-      });
       if (!el?.addEventListener) {
         retryTimer = setTimeout(attachBoardListeners, 100);
         return;
@@ -1515,6 +2106,8 @@ function PreferenceCategoryPicker({
       el.addEventListener('wheel', boardWheelBubbleLogger, {passive: true});
       el.addEventListener('pointerdown', onBoardPointerDown);
       el.addEventListener('contextmenu', onBoardContextMenu);
+      el.addEventListener('dragstart', onBoardDragStart);
+      el.addEventListener('selectstart', onBoardSelectStart);
       logFocusEvent('board-dom-listeners-attached', {});
     };
     attachBoardListeners();
@@ -1533,6 +2126,8 @@ function PreferenceCategoryPicker({
         registeredBoardEl.removeEventListener('wheel', boardWheelBubbleLogger);
         registeredBoardEl.removeEventListener('pointerdown', onBoardPointerDown);
         registeredBoardEl.removeEventListener('contextmenu', onBoardContextMenu);
+        registeredBoardEl.removeEventListener('dragstart', onBoardDragStart);
+        registeredBoardEl.removeEventListener('selectstart', onBoardSelectStart);
       }
       doc.removeEventListener('wheel', documentWheelCaptureLogger, {capture: true} as any);
       doc.removeEventListener('wheel', onWheel);
@@ -1554,23 +2149,108 @@ function PreferenceCategoryPicker({
   const displayPoint = safeSelectedIndex !== null ? points[safeSelectedIndex] : null;
   const rasterL = Math.round(previewL);
 
+  const getBoardMetrics = () => {
+    const rect =
+      boardRef.current && typeof boardRef.current.getBoundingClientRect === 'function'
+        ? boardRef.current.getBoundingClientRect()
+        : null;
+    const width =
+      rect && typeof rect.width === 'number' && rect.width > 1
+        ? rect.width
+        : boardSizeRef.current.width;
+    const height =
+      rect && typeof rect.height === 'number' && rect.height > 1
+        ? rect.height
+        : boardSizeRef.current.height;
+
+    return {
+      rect,
+      width: Math.max(1, width),
+      height: Math.max(1, height),
+    };
+  };
+
+  const triggerWheelZoomFlash = () => {
+    setIsWheelZoomFlashActive(true);
+    if (wheelZoomFlashTimeoutRef.current) {
+      clearTimeout(wheelZoomFlashTimeoutRef.current);
+    }
+    wheelZoomFlashTimeoutRef.current = setTimeout(() => {
+      setIsWheelZoomFlashActive(false);
+      wheelZoomFlashTimeoutRef.current = null;
+    }, 180);
+  };
+
+  const resolveBoardLocalPoint = (event: any) => {
+    const nativeEvent = event?.nativeEvent ?? event ?? {};
+    const metrics = getBoardMetrics();
+    const rect =
+      metrics.rect ??
+      (event?.currentTarget &&
+      typeof event.currentTarget.getBoundingClientRect === 'function'
+        ? event.currentTarget.getBoundingClientRect()
+        : null);
+
+    const clientX =
+      nativeEvent?.clientX ??
+      event?.clientX ??
+      (typeof nativeEvent?.pageX === 'number' && rect ? nativeEvent.pageX - rect.left : undefined);
+    const clientY =
+      nativeEvent?.clientY ??
+      event?.clientY ??
+      (typeof nativeEvent?.pageY === 'number' && rect ? nativeEvent.pageY - rect.top : undefined);
+
+    const locationX =
+      (rect && typeof clientX === 'number'
+        ? clientX - rect.left
+        : undefined) ??
+      nativeEvent?.locationX ??
+      nativeEvent?.offsetX ??
+      (rect && typeof nativeEvent?.clientX === 'number'
+        ? nativeEvent.clientX - rect.left
+        : undefined);
+    const locationY =
+      (rect && typeof clientY === 'number'
+        ? clientY - rect.top
+        : undefined) ??
+      nativeEvent?.locationY ??
+      nativeEvent?.offsetY ??
+      (rect && typeof nativeEvent?.clientY === 'number'
+        ? nativeEvent.clientY - rect.top
+        : undefined);
+    const point = {
+      x:
+        typeof locationX === 'number'
+          ? clamp(locationX, 0, metrics.width)
+          : 0,
+      y:
+        typeof locationY === 'number'
+          ? clamp(locationY, 0, metrics.height)
+          : 0,
+    };
+
+    return point;
+  };
+
   const applyBoardInteractionAtLocalPoint = (
     localX: number,
     localY: number,
     toolOverride?: PickerTool,
+    source?: string,
   ) => {
     if (safeSelectedIndex === null) {
       return;
     }
 
+    const metrics = getBoardMetrics();
     const {hMin, hMax, cMin, cMax} = viewBoundsRef.current;
     const h = clamp(
-      hMin + (localX / Math.max(1, boardSizeRef.current.width)) * (hMax - hMin),
+      hMin + (localX / metrics.width) * (hMax - hMin),
       POINT_H_MIN,
       POINT_H_MAX,
     );
     const c = clamp(
-      cMax - (localY / Math.max(1, boardSizeRef.current.height)) * (cMax - cMin),
+      cMax - (localY / metrics.height) * (cMax - cMin),
       POINT_C_MIN,
       POINT_C_MAX,
     );
@@ -1595,7 +2275,7 @@ function PreferenceCategoryPicker({
     const dL = previewLRef.current - pt.l;
     const radius = Math.sqrt(dH * dH + dC * dC + dL * dL);
     if (radius > 0) {
-      setPointRanges(prev => ({...prev, [safeSelectedIndex]: radius}));
+      onRadiusChange?.(radius, safeSelectedIndex);
     }
   };
 
@@ -1603,8 +2283,9 @@ function PreferenceCategoryPicker({
     if (safeSelectedIndex === null) {
       return;
     }
-    const locationX: number = event.nativeEvent?.locationX ?? 0;
-    const locationY: number = event.nativeEvent?.locationY ?? 0;
+    const resolvedPoint = resolveBoardLocalPoint(event);
+    const locationX = resolvedPoint.x;
+    const locationY = resolvedPoint.y;
     const pageX: number | undefined = event.nativeEvent?.pageX;
     const pageY: number | undefined = event.nativeEvent?.pageY;
 
@@ -1630,7 +2311,19 @@ function PreferenceCategoryPicker({
 
     // activeButtonRef is set by onBoardPointerDown (direct DOM listener on the board element),
     // which fires before the responder grant. Responder events don't carry button info on RN-Windows.
-    const effectiveTool = activeButtonRef.current === 2 ? 'range' : effectiveActiveTool;
+    if (phase === 'grant' && activeButtonRef.current === 0) {
+      isBoardLeftDraggingRef.current = true;
+    }
+
+    if (phase === 'move' && activeButtonRef.current === 0 && !isBoardLeftDraggingRef.current) {
+      return;
+    }
+
+    if (activeButtonRef.current !== 0 && activeButtonRef.current !== 2) {
+      return;
+    }
+
+    const effectiveTool = activeButtonRef.current === 2 ? 'range' : 'select';
     const resolvedButton = resolvePointerButton(event.nativeEvent);
     logFocusEvent('board-interaction', {
       phase,
@@ -1639,7 +2332,6 @@ function PreferenceCategoryPicker({
       buttons: event.nativeEvent?.buttons,
       activeButtonRef: activeButtonRef.current,
       activeButtonLabel: describePointerButton(activeButtonRef.current),
-      activeTool,
       effectiveActiveTool,
       effectiveTool,
       localX,
@@ -1651,8 +2343,16 @@ function PreferenceCategoryPicker({
   };
 
   const handleLSliderInteraction = (event: any, phase: 'grant' | 'move') => {
-    const locationX: number = event.nativeEvent?.locationX ?? 0;
+    const locationX = resolveSliderLocalX(event, lSliderWidth.current) ?? 0;
     const pageX: number | undefined = event.nativeEvent?.pageX;
+
+    if (phase === 'grant' && !isLeftPointerPressed(event?.nativeEvent)) {
+      return;
+    }
+
+    if (phase === 'move' && !isLeftPointerMoveActive(event?.nativeEvent)) {
+      return;
+    }
 
     const applyL = (l: number) => {
       setPreviewL(l);
@@ -1689,6 +2389,47 @@ function PreferenceCategoryPicker({
     applyL(ratio * POINT_L_MAX);
   };
 
+  const handleRangeSliderInteraction = (event: any, phase: 'grant' | 'move') => {
+    if (safeSelectedIndex === null) {
+      return;
+    }
+
+    const locationX = resolveSliderLocalX(event, rangeSliderWidth.current) ?? 0;
+    const pageX: number | undefined = event.nativeEvent?.pageX;
+
+    if (phase === 'grant' && !isLeftPointerPressed(event?.nativeEvent)) {
+      return;
+    }
+
+    if (phase === 'move' && !isLeftPointerMoveActive(event?.nativeEvent)) {
+      return;
+    }
+
+    const applyRange = (radius: number) => {
+      const nextRadius = clamp(radius, 0, RANGE_RADIUS_MAX);
+      onRadiusChange?.(nextRadius, safeSelectedIndex);
+    };
+
+    if (phase === 'grant') {
+      if (pageX != null) {
+        rangeSliderOrigin.current = pageX - locationX;
+      }
+      if (rangeSliderWidth.current > 1) {
+        applyRange(
+          rangeSliderRatioToRadius(
+            clamp(locationX / rangeSliderWidth.current, 0, 1),
+          ),
+        );
+      }
+      return;
+    }
+
+    const origin = rangeSliderOrigin.current;
+    const localX = pageX != null && origin != null ? pageX - origin : locationX;
+    const ratio = clamp(localX / Math.max(1, rangeSliderWidth.current), 0, 1);
+    applyRange(rangeSliderRatioToRadius(ratio));
+  };
+
   const imageUri = useMemo(
     () =>
       buildHclPickerImageDataUri({
@@ -1698,7 +2439,14 @@ function PreferenceCategoryPicker({
         hueMax: viewBounds.hMax,
         hueMin: viewBounds.hMin,
         lightness: rasterL,
-        width: PREF_PICKER_RASTER_WIDTH,
+        width: Math.max(
+          PREF_PICKER_RASTER_WIDTH,
+          Math.round(
+            PREF_PICKER_RASTER_HEIGHT *
+              ((viewBounds.hMax - viewBounds.hMin) /
+                Math.max(1, viewBounds.cMax - viewBounds.cMin)),
+          ),
+        ),
       }),
     [rasterL, viewBounds],
   );
@@ -1706,6 +2454,110 @@ function PreferenceCategoryPicker({
   const lRatio = previewL / POINT_L_MAX;
   const cRatio = (displayPoint?.c ?? 0) / POINT_C_MAX;
   const hRatio = (displayPoint?.h ?? 0) / 360;
+  const selectedPointRange =
+    safeSelectedIndex !== null
+      ? clamp(displayPoint?.radius ?? DEFAULT_POINT_RANGE, 0, RANGE_RADIUS_MAX)
+      : 0;
+  const rangeRatio = rangeRadiusToSliderRatio(selectedPointRange);
+  const boardRenderMetrics = getBoardMetrics();
+  const boardPlaneAspectRatio = FIXED_BOARD_ASPECT_RATIO;
+  const boardDisplayWidth = Math.max(
+    1,
+    Math.min(boardFrameSize.width, boardFrameSize.height * boardPlaneAspectRatio),
+  );
+  const boardDisplayHeight = Math.max(
+    1,
+    Math.min(boardFrameSize.height, boardDisplayWidth / Math.max(1, boardPlaneAspectRatio)),
+  );
+  const isGripIndicatorActive = isPanHoldActive || activeButtonRef.current === 1;
+  const isZoomIndicatorActive = isWheelZoomFlashActive;
+  const boardCursor =
+    isGripIndicatorActive
+      ? 'grabbing'
+      : isZoomIndicatorActive
+      ? 'zoom-in'
+      : isRangeHoldActive || isRightHeldRef.current || activeButtonRef.current === 2
+      ? 'move'
+      : isBoardLeftDraggingRef.current || activeButtonRef.current === 0
+      ? 'pointer'
+      : 'grab';
+
+  useEffect(() => {
+    logThrottledZoomState('layout-snapshot', {
+      boardDisplayHeight: Number(boardDisplayHeight.toFixed(2)),
+      boardDisplayWidth: Number(boardDisplayWidth.toFixed(2)),
+      boardFrameHeight: Number(boardFrameSize.height.toFixed(2)),
+      boardFrameWidth: Number(boardFrameSize.width.toFixed(2)),
+      boardHeight: Number(boardSize.height.toFixed(2)),
+      boardPlaneAspectRatio: Number(boardPlaneAspectRatio.toFixed(4)),
+      boardWidth: Number(boardSize.width.toFixed(2)),
+      pointsCount: points.length,
+      selectedPointIndex: safeSelectedIndex,
+      selectedPointRadius:
+        safeSelectedIndex !== null
+          ? Number(selectedPointRange.toFixed(2))
+          : null,
+      boardCursor,
+      viewBounds: {
+        cMax: Number(viewBounds.cMax.toFixed(4)),
+        cMin: Number(viewBounds.cMin.toFixed(4)),
+        hMax: Number(viewBounds.hMax.toFixed(4)),
+        hMin: Number(viewBounds.hMin.toFixed(4)),
+      },
+      viewRange: {
+        c: Number((viewBounds.cMax - viewBounds.cMin).toFixed(4)),
+        h: Number((viewBounds.hMax - viewBounds.hMin).toFixed(4)),
+      },
+      widthCompressionRatio:
+        boardFrameSize.width > 0
+          ? Number((boardDisplayWidth / boardFrameSize.width).toFixed(4))
+          : null,
+      heightCompressionRatio:
+        boardFrameSize.height > 0
+          ? Number((boardDisplayHeight / boardFrameSize.height).toFixed(4))
+          : null,
+      zoomActive: isZoomIndicatorActive,
+    });
+  }, [
+    boardDisplayHeight,
+    boardDisplayWidth,
+    boardCursor,
+    boardFrameSize.height,
+    boardFrameSize.width,
+    boardPlaneAspectRatio,
+    boardSize.height,
+    boardSize.width,
+    isZoomIndicatorActive,
+    points.length,
+    safeSelectedIndex,
+    selectedPointRange,
+    viewBounds.cMax,
+    viewBounds.cMin,
+    viewBounds.hMax,
+    viewBounds.hMin,
+  ]);
+
+  useEffect(() => {
+    if (
+      boardFrameSize.width > 1 &&
+      boardFrameSize.height > 1 &&
+      (boardDisplayWidth < boardFrameSize.width || boardDisplayHeight < boardFrameSize.height)
+    ) {
+      logThrottledZoomState('display-compression-detected', {
+        boardDisplayHeight: Number(boardDisplayHeight.toFixed(2)),
+        boardDisplayWidth: Number(boardDisplayWidth.toFixed(2)),
+        boardFrameHeight: Number(boardFrameSize.height.toFixed(2)),
+        boardFrameWidth: Number(boardFrameSize.width.toFixed(2)),
+        boardPlaneAspectRatio: Number(boardPlaneAspectRatio.toFixed(4)),
+      });
+    }
+  }, [
+    boardDisplayHeight,
+    boardDisplayWidth,
+    boardFrameSize.height,
+    boardFrameSize.width,
+    boardPlaneAspectRatio,
+  ]);
   const handleBoardFocus = () => {
     logFocusEvent('board-focus', {});
     setIsBoardFocused(true);
@@ -1715,21 +2567,8 @@ function PreferenceCategoryPicker({
     logFocusEvent('board-blur', {});
     setIsBoardFocused(false);
     setIsBoardHovered(false);
-    setIsCtrlPressed(false);
-  };
-
-  const handleBoardKeyDown = (event: any) => {
-    if (event?.nativeEvent?.key === 'Control') {
-      logFocusEvent('board-keydown-control', {});
-      setIsCtrlPressed(true);
-    }
-  };
-
-  const handleBoardKeyUp = (event: any) => {
-    if (event?.nativeEvent?.key === 'Control') {
-      logFocusEvent('board-keyup-control', {});
-      setIsCtrlPressed(false);
-    }
+    setIsPanHoldActive(false);
+    setIsPrimaryDragActive(false);
   };
 
   const handleBoardPointerEnter = () => {
@@ -1767,14 +2606,26 @@ function PreferenceCategoryPicker({
       boardRef.current.focus();
     }
 
+    if (resolvedButton === 0) {
+      const point = resolveBoardLocalPoint(event);
+      const pageX: number | undefined = nativeEvent?.pageX ?? nativeEvent?.clientX ?? event?.pageX ?? event?.clientX;
+      const pageY: number | undefined = nativeEvent?.pageY ?? nativeEvent?.clientY ?? event?.pageY ?? event?.clientY;
+      isBoardLeftDraggingRef.current = true;
+      setIsPrimaryDragActive(true);
+      if (typeof pageX === 'number' && typeof pageY === 'number') {
+        boardLeftDragOriginRef.current = {x: pageX - point.x, y: pageY - point.y};
+      }
+      applyBoardInteractionAtLocalPoint(point.x, point.y, 'select', 'left-down');
+      return;
+    }
+
     if (resolvedButton === 2) {
       isRightHeldRef.current = true;
       setIsRangeHoldActive(true);
       event?.preventDefault?.();
 
-      const localX = nativeEvent?.locationX ?? 0;
-      const localY = nativeEvent?.locationY ?? 0;
-      applyBoardInteractionAtLocalPoint(localX, localY, 'range');
+      const point = resolveBoardLocalPoint(event);
+      applyBoardInteractionAtLocalPoint(point.x, point.y, 'range', 'right-down');
     }
   };
 
@@ -1791,7 +2642,14 @@ function PreferenceCategoryPicker({
     if (resolvedButton === 2 || activeButtonRef.current === 2) {
       isRightHeldRef.current = false;
       setIsRangeHoldActive(false);
-      setActiveTool('select');
+    }
+    if (resolvedButton === 1 || activeButtonRef.current === 1) {
+      setIsPanHoldActive(false);
+    }
+    if (resolvedButton === 0 || activeButtonRef.current === 0) {
+      isBoardLeftDraggingRef.current = false;
+      boardLeftDragOriginRef.current = null;
+      setIsPrimaryDragActive(false);
     }
     activeButtonRef.current = null;
   };
@@ -1801,6 +2659,14 @@ function PreferenceCategoryPicker({
 
     const nativeEvent = event?.nativeEvent ?? {};
     const resolvedButton = resolvePointerButton(nativeEvent);
+    logFocusEvent('board-mouse-move', {
+      button: nativeEvent?.button,
+      buttons: nativeEvent?.buttons,
+      targetName: nativeEvent?.target?.nodeName ?? typeof nativeEvent?.target,
+      activeButton: activeButtonRef.current,
+      leftDragging: isBoardLeftDraggingRef.current,
+      rightDragging: isRightHeldRef.current,
+    });
     if (resolvedButton !== null) {
       activeButtonRef.current = resolvedButton;
     }
@@ -1809,6 +2675,28 @@ function PreferenceCategoryPicker({
       resolvedButton === 2 ||
       activeButtonRef.current === 2 ||
       isRightHeldRef.current;
+    if (
+      (resolvedButton === 0 || activeButtonRef.current === 0) &&
+      isBoardLeftDraggingRef.current
+    ) {
+      const metrics = getBoardMetrics();
+      const nativePageX: number | undefined = nativeEvent?.pageX;
+      const nativePageY: number | undefined = nativeEvent?.pageY;
+      const origin = boardLeftDragOriginRef.current;
+      const fallbackPoint = resolveBoardLocalPoint(event);
+      const point =
+        typeof nativePageX === 'number' &&
+        typeof nativePageY === 'number' &&
+        origin !== null
+          ? {
+              x: clamp(nativePageX - origin.x, 0, metrics.width),
+              y: clamp(nativePageY - origin.y, 0, metrics.height),
+            }
+          : fallbackPoint;
+      applyBoardInteractionAtLocalPoint(point.x, point.y, 'select', 'left-drag');
+      return;
+    }
+
     if (!isRightHeld) {
       return;
     }
@@ -1818,12 +2706,43 @@ function PreferenceCategoryPicker({
       setIsRangeHoldActive(true);
     }
 
-    const localX = nativeEvent?.locationX;
-    const localY = nativeEvent?.locationY;
-    if (typeof localX === 'number' && typeof localY === 'number') {
-      applyBoardInteractionAtLocalPoint(localX, localY, 'range');
-    }
+    const point = resolveBoardLocalPoint(event);
+    applyBoardInteractionAtLocalPoint(point.x, point.y, 'range', 'right-drag');
   };
+
+  useEffect(() => {
+    const win = (globalThis as any).window;
+    if (!win?.addEventListener) {
+      return;
+    }
+
+    const stopBoardPrimaryDrag = () => {
+      isBoardLeftDraggingRef.current = false;
+      boardLeftDragOriginRef.current = null;
+      setIsPrimaryDragActive(false);
+    };
+
+    win.addEventListener('mouseup', stopBoardPrimaryDrag);
+    win.addEventListener('pointerup', stopBoardPrimaryDrag);
+    win.addEventListener('pointercancel', stopBoardPrimaryDrag);
+    win.addEventListener('blur', stopBoardPrimaryDrag);
+
+    return () => {
+      win.removeEventListener('mouseup', stopBoardPrimaryDrag);
+      win.removeEventListener('pointerup', stopBoardPrimaryDrag);
+      win.removeEventListener('pointercancel', stopBoardPrimaryDrag);
+      win.removeEventListener('blur', stopBoardPrimaryDrag);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (wheelZoomFlashTimeoutRef.current) {
+        clearTimeout(wheelZoomFlashTimeoutRef.current);
+        wheelZoomFlashTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
 
   useEffect(() => {
@@ -1859,6 +2778,7 @@ function PreferenceCategoryPicker({
         const cx = clamp(payload.pageX - origin.x, 0, boardSizeRef.current.width);
         const cy = clamp(payload.pageY - origin.y, 0, boardSizeRef.current.height);
         const factor = (payload.deltaY ?? 0) < 0 ? 1.25 : 1 / 1.25;
+        triggerWheelZoomFlash();
 
         logWheelEvent('windows-pointer-wheel', {
           clientX: cx,
@@ -1871,14 +2791,28 @@ function PreferenceCategoryPicker({
           insideBoard: true,
           });
 
-        setViewBounds(prev => zoomViewBounds(
-          prev,
-          cx,
-          cy,
-          factor,
-          boardSizeRef.current.width,
-          boardSizeRef.current.height,
-        ));
+        setViewBounds(prev => {
+          const next = zoomViewBounds(
+            prev,
+            cx,
+            cy,
+            factor,
+            boardSizeRef.current.width,
+            boardSizeRef.current.height,
+          );
+          logZoomTransition('windows-wheel', {
+            cursorX: Number(cx.toFixed(2)),
+            cursorY: Number(cy.toFixed(2)),
+            factor: Number(factor.toFixed(4)),
+            nextRangeC: Number((next.cMax - next.cMin).toFixed(4)),
+            nextRangeH: Number((next.hMax - next.hMin).toFixed(4)),
+            prevRangeC: Number((prev.cMax - prev.cMin).toFixed(4)),
+            prevRangeH: Number((prev.hMax - prev.hMin).toFixed(4)),
+            rectHeight: Number(boardSizeRef.current.height.toFixed(2)),
+            rectWidth: Number(boardSizeRef.current.width.toFixed(2)),
+          });
+          return next;
+        });
       },
     );
 
@@ -1888,82 +2822,15 @@ function PreferenceCategoryPicker({
   }, []);
 
   useEffect(() => {
-    onOuterScrollLockChange?.(isBoardHovered);
+    const isInteractionLockActive =
+      isPrimaryDragActive ||
+      isRangeHoldActive ||
+      isPanHoldActive;
+    onOuterScrollLockChange?.(isInteractionLockActive);
     return () => {
       onOuterScrollLockChange?.(false);
     };
-  }, [isBoardHovered, onOuterScrollLockChange]);
-
-  const handleBoardWheel = (event: any) => {
-    const nativeEvent = event?.nativeEvent ?? event;
-    const ctrlKey = nativeEvent?.ctrlKey ?? false;
-    const deltaY = nativeEvent?.deltaY ?? 0;
-    const locationX = nativeEvent?.locationX;
-    const locationY = nativeEvent?.locationY;
-
-    logWheelEvent('board-prop-wheel-entry', {
-      clientX: nativeEvent?.clientX,
-      clientY: nativeEvent?.clientY,
-      ctrlKey,
-      currentTargetName: 'preference-picker-board',
-      defaultPrevented: nativeEvent?.defaultPrevented ?? false,
-      deltaY,
-      focused: isBoardFocusedRef.current,
-      hover: isBoardHoveredRef.current,
-      targetName: nativeEvent?.target?.nodeName ?? typeof nativeEvent?.target,
-    });
-
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-    nativeEvent?.preventDefault?.();
-    nativeEvent?.stopPropagation?.();
-    nativeEvent?.stopImmediatePropagation?.();
-
-    logWheelEvent('board-prop-wheel-stop', {
-      ctrlKey,
-      currentTargetName: 'preference-picker-board',
-      defaultPrevented: nativeEvent?.defaultPrevented ?? false,
-      deltaY,
-      focused: isBoardFocusedRef.current,
-      hover: isBoardHoveredRef.current,
-    });
-
-    const rect = {
-      left: 0,
-      top: 0,
-      right: boardSizeRef.current.width,
-      bottom: boardSizeRef.current.height,
-    };
-    const cx =
-      typeof locationX === 'number'
-        ? locationX
-        : clamp(boardSizeRef.current.width / 2, 0, boardSizeRef.current.width);
-    const cy =
-      typeof locationY === 'number'
-        ? locationY
-        : clamp(boardSizeRef.current.height / 2, 0, boardSizeRef.current.height);
-    const factor = deltaY < 0 ? 1.25 : 1 / 1.25;
-
-    logWheelEvent('board-prop-wheel-zoom', {
-      boardRect: rect,
-      ctrlKey,
-      deltaY,
-      focused: isBoardFocusedRef.current,
-      hover: isBoardHoveredRef.current,
-      insideBoard: true,
-      clientX: cx,
-      clientY: cy,
-    });
-
-    setViewBounds(prev => zoomViewBounds(
-      prev,
-      cx,
-      cy,
-      factor,
-      boardSizeRef.current.width,
-      boardSizeRef.current.height,
-    ));
-  };
+  }, [isPrimaryDragActive, isRangeHoldActive, isPanHoldActive, onOuterScrollLockChange]);
 
   const updateHoverSample = (event: any) => {
     const nativeEvent = event?.nativeEvent ?? event;
@@ -2002,134 +2869,87 @@ function PreferenceCategoryPicker({
 
   return (
     <View style={{marginTop: 12, marginBottom: 8}}>
-      <View style={{flexDirection: 'row', gap: 8}}>
-
-        {/* LEFT: tool buttons */}
-        <View style={{width: 32, height: 180, gap: 4, alignItems: 'center', justifyContent: 'flex-start', paddingTop: 2}}>
-          {PICKER_TOOLS.map(tool => (
-            <Pressable
-              key={tool.id}
-              onPress={() => setActiveTool(tool.id)}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 6,
-                borderWidth: 1,
-                borderColor: effectiveActiveTool === tool.id ? palette.primary : palette.border,
-                backgroundColor: effectiveActiveTool === tool.id ? palette.primary : palette.muted,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-              <Text style={{fontSize: 14, color: effectiveActiveTool === tool.id ? palette.primaryText : palette.text}}>
-                {tool.icon}
-              </Text>
-            </Pressable>
-          ))}
-          <View
-            testID="preference-picker-ctrl-indicator"
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              borderWidth: 1,
-              borderColor: isCtrlPressed ? '#3366ff' : '#555555',
-              backgroundColor: isCtrlPressed ? '#3366ff' : '#222222',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Text style={{fontSize: 11, fontWeight: '700', color: isCtrlPressed ? '#ffffff' : '#cfcfcf'}}>
-              C
-            </Text>
-          </View>
-        </View>
-
-        {/* CENTER: picker board */}
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: 12,
+          alignItems: 'flex-start',
+          alignSelf: 'stretch',
+          width: '100%',
+          minWidth: 0,
+        }}>
         <View
-          ref={boardRef}
-          focusable={true}
-          tabIndex={0}
           onLayout={e => {
             const {width, height} = e.nativeEvent.layout;
             if (width > 0 && height > 0) {
-              setBoardSize({width, height});
+              setBoardFrameSize(current =>
+                current.width === width && current.height === height
+                  ? current
+                  : {width, height},
+              );
             }
-          }}
-          onFocus={handleBoardFocus}
-          onBlur={handleBoardBlur}
-          {...({onKeyDown: handleBoardKeyDown, onKeyUp: handleBoardKeyUp} as any)}
-          {...({onMouseEnter: handleBoardPointerEnter, onMouseLeave: handleBoardPointerLeave} as any)}
-          {...({onMouseDown: handleBoardMouseDown, onMouseUp: handleBoardMouseUp} as any)}
-          {...({onMouseMove: handleBoardMouseMove} as any)}
-          {...({onPointerEnter: handleBoardPointerEnter, onPointerLeave: handleBoardPointerLeave} as any)}
-          {...({onPointerDown: (e: any) => {
-            console.log('[POINTER-TEST] onPointerDown fired', {
-              button: e.nativeEvent?.button,
-              buttons: e.nativeEvent?.buttons,
-              pointerId: e.nativeEvent?.pointerId,
-              pointerType: e.nativeEvent?.pointerType,
-              nativeEventKeys: e.nativeEvent ? Object.keys(e.nativeEvent) : [],
-            });
-            handleBoardMouseDown(e);
-          }, onPointerUp: handleBoardMouseUp} as any)}
-          {...({onPointerMove: handleBoardMouseMove} as any)}
-          {...({onWheel: handleBoardWheel} as any)}
-          onResponderGrant={e => {
-            console.log('[RESPONDER-TEST] grant fired — ref check', {
-              hasBCR: typeof boardRef.current?.getBoundingClientRect === 'function',
-              hasSPC: typeof boardRef.current?.setPointerCapture === 'function',
-              hasAEL: typeof boardRef.current?.addEventListener === 'function',
-              refConstructor: boardRef.current?.constructor?.name,
-              refKeys: boardRef.current ? Object.keys(boardRef.current).slice(0, 15) : [],
-              protoKeys: boardRef.current ? Object.getOwnPropertyNames(Object.getPrototypeOf(boardRef.current)).slice(0, 30) : [],
-            });
-            handleBoardInteraction(e, 'grant');
-          }}
-          onResponderMove={e => handleBoardInteraction(e, 'move')}
-          onStartShouldSetResponder={() => {
-            if (isRightHeldRef.current) {
-              return false;
-            }
-            if (typeof boardRef.current?.focus === 'function') {
-              boardRef.current.focus();
-            }
-            return safeSelectedIndex !== null;
           }}
           style={{
             flex: 1,
+            minWidth: 320,
             height: 180,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: isBoardFocused ? palette.primary : palette.border,
-            overflow: 'hidden',
-            position: 'relative',
-          }}
-          testID="preference-picker-board">
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}>
+          <View
+            ref={boardRef}
+            focusable={true}
+            tabIndex={0}
+            onLayout={e => {
+              const {width, height} = e.nativeEvent.layout;
+              if (width > 0 && height > 0) {
+                setBoardSize(current =>
+                  current.width === width && current.height === height
+                    ? current
+                    : {width, height},
+                );
+              }
+            }}
+            onFocus={handleBoardFocus}
+            onBlur={handleBoardBlur}
+            {...({onMouseEnter: handleBoardPointerEnter, onMouseLeave: handleBoardPointerLeave} as any)}
+            {...({onMouseDown: handleBoardMouseDown, onMouseUp: handleBoardMouseUp} as any)}
+            {...({onMouseMove: handleBoardMouseMove} as any)}
+            {...({onPointerEnter: handleBoardPointerEnter, onPointerLeave: handleBoardPointerLeave} as any)}
+            {...({onPointerDown: handleBoardMouseDown, onPointerUp: handleBoardMouseUp} as any)}
+            {...({onPointerMove: handleBoardMouseMove} as any)}
+            style={{
+              width: boardDisplayWidth,
+              height: boardDisplayHeight,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: isBoardFocused ? palette.primary : palette.border,
+              overflow: 'hidden',
+              position: 'relative',
+              cursor: boardCursor,
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+            }}
+            testID="preference-picker-board">
           <Image
             key={`pref-picker-l-${rasterL}`}
             source={{uri: imageUri}}
-            style={{width: '100%', height: '100%'}}
+            {...({
+              draggable: false,
+              onDragStart: (event: any) => event?.preventDefault?.(),
+            } as any)}
+            style={{
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              userSelect: 'none',
+              WebkitUserDrag: 'none',
+              WebkitUserSelect: 'none',
+            }}
           />
-          {hoverSampleText ? (
-            <View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                top: 8,
-                left: 8,
-                paddingHorizontal: 8,
-                paddingVertical: 5,
-                borderRadius: 6,
-                backgroundColor: 'rgba(0,0,0,0.72)',
-              }}>
-              <Text style={{fontSize: 11, color: '#ffffff'}}>
-                {hoverSampleText}
-              </Text>
-            </View>
-          ) : null}
           {/* Range sphere cross-sections */}
-          {Object.entries(pointRanges).map(([idxStr, r]) => {
-            const idx = Number(idxStr);
-            const pt = points[idx];
+          {points.map((pt, idx) => {
+            const r = clamp(pt.radius ?? DEFAULT_POINT_RANGE, 0, RANGE_RADIUS_MAX);
             if (!pt || r <= 0) return null;
 
             const dL = Math.abs(previewL - pt.l);
@@ -2139,10 +2959,10 @@ function PreferenceCategoryPicker({
             const opacity = 1 - dL / r;
             const hRange = viewBounds.hMax - viewBounds.hMin;
             const cRange = viewBounds.cMax - viewBounds.cMin;
-            const centerX = ((pt.h - viewBounds.hMin) / hRange) * boardSize.width;
-            const centerY = ((viewBounds.cMax - pt.c) / cRange) * boardSize.height;
-            const radiusH = (rSlice / hRange) * boardSize.width;
-            const radiusC = (rSlice / cRange) * boardSize.height;
+            const radiusH = (rSlice / hRange) * boardRenderMetrics.width;
+            const radiusC = (rSlice / cRange) * boardRenderMetrics.height;
+            const xPct = ((pt.h - viewBounds.hMin) / hRange) * 100;
+            const yPct = ((viewBounds.cMax - pt.c) / cRange) * 100;
 
             return (
               <React.Fragment key={`range-${idx}`}>
@@ -2151,8 +2971,10 @@ function PreferenceCategoryPicker({
                   pointerEvents="none"
                   style={{
                     position: 'absolute',
-                    left: centerX - radiusH - 2,
-                    top: centerY - radiusC - 2,
+                    left: `${xPct}%`,
+                    top: `${yPct}%`,
+                    marginLeft: -(radiusH + 2),
+                    marginTop: -(radiusC + 2),
                     width: radiusH * 2 + 4,
                     height: radiusC * 2 + 4,
                     borderRadius: 9999,
@@ -2166,8 +2988,10 @@ function PreferenceCategoryPicker({
                   pointerEvents="none"
                   style={{
                     position: 'absolute',
-                    left: centerX - radiusH,
-                    top: centerY - radiusC,
+                    left: `${xPct}%`,
+                    top: `${yPct}%`,
+                    marginLeft: -radiusH,
+                    marginTop: -radiusC,
                     width: radiusH * 2,
                     height: radiusC * 2,
                     borderRadius: 9999,
@@ -2182,11 +3006,13 @@ function PreferenceCategoryPicker({
 
           {points.map((pt, i) => {
             const isSelected = i === safeSelectedIndex;
-            const xPct = clamp(((pt.h - viewBounds.hMin) / (viewBounds.hMax - viewBounds.hMin)) * 100, -5, 105);
-            const yPct = clamp(((viewBounds.cMax - pt.c) / (viewBounds.cMax - viewBounds.cMin)) * 100, -5, 105);
+            const xPct =
+              ((pt.h - viewBounds.hMin) / Math.max(1, viewBounds.hMax - viewBounds.hMin)) * 100;
+            const yPct =
+              ((viewBounds.cMax - pt.c) / Math.max(1, viewBounds.cMax - viewBounds.cMin)) * 100;
             const dL = Math.abs(previewL - pt.l);
             const DEFAULT_MARKER_FADE = 20;
-            const r = pointRanges[i];
+            const r = pt.radius;
             const markerOpacity =
               r !== undefined
                 ? (() => {
@@ -2195,126 +3021,277 @@ function PreferenceCategoryPicker({
                   })()
                 : Math.max(0, 1 - dL / DEFAULT_MARKER_FADE);
             return (
-              <React.Fragment key={i}>
-                <View
-                  style={{
-                    position: 'absolute',
-                    left: `${xPct}%`,
-                    top: `${yPct}%`,
-                    marginLeft: -7,
-                    marginTop: -7,
-                    width: 14,
-                    height: 14,
-                    borderRadius: 7,
-                    borderWidth: isSelected ? 2 : 1,
-                    borderColor: isSelected ? palette.primary : '#000000',
-                    backgroundColor: 'transparent',
-                    opacity: markerOpacity,
-                  }}
-                />
-                <View
-                  style={{
-                    position: 'absolute',
-                    left: `${xPct}%`,
-                    top: `${yPct}%`,
-                    marginLeft: -6,
-                    marginTop: -6,
-                    width: 12,
-                    height: 12,
-                    borderRadius: 6,
-                    borderWidth: 2,
-                    borderColor: '#ffffff',
-                    backgroundColor: isSelected ? 'rgba(255,255,255,0.35)' : 'transparent',
-                    opacity: markerOpacity,
-                  }}
-                />
-              </React.Fragment>
+              <View
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: `${xPct}%`,
+                  top: `${yPct}%`,
+                  marginLeft: -3,
+                  marginTop: -3,
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: isSelected ? palette.primary : '#000000',
+                  opacity: markerOpacity,
+                }}
+              />
             );
           })}
-
+          </View>
         </View>
+        <View style={{width: 220, gap: 10, flexShrink: 0}}>
+          <View style={{flexDirection: 'row', gap: 6, justifyContent: 'flex-end'}}>
+            {PICKER_TOOL_IDS.map(toolId => (
+              <View
+                key={toolId}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: effectiveActiveTool === toolId ? palette.primary : palette.border,
+                  backgroundColor: effectiveActiveTool === toolId ? palette.primary : palette.muted,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <PickerSidebarIcon
+                  active={effectiveActiveTool === toolId}
+                  palette={palette}
+                  type={toolId}
+                />
+              </View>
+            ))}
+            <View
+              testID="preference-picker-grip-indicator"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: isGripIndicatorActive ? palette.primary : palette.border,
+                backgroundColor: isGripIndicatorActive ? palette.primary : palette.muted,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <PickerSidebarIcon
+                active={isGripIndicatorActive}
+                palette={palette}
+                type="grip"
+              />
+            </View>
+            <View
+              testID="preference-picker-ctrl-indicator"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: isZoomIndicatorActive ? palette.primary : palette.border,
+                backgroundColor: isZoomIndicatorActive ? palette.primary : palette.muted,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <PickerSidebarIcon
+                active={isZoomIndicatorActive}
+                palette={palette}
+                type="zoom"
+              />
+            </View>
+          </View>
 
-        {/* RIGHT: points list + add button */}
-        <View style={{width: 72, height: 180}}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            onScroll={event => {
-              logWheelEvent('point-list-scroll', {
-                currentTargetName: 'point-list-scrollview',
-                deltaY: event.nativeEvent?.contentOffset?.y ?? 0,
-                focused: isBoardFocusedRef.current,
-                hover: isBoardHoveredRef.current,
-                      });
-            }}
-            scrollEventThrottle={16}
-            style={{flex: 1}}
-            contentContainerStyle={{gap: 4, paddingBottom: 4}}>
-            {points.map((pt, i) => {
-              const isSelected = i === safeSelectedIndex;
-              return (
-                <Pressable
-                  key={i}
-                  onPress={() => {
-                    logFocusEvent('point-item-press', {index: i});
-                    setSelectedPointIndex(i);
-                  }}
+          <View style={{gap: 6}}>
+            {/* Sliders: L (interactive), H / C (read-only) */}
+            <View>
+              <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3}}>
+                <Text style={{fontSize: 12, fontWeight: '600', color: palette.text}}>{texts.studentOptionsLightness}</Text>
+                <Text style={{fontSize: 12, color: palette.textMuted}}>{Math.round(previewL)}</Text>
+              </View>
+              <View
+                onLayout={e => { lSliderWidth.current = e.nativeEvent.layout.width || 1; }}
+                onResponderGrant={e => handleLSliderInteraction(e, 'grant')}
+                onResponderMove={e => handleLSliderInteraction(e, 'move')}
+                onStartShouldSetResponder={e => isLeftPointerPressed(e?.nativeEvent)}
+                {...({
+                  onMouseDown: (e: any) => handleLSliderInteraction(e, 'grant'),
+                  onMouseMove: (e: any) => handleLSliderInteraction(e, 'move'),
+                  onPointerDown: (e: any) => handleLSliderInteraction(e, 'grant'),
+                  onPointerMove: (e: any) => handleLSliderInteraction(e, 'move'),
+                } as any)}
+                style={{
+                  height: 14,
+                  borderRadius: 999,
+                  position: 'relative',
+                }}>
+                <View
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 4,
-                    paddingHorizontal: 6,
-                    paddingVertical: 5,
-                    borderRadius: 6,
-                    borderWidth: isSelected ? 2 : 1,
-                    borderColor: isSelected ? palette.primary : palette.border,
-                    backgroundColor: isSelected ? palette.primary : palette.muted,
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    borderRadius: 999,
+                    backgroundColor: '#e0e0e0',
+                    overflow: 'hidden',
                   }}>
                   <View
                     style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: 3,
-                      borderWidth: 1,
-                      borderColor: isSelected ? palette.primaryText : palette.border,
-                      backgroundColor: hclToHexColor(pt.h, pt.c, pt.l),
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: `${clamp(lRatio * 100, 0, 100)}%`,
+                      backgroundColor: '#c0c0c0',
                     }}
                   />
-                  <Text style={{fontSize: 11, flex: 1, color: isSelected ? palette.primaryText : palette.text}}>
-                    {i + 1}
-                  </Text>
-                  {onRemovePoint && (
-                    <Pressable
-                      onPress={() =>
-                        Alert.alert(
-                          '포인트 삭제',
-                          `Point ${i + 1}을 삭제하시겠습니까?`,
-                          [
-                            {text: '취소', style: 'cancel'},
-                            {
-                              text: '삭제',
-                              style: 'destructive',
-                              onPress: () => onRemovePoint(i),
-                            },
-                          ],
-                        )
-                      }
+                </View>
+                <View style={{position: 'absolute', left: 0, top: 0, width: '100%', height: 14}} />
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: `${clamp(lRatio * 100, 0, 100)}%`,
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: '#ffffff',
+                    borderWidth: 1,
+                    borderColor: '#aaaaaa',
+                    transform: [{translateX: -7}],
+                  }}
+                />
+              </View>
+            </View>
+
+            <View>
+              <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3}}>
+                <Text style={{fontSize: 12, fontWeight: '600', color: palette.text}}>{texts.studentOptionsRangeRadius}</Text>
+                <Text style={{fontSize: 12, color: palette.textMuted}}>
+                  {selectedPointRange.toFixed(1)}
+                </Text>
+              </View>
+              <View
+                onLayout={e => {
+                  rangeSliderWidth.current = e.nativeEvent.layout.width || 1;
+                }}
+                onResponderGrant={e => handleRangeSliderInteraction(e, 'grant')}
+                onResponderMove={e => handleRangeSliderInteraction(e, 'move')}
+                onStartShouldSetResponder={e => isLeftPointerPressed(e?.nativeEvent)}
+                {...({
+                  onMouseDown: (e: any) => handleRangeSliderInteraction(e, 'grant'),
+                  onMouseMove: (e: any) => handleRangeSliderInteraction(e, 'move'),
+                  onPointerDown: (e: any) => handleRangeSliderInteraction(e, 'grant'),
+                  onPointerMove: (e: any) => handleRangeSliderInteraction(e, 'move'),
+                } as any)}
+                style={{
+                  height: 14,
+                  borderRadius: 999,
+                  position: 'relative',
+                }}>
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    borderRadius: 999,
+                    backgroundColor: '#e0e0e0',
+                    overflow: 'hidden',
+                  }}>
+                  <View
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: `${clamp(rangeRatio * 100, 0, 100)}%`,
+                      backgroundColor: '#c0c0c0',
+                    }}
+                  />
+                </View>
+                <View style={{position: 'absolute', left: 0, top: 0, width: '100%', height: 14}} />
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: `${clamp(rangeRatio * 100, 0, 100)}%`,
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: '#ffffff',
+                    borderWidth: 1,
+                    borderColor: '#aaaaaa',
+                    transform: [{translateX: -7}],
+                  }}
+                />
+              </View>
+            </View>
+
+            {([
+              {label: texts.studentOptionsHue, ratio: hRatio, value: Math.round(displayPoint?.h ?? 0)},
+              {label: texts.studentOptionsChroma, ratio: cRatio, value: Math.round(displayPoint?.c ?? 0)},
+            ] as const).map(({label, ratio, value}) => {
+              const disabled = effectiveActiveTool === 'range';
+              return (
+                <View key={label} style={{opacity: disabled ? 0.35 : 1}}>
+                  <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3}}>
+                    <Text style={{fontSize: 12, fontWeight: '600', color: disabled ? palette.textMuted : palette.text}}>
+                      {label}
+                    </Text>
+                    <Text style={{fontSize: 12, color: palette.textMuted}}>{value}</Text>
+                  </View>
+                  <View
+                    style={{
+                      height: 14,
+                      borderRadius: 999,
+                      position: 'relative',
+                    }}>
+                    <View
                       style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 4,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: 'rgba(0,0,0,0.15)',
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        borderRadius: 999,
+                        backgroundColor: '#e0e0e0',
+                        overflow: 'hidden',
                       }}>
-                      <Text style={{fontSize: 9, color: isSelected ? palette.primaryText : palette.text, lineHeight: 16}}>
-                        ✕
-                      </Text>
-                    </Pressable>
-                  )}
-                </Pressable>
+                      <View
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: `${clamp(ratio * 100, 0, 100)}%`,
+                          backgroundColor: disabled ? '#d8d8d8' : '#c0c0c0',
+                        }}
+                      />
+                    </View>
+                    <View style={{position: 'absolute', left: 0, top: 0, width: '100%', height: 14}} />
+                    <View
+                      style={{
+                        position: 'absolute',
+                        left: `${clamp(ratio * 100, 0, 100)}%`,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 7,
+                        backgroundColor: disabled ? '#eeeeee' : '#ffffff',
+                        borderWidth: 1,
+                        borderColor: disabled ? '#cccccc' : '#aaaaaa',
+                        transform: [{translateX: -7}],
+                      }}
+                    />
+                  </View>
+                </View>
               );
             })}
-          </ScrollView>
+          </View>
+        </View>
+      </View>
+
+      <View style={{marginTop: 10, width: '100%', alignSelf: 'stretch', minWidth: 0}}>
+        <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}>
+          <Text style={{fontSize: 12, fontWeight: '600', color: palette.text}}>Points</Text>
           {onAddPoint && (
             <Pressable
               onPress={() => {
@@ -2322,118 +3299,145 @@ function PreferenceCategoryPicker({
                 onAddPoint!();
               }}
               style={{
-                height: 30,
+                width: 28,
+                height: 28,
                 borderRadius: 6,
                 borderWidth: 1,
                 borderColor: palette.border,
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: palette.muted,
-                marginTop: 4,
               }}>
               <Text style={{fontSize: 18, color: palette.text, lineHeight: 22}}>＋</Text>
             </Pressable>
           )}
         </View>
-
-      </View>
-
-      {/* Sliders: L (interactive), H / C (read-only) */}
-      <View style={{marginTop: 10, gap: 6}}>
-
-        {/* L slider — interactive, controls previewL for range sphere visualization */}
-        <View>
-          <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3}}>
-            <Text style={{fontSize: 12, fontWeight: '600', color: palette.text}}>Lightness (L)</Text>
-            <Text style={{fontSize: 12, color: palette.textMuted}}>{Math.round(previewL)}</Text>
-          </View>
-          <View
-            onLayout={e => { lSliderWidth.current = e.nativeEvent.layout.width || 1; }}
-            onResponderGrant={e => handleLSliderInteraction(e, 'grant')}
-            onResponderMove={e => handleLSliderInteraction(e, 'move')}
-            onStartShouldSetResponder={() => true}
-            style={{
-              height: 14,
-              borderRadius: 999,
-              backgroundColor: '#e0e0e0',
-              overflow: 'hidden',
-            }}>
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${clamp(lRatio * 100, 0, 100)}%`,
-                backgroundColor: '#c0c0c0',
-              }}
-            />
-            <View
-              style={{
-                position: 'absolute',
-                left: `${clamp(lRatio * 100, 0, 96)}%`,
-                marginLeft: -7,
-                width: 14,
-                height: 14,
-                borderRadius: 7,
-                backgroundColor: '#ffffff',
-                borderWidth: 1,
-                borderColor: '#aaaaaa',
-              }}
-            />
-          </View>
-        </View>
-
-        {/* H and C — read-only, visually disabled when range tool is active */}
-        {([
-          {label: 'Hue (H)', ratio: hRatio, value: Math.round(displayPoint?.h ?? 0)},
-          {label: 'Chroma (C)', ratio: cRatio, value: Math.round(displayPoint?.c ?? 0)},
-        ] as const).map(({label, ratio, value}) => {
-          const disabled = effectiveActiveTool === 'range';
-          return (
-            <View key={label} style={{opacity: disabled ? 0.35 : 1}}>
-              <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3}}>
-                <Text style={{fontSize: 12, fontWeight: '600', color: disabled ? palette.textMuted : palette.text}}>
-                  {label}
-                </Text>
-                <Text style={{fontSize: 12, color: palette.textMuted}}>{value}</Text>
-              </View>
-              <View
+        <ScrollView
+          horizontal={true}
+          showsHorizontalScrollIndicator={false}
+          onScroll={event => {
+            logWheelEvent('point-list-scroll', {
+              currentTargetName: 'point-list-scrollview',
+              deltaY: event.nativeEvent?.contentOffset?.x ?? 0,
+              focused: isBoardFocusedRef.current,
+              hover: isBoardHoveredRef.current,
+            });
+          }}
+          scrollEventThrottle={16}
+          style={{width: '100%', alignSelf: 'stretch', minWidth: 0}}
+          contentContainerStyle={{
+            flexDirection: 'row',
+            alignItems: 'stretch',
+            gap: 6,
+            paddingBottom: 4,
+          }}>
+          {points.map((pt, i) => {
+            const isSelected = i === safeSelectedIndex;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => {
+                  logFocusEvent('point-item-press', {index: i});
+                  setSelectedPointIndex(i);
+                }}
                 style={{
-                  height: 14,
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  minWidth: 68,
+                  paddingVertical: 5,
+                  paddingHorizontal: 8,
                   borderRadius: 999,
-                  backgroundColor: '#e0e0e0',
-                  overflow: 'hidden',
+                  borderWidth: isSelected ? 2 : 1,
+                  borderColor: isSelected ? palette.primary : palette.border,
+                  backgroundColor: isSelected ? palette.primary : palette.muted,
                 }}>
                 <View
                   style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: `${clamp(ratio * 100, 0, 100)}%`,
-                    backgroundColor: disabled ? '#d8d8d8' : '#c0c0c0',
-                  }}
-                />
+                    width: 18,
+                    height: 18,
+                    borderRadius: 999,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: isSelected ? 'rgba(255,255,255,0.22)' : '#ffffff',
+                    borderWidth: 1,
+                    borderColor: isSelected ? 'rgba(255,255,255,0.35)' : palette.border,
+                    flexShrink: 0,
+                  }}>
+                  <Text
+                    style={{
+                      fontSize: 10,
+                      fontWeight: '700',
+                      lineHeight: 10,
+                      color: isSelected ? palette.primaryText : palette.text,
+                    }}>
+                    {i + 1}
+                  </Text>
+                </View>
                 <View
                   style={{
-                    position: 'absolute',
-                    left: `${clamp(ratio * 100, 0, 96)}%`,
-                    marginLeft: -7,
-                    width: 14,
-                    height: 14,
-                    borderRadius: 7,
-                    backgroundColor: disabled ? '#eeeeee' : '#ffffff',
+                    width: 16,
+                    height: 16,
+                    borderRadius: 4,
                     borderWidth: 1,
-                    borderColor: disabled ? '#cccccc' : '#aaaaaa',
+                    borderColor: isSelected ? palette.primaryText : palette.border,
+                    backgroundColor: hclToHexColor(pt.h, pt.c, pt.l),
+                    flexShrink: 0,
                   }}
                 />
-              </View>
-            </View>
-          );
-        })}
+                {onRemovePoint && (
+                  <Pressable
+                    onPress={() =>
+                      Alert.alert(
+                        texts.studentOptionsDeleteTitle,
+                        texts.studentOptionsDeleteMessage.replace('{n}', String(i + 1)),
+                        [
+                          {text: texts.cancel, style: 'cancel'},
+                          {
+                            text: texts.studentOptionsDeleteConfirm,
+                            style: 'destructive',
+                            onPress: () => onRemovePoint(i),
+                          },
+                        ],
+                      )
+                    }
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 999,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor: isSelected
+                        ? 'rgba(255,255,255,0.35)'
+                        : palette.border,
+                      backgroundColor: isSelected
+                        ? 'rgba(0,0,0,0.16)'
+                        : '#ffffff',
+                      flexShrink: 0,
+                    }}>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        lineHeight: 11,
+                        fontWeight: '700',
+                        color: isSelected ? palette.primaryText : palette.text,
+                        textAlign: 'center',
+                        includeFontPadding: false as any,
+                        textAlignVertical: 'center' as any,
+                        marginTop: -0.5,
+                      }}>
+                      ×
+                    </Text>
+                  </Pressable>
+                )}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
-
     </View>
   );
 }

@@ -36,6 +36,7 @@ function createProfile() {
 
 function createSetters() {
   return {
+    resetLocalProfileState: jest.fn(),
     setSession: jest.fn(),
     setIsAuthenticated: jest.fn(),
   };

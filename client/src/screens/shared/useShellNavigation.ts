@@ -1,35 +1,41 @@
 import { useEffect, useState } from 'react';
 
-import type { AccountSection, AppPage, MembersSection, SettingsSection } from './shell-model';
+import type { AccountSection, AppPage, InventorySection, MembersSection, SettingsSection } from './shell-model';
 import {
   resolveAccountSection,
   resolveGuardedMembersRoute,
   resolvePageSelection,
 } from './shell-routing';
 
-type ShellSection = SettingsSection | AccountSection | MembersSection;
+type ShellSection = SettingsSection | AccountSection | MembersSection | InventorySection;
 
 type UseShellNavigationParams<TSection extends ShellSection> = {
   allowMembersOverride?: boolean;
+  canAccessInventoryPage: boolean;
   canAccessMembersPage: boolean;
   closeMenu?: () => void;
   initialPage?: AppPage;
   initialSection: TSection;
   isAuthenticated: boolean;
   resetAccountUi: () => void;
+  showStudentReservationItem: boolean;
   showStudentAccountItems: boolean;
+  showTeacherReservationItem: boolean;
   showTeacherAccountItems: boolean;
 };
 
 export function useShellNavigation<TSection extends ShellSection>({
   allowMembersOverride = false,
+  canAccessInventoryPage,
   canAccessMembersPage,
   closeMenu,
   initialPage = 'settings',
   initialSection,
   isAuthenticated,
   resetAccountUi,
+  showStudentReservationItem,
   showStudentAccountItems,
+  showTeacherReservationItem,
   showTeacherAccountItems,
 }: UseShellNavigationParams<TSection>) {
   const [page, setPage] = useState<AppPage>(initialPage);
@@ -44,6 +50,7 @@ export function useShellNavigation<TSection extends ShellSection>({
   }, [initialSection]);
 
   const canShowMembersPage = allowMembersOverride || canAccessMembersPage;
+  const canShowInventoryPage = allowMembersOverride || canAccessInventoryPage;
 
   const selectPage = (
     nextPage: AppPage,
@@ -53,6 +60,7 @@ export function useShellNavigation<TSection extends ShellSection>({
     },
   ) => {
     const nextRoute = resolvePageSelection<TSection>({
+      canAccessInventoryPage: canShowInventoryPage,
       canAccessMembersPage: canShowMembersPage,
       closeMenu: options?.closeMenuOnSelect ? closeMenu : undefined,
       nextPage,
@@ -78,6 +86,7 @@ export function useShellNavigation<TSection extends ShellSection>({
 
   useEffect(() => {
     const guardedRoute = resolveGuardedMembersRoute<TSection>({
+      canAccessInventoryPage: canShowInventoryPage,
       canAccessMembersPage: canShowMembersPage,
       closeMenu,
       currentPage: page,
@@ -88,18 +97,21 @@ export function useShellNavigation<TSection extends ShellSection>({
       setPage(guardedRoute.page);
       setSection(guardedRoute.section);
     }
-  }, [canShowMembersPage, closeMenu, page]);
+  }, [canShowInventoryPage, canShowMembersPage, closeMenu, page]);
 
   const accountSection = resolveAccountSection<TSection>({
     allowRegisterWhenUnauthenticated: allowMembersOverride || !isAuthenticated,
     currentSection: section,
     isAuthenticated,
+    showStudentReservationItem,
     showStudentAccountItems,
+    showTeacherReservationItem,
     showTeacherAccountItems,
   });
 
   return {
     accountSection,
+    canShowInventoryPage,
     canShowMembersPage,
     page,
     section,

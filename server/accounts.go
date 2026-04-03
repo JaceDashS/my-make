@@ -35,6 +35,8 @@ type accountService interface {
 	RegisterRoot(ctx context.Context, input rootRegisterInput) (accountResponse, error)
 	SearchAcademyMembers(ctx context.Context, input academyMemberSearchInput) (academyMembersResponse, error)
 	UpdateAcademyMemberStatus(ctx context.Context, input academyMemberStatusUpdateInput) (academyMemberStatusUpdateResponse, error)
+	GetAcademyMemberProfile(ctx context.Context, actor accountResponse, input academyMemberProfileInput) (profileResponse, error)
+	UpdateAcademyMemberProfile(ctx context.Context, actor accountResponse, input academyMemberProfileUpdateInput) (profileResponse, error)
 	SearchPendingMembers(ctx context.Context, input pendingMemberSearchInput) (pendingMembersResponse, error)
 	ApprovePendingMember(ctx context.Context, input approvePendingMemberInput) (accountResponse, error)
 	RenewLicense(ctx context.Context, input renewLicenseInput) (licenseRenewResponse, error)
@@ -77,17 +79,43 @@ type renewLicenseInput struct {
 }
 
 type profileUpdateInput struct {
-	Password         *string `json:"password"`
-	Email            *string `json:"email"`
-	Phone            *string `json:"phone"`
-	Note             *string `json:"note"`
-	AuthPolicy       *string `json:"authPolicy"`
-	StatusCode       *string `json:"statusCode"`
-	SkinLValue       *string `json:"skinLValue"`
-	SkinCValue       *string `json:"skinCValue"`
-	SkinHValue       *string `json:"skinHValue"`
-	SkinTraits       *string `json:"skinTraits"`
-	PreferenceRanges *string `json:"preferenceRanges"`
+	DisplayName       *string `json:"displayName"`
+	Password          *string `json:"password"`
+	Email             *string `json:"email"`
+	Phone             *string `json:"phone"`
+	Note              *string `json:"note"`
+	AuthPolicy        *string `json:"authPolicy"`
+	StatusCode        *string `json:"statusCode"`
+	AvailableSchedule *string `json:"availableSchedule"`
+	Preset            *string `json:"preset"`
+	SkinLValue        *string `json:"skinLValue"`
+	SkinCValue        *string `json:"skinCValue"`
+	SkinHValue        *string `json:"skinHValue"`
+	SkinTraits        *string `json:"skinTraits"`
+	PreferenceRanges  *string `json:"preferenceRanges"`
+}
+
+type academyMemberProfileInput struct {
+	AcademyCode string `json:"academyCode"`
+	LoginID     string `json:"loginId"`
+}
+
+type academyMemberProfileUpdateInput struct {
+	AcademyCode       string  `json:"academyCode"`
+	LoginID           string  `json:"loginId"`
+	AvailableSchedule *string `json:"availableSchedule"`
+	DisplayName       *string `json:"displayName"`
+	Password          *string `json:"password"`
+	Email             *string `json:"email"`
+	Phone             *string `json:"phone"`
+	Note              *string `json:"note"`
+	Preset            *string `json:"preset"`
+	SkinLValue        *string `json:"skinLValue"`
+	SkinCValue        *string `json:"skinCValue"`
+	SkinHValue        *string `json:"skinHValue"`
+	SkinTraits        *string `json:"skinTraits"`
+	PreferenceRanges  *string `json:"preferenceRanges"`
+	PassIncrement     *string `json:"passIncrement"`
 }
 
 type pendingMemberSearchInput struct {
@@ -98,9 +126,10 @@ type pendingMemberSearchInput struct {
 }
 
 type approvePendingMemberInput struct {
-	AcademyCode   string `json:"academyCode"`
-	ActorRoleCode string `json:"actorRoleCode"`
-	LoginID       string `json:"loginId"`
+	AcademyCode           string `json:"academyCode"`
+	ActorRoleCode         string `json:"actorRoleCode"`
+	LoginID               string `json:"loginId"`
+	PrimaryTeacherLoginID string `json:"primaryTeacherLoginId"`
 }
 
 type accountResponse struct {
@@ -227,6 +256,7 @@ type storedAccount struct {
 	preferenceRanges   sql.NullString
 	preset             sql.NullString
 	primaryTeacherID   sql.NullInt64
+	primaryTeacherName sql.NullString
 	roleCode           string
 	skinCValue         sql.NullFloat64
 	skinHValue         sql.NullFloat64
@@ -236,6 +266,11 @@ type storedAccount struct {
 	licenseCode        sql.NullString
 	expiresAt          sql.NullTime
 	sourceTable        string
+}
+
+type parsedJSONObject struct {
+	body      string
+	objectMap map[string]any
 }
 
 type storedLicense struct {
@@ -361,31 +396,84 @@ func (s *oracleAccountService) Login(ctx context.Context, input loginInput) (acc
 	input.LoginID = strings.TrimSpace(input.LoginID)
 
 	if input.LoginID == "" || input.Password == "" {
+		logServerRuntime("accounts", "login:validation-fail", map[string]any{
+			"loginId":        input.LoginID,
+			"passwordLength": len(input.Password),
+			"reason":         "missing-login-or-password",
+		})
 		return accountResponse{}, fmt.Errorf("Please enter your login ID and password.")
 	}
 
 	account, err := s.fetchAccount(ctx, input.LoginID)
 	if err != nil {
+		logServerRuntime("accounts", "login:account-fetch-fail", map[string]any{
+			"loginId":        input.LoginID,
+			"passwordLength": len(input.Password),
+			"error":          err.Error(),
+		})
 		return accountResponse{}, err
 	}
 
+	logServerRuntime("accounts", "login:account-loaded", map[string]any{
+		"academyCode":    nullStringValue(account.academyCode),
+		"hashExists":     strings.TrimSpace(account.passwordHash) != "",
+		"hashLength":     len(account.passwordHash),
+		"loginId":        input.LoginID,
+		"passwordLength": len(input.Password),
+		"roleCode":       account.roleCode,
+		"statusCode":     account.statusCode,
+	})
+
 	if err := bcrypt.CompareHashAndPassword([]byte(account.passwordHash), []byte(input.Password)); err != nil {
+		logServerRuntime("accounts", "login:password-compare-fail", map[string]any{
+			"hashExists":     strings.TrimSpace(account.passwordHash) != "",
+			"hashLength":     len(account.passwordHash),
+			"loginId":        input.LoginID,
+			"passwordLength": len(input.Password),
+			"statusCode":     account.statusCode,
+		})
 		return accountResponse{}, fmt.Errorf("The login ID or password is incorrect.")
 	}
 
+	logServerRuntime("accounts", "login:password-compare-success", map[string]any{
+		"hashExists":     strings.TrimSpace(account.passwordHash) != "",
+		"hashLength":     len(account.passwordHash),
+		"loginId":        input.LoginID,
+		"passwordLength": len(input.Password),
+		"statusCode":     account.statusCode,
+	})
+
 	switch account.statusCode {
 	case "PENDING":
+		logServerRuntime("accounts", "login:status-reject", map[string]any{
+			"loginId":    input.LoginID,
+			"reason":     "pending",
+			"statusCode": account.statusCode,
+		})
 		return accountResponse{}, fmt.Errorf("Your account is waiting for approval.")
-	case "HOLD":
-		return accountResponse{}, fmt.Errorf("Your account is currently on hold.")
 	case "INACTIVE":
+		logServerRuntime("accounts", "login:status-reject", map[string]any{
+			"loginId":    input.LoginID,
+			"reason":     "inactive",
+			"statusCode": account.statusCode,
+		})
 		return accountResponse{}, fmt.Errorf("Your account is inactive.")
-	case "ACTIVE":
+	case "HOLD", "ACTIVE":
 	default:
+		logServerRuntime("accounts", "login:status-reject", map[string]any{
+			"loginId":    input.LoginID,
+			"reason":     "unknown-status",
+			"statusCode": account.statusCode,
+		})
 		return accountResponse{}, fmt.Errorf("Your account is unavailable right now.")
 	}
 
 	if account.academyCode.Valid && account.academyState.Valid && account.academyState.String != "ACTIVE" {
+		logServerRuntime("accounts", "login:academy-reject", map[string]any{
+			"academyCode":  nullStringValue(account.academyCode),
+			"academyState": nullStringValue(account.academyState),
+			"loginId":      input.LoginID,
+		})
 		return accountResponse{}, fmt.Errorf("Your academy is currently inactive.")
 	}
 
@@ -429,11 +517,9 @@ func (s *oracleAccountService) GetProfile(ctx context.Context, loginID string) (
 	switch account.statusCode {
 	case "PENDING":
 		return profileResponse{}, fmt.Errorf("Your account is waiting for approval.")
-	case "HOLD":
-		return profileResponse{}, fmt.Errorf("Your account is currently on hold.")
 	case "INACTIVE":
 		return profileResponse{}, fmt.Errorf("Your account is inactive.")
-	case "ACTIVE":
+	case "HOLD", "ACTIVE":
 	default:
 		return profileResponse{}, fmt.Errorf("Your account is unavailable right now.")
 	}
@@ -482,6 +568,16 @@ func (s *oracleAccountService) UpdateProfile(
 	assignments := make([]string, 0, 6)
 	args := make([]any, 0, 8)
 	nextArg := 1
+
+	if input.DisplayName != nil {
+		trimmedDisplayName := strings.TrimSpace(*input.DisplayName)
+		if trimmedDisplayName == "" {
+			return profileResponse{}, fmt.Errorf("Please enter a display name.")
+		}
+		assignments = append(assignments, fmt.Sprintf("DISPLAY_NAME = :%d", nextArg))
+		args = append(args, trimmedDisplayName)
+		nextArg++
+	}
 
 	if input.Password != nil && strings.TrimSpace(*input.Password) != "" {
 		passwordHash, err := hashPassword(strings.TrimSpace(*input.Password))
@@ -537,6 +633,21 @@ func (s *oracleAccountService) UpdateProfile(
 		nextArg++
 	}
 
+	if account.sourceTable == "MAIMEI_TEACHERS" && input.AvailableSchedule != nil {
+		_, err := parseOptionalJSONObject(*input.AvailableSchedule, "available schedule")
+		if err != nil {
+			return profileResponse{}, err
+		}
+	}
+	if account.sourceTable == "MAIMEI_TEACHERS" && input.Preset != nil {
+		if _, err := parseTeacherPresetDocument(*input.Preset); err != nil {
+			return profileResponse{}, err
+		}
+		assignments = append(assignments, fmt.Sprintf("PRESET = :%d", nextArg))
+		args = append(args, nullIfEmpty(strings.TrimSpace(*input.Preset)))
+		nextArg++
+	}
+
 	if account.sourceTable == "MAIMEI_STUDENTS" {
 		if input.SkinLValue != nil {
 			parsedValue, err := parseOptionalStudentFloat(*input.SkinLValue, "skin L value")
@@ -581,30 +692,70 @@ func (s *oracleAccountService) UpdateProfile(
 		}
 	}
 
-	if len(assignments) == 0 {
+	if len(assignments) == 0 && !(account.sourceTable == "MAIMEI_TEACHERS" && input.AvailableSchedule != nil) {
 		return s.GetProfile(ctx, loginID)
 	}
 
-	var tableName string
-	switch account.sourceTable {
-	case "MAIMEI_ADMINS":
-		tableName = "MAIMEI_ADMINS"
-	case "MAIMEI_TEACHERS":
-		tableName = "MAIMEI_TEACHERS"
-	case "MAIMEI_STUDENTS":
-		tableName = "MAIMEI_STUDENTS"
-	default:
-		return profileResponse{}, fmt.Errorf("Your account is unavailable right now.")
-	}
+	if len(assignments) > 0 {
+		var tableName string
+		switch account.sourceTable {
+		case "MAIMEI_ADMINS":
+			tableName = "MAIMEI_ADMINS"
+		case "MAIMEI_TEACHERS":
+			tableName = "MAIMEI_TEACHERS"
+		case "MAIMEI_STUDENTS":
+			tableName = "MAIMEI_STUDENTS"
+		default:
+			return profileResponse{}, fmt.Errorf("Your account is unavailable right now.")
+		}
 
-	query := fmt.Sprintf(`
+		query := fmt.Sprintf(`
 UPDATE %s
    SET %s
  WHERE LOGIN_ID = :%d`, tableName, strings.Join(assignments, ",\n       "), nextArg)
-	args = append(args, loginID)
+		args = append(args, loginID)
 
-	if _, err := s.execWithReconnect(ctx, query, args...); err != nil {
-		return profileResponse{}, fmt.Errorf("We could not update your profile right now. Please try again.")
+		if _, err := s.execWithReconnect(ctx, query, args...); err != nil {
+			return profileResponse{}, fmt.Errorf("We could not update your profile right now. Please try again.")
+		}
+	}
+
+	if account.sourceTable == "MAIMEI_TEACHERS" && input.AvailableSchedule != nil {
+		parsedValue, err := parseOptionalJSONObject(*input.AvailableSchedule, "available schedule")
+		if err != nil {
+			return profileResponse{}, err
+		}
+
+		timezone := "Asia/Seoul"
+		if rawTimezone, ok := parsedValue.objectMap["timezone"].(string); ok && strings.TrimSpace(rawTimezone) != "" {
+			timezone = strings.TrimSpace(rawTimezone)
+		}
+
+		scheduleUpsertQuery := `
+MERGE INTO MAIMEI_TEACHER_AVAILABLE_SCHEDULES target
+USING (
+    SELECT TEACHER_ID
+      FROM MAIMEI_TEACHERS
+     WHERE LOGIN_ID = :1
+) source
+ON (target.TEACHER_ID = source.TEACHER_ID)
+WHEN MATCHED THEN
+    UPDATE SET
+        TIMEZONE = :2,
+        SCHEDULE_BODY = :3
+WHEN NOT MATCHED THEN
+    INSERT (TEACHER_ID, TIMEZONE, SCHEDULE_BODY)
+    VALUES (source.TEACHER_ID, :2, :3)`
+
+		if _, err := s.execWithReconnect(
+			ctx,
+			scheduleUpsertQuery,
+			loginID,
+			timezone,
+			nullIfEmpty(parsedValue.body),
+		); err != nil {
+			return profileResponse{}, fmt.Errorf("We could not update your profile right now. Please try again.")
+		}
 	}
 
 	updatedAccount, err := s.fetchAccount(ctx, loginID)
@@ -632,6 +783,342 @@ UPDATE %s
 	}
 
 	return response, nil
+}
+
+func (s *oracleAccountService) GetAcademyMemberProfile(
+	ctx context.Context,
+	actor accountResponse,
+	input academyMemberProfileInput,
+) (profileResponse, error) {
+	target, err := s.resolveAcademyMemberProfileTarget(ctx, actor, input.AcademyCode, input.LoginID)
+	if err != nil {
+		return profileResponse{}, err
+	}
+
+	return profileResponse{
+		Status:      "ok",
+		Message:     "Profile loaded successfully.",
+		AccountCode: nullStringValue(target.accountCode),
+		AcademyCode: nullStringValue(target.academyCode),
+		AcademyName: nullStringValue(target.academyName),
+		DisplayName: target.displayName,
+		Email:       nullStringValue(target.email),
+		Phone:       nullStringValue(target.phone),
+		LoginID:     target.loginID,
+		Note:        nullStringValue(target.note),
+		RoleCode:    target.roleCode,
+		LicenseCode: nullStringValue(target.licenseCode),
+		Details:     buildProfileDetails(target),
+	}, nil
+}
+
+func (s *oracleAccountService) UpdateAcademyMemberProfile(
+	ctx context.Context,
+	actor accountResponse,
+	input academyMemberProfileUpdateInput,
+) (profileResponse, error) {
+	logServerRuntime("accounts", "academy-member-profile-update:start", map[string]any{
+		"academyCode":          strings.TrimSpace(input.AcademyCode),
+		"actorLoginId":         actor.LoginID,
+		"actorRoleCode":        actor.RoleCode,
+		"hasAvailableSchedule": input.AvailableSchedule != nil,
+		"hasPreset":            input.Preset != nil,
+		"loginId":              strings.TrimSpace(input.LoginID),
+		"scheduleLength": func() int {
+			if input.AvailableSchedule == nil {
+				return 0
+			}
+			return len(strings.TrimSpace(*input.AvailableSchedule))
+		}(),
+	})
+
+	target, err := s.resolveAcademyMemberProfileTarget(ctx, actor, input.AcademyCode, input.LoginID)
+	if err != nil {
+		logServerRuntime("accounts", "academy-member-profile-update:target-error", map[string]any{
+			"error":   err.Error(),
+			"loginId": strings.TrimSpace(input.LoginID),
+		})
+		return profileResponse{}, err
+	}
+
+	assignments := make([]string, 0, 10)
+	args := make([]any, 0, 14)
+	nextArg := 1
+
+	if input.DisplayName != nil {
+		trimmedDisplayName := strings.TrimSpace(*input.DisplayName)
+		if trimmedDisplayName == "" {
+			return profileResponse{}, fmt.Errorf("Please enter a display name.")
+		}
+		assignments = append(assignments, fmt.Sprintf("DISPLAY_NAME = :%d", nextArg))
+		args = append(args, trimmedDisplayName)
+		nextArg++
+	}
+
+	if input.Password != nil && strings.TrimSpace(*input.Password) != "" {
+		passwordHash, err := hashPassword(strings.TrimSpace(*input.Password))
+		if err != nil {
+			return profileResponse{}, fmt.Errorf("We could not prepare your password right now. Please try again.")
+		}
+		assignments = append(assignments, fmt.Sprintf("PASSWORD_HASH = :%d", nextArg))
+		args = append(args, passwordHash)
+		nextArg++
+	}
+
+	if input.Email != nil {
+		assignments = append(assignments, fmt.Sprintf("EMAIL = :%d", nextArg))
+		args = append(args, nullIfEmpty(strings.TrimSpace(*input.Email)))
+		nextArg++
+	}
+
+	if input.Phone != nil {
+		if strings.TrimSpace(*input.Phone) == "" {
+			return profileResponse{}, fmt.Errorf("Please enter a phone number.")
+		}
+		assignments = append(assignments, fmt.Sprintf("PHONE = :%d", nextArg))
+		args = append(args, strings.TrimSpace(*input.Phone))
+		nextArg++
+	}
+
+	if input.Note != nil {
+		assignments = append(assignments, fmt.Sprintf("NOTE_BODY = :%d", nextArg))
+		args = append(args, nullIfEmpty(strings.TrimSpace(*input.Note)))
+		nextArg++
+	}
+
+	if target.sourceTable == "MAIMEI_TEACHERS" && input.Preset != nil {
+		if _, err := parseTeacherPresetDocument(*input.Preset); err != nil {
+			return profileResponse{}, err
+		}
+		assignments = append(assignments, fmt.Sprintf("PRESET = :%d", nextArg))
+		args = append(args, nullIfEmpty(strings.TrimSpace(*input.Preset)))
+		nextArg++
+	}
+
+	if target.sourceTable == "MAIMEI_TEACHERS" && input.AvailableSchedule != nil {
+		parsedSchedule, err := parseOptionalJSONObject(*input.AvailableSchedule, "available schedule")
+		if err != nil {
+			logServerRuntime("accounts", "academy-member-profile-update:schedule-parse-error", map[string]any{
+				"error":   err.Error(),
+				"loginId": target.loginID,
+			})
+			return profileResponse{}, err
+		}
+		logServerRuntime("accounts", "academy-member-profile-update:schedule-validated", map[string]any{
+			"loginId":        target.loginID,
+			"scheduleKeys":   keysOfObjectMap(parsedSchedule.objectMap),
+			"validatedEmpty": strings.TrimSpace(parsedSchedule.body) == "",
+		})
+	}
+
+	if target.sourceTable == "MAIMEI_STUDENTS" {
+		if input.SkinLValue != nil {
+			parsedValue, err := parseOptionalStudentFloat(*input.SkinLValue, "skin L value")
+			if err != nil {
+				return profileResponse{}, err
+			}
+			assignments = append(assignments, fmt.Sprintf("SKIN_L_VALUE = :%d", nextArg))
+			args = append(args, parsedValue)
+			nextArg++
+		}
+
+		if input.SkinCValue != nil {
+			parsedValue, err := parseOptionalStudentFloat(*input.SkinCValue, "skin C value")
+			if err != nil {
+				return profileResponse{}, err
+			}
+			assignments = append(assignments, fmt.Sprintf("SKIN_C_VALUE = :%d", nextArg))
+			args = append(args, parsedValue)
+			nextArg++
+		}
+
+		if input.SkinHValue != nil {
+			parsedValue, err := parseOptionalStudentFloat(*input.SkinHValue, "skin H value")
+			if err != nil {
+				return profileResponse{}, err
+			}
+			assignments = append(assignments, fmt.Sprintf("SKIN_H_VALUE = :%d", nextArg))
+			args = append(args, parsedValue)
+			nextArg++
+		}
+
+		if input.SkinTraits != nil {
+			assignments = append(assignments, fmt.Sprintf("SKIN_TRAITS_BODY = :%d", nextArg))
+			args = append(args, nullIfEmpty(strings.TrimSpace(*input.SkinTraits)))
+			nextArg++
+		}
+
+		if input.PreferenceRanges != nil {
+			assignments = append(assignments, fmt.Sprintf("PREFERENCE_RANGES_BODY = :%d", nextArg))
+			args = append(args, nullIfEmpty(strings.TrimSpace(*input.PreferenceRanges)))
+			nextArg++
+		}
+
+		if input.PassIncrement != nil {
+			trimmedIncrement := strings.TrimSpace(*input.PassIncrement)
+			if trimmedIncrement != "" {
+				parsedIncrement, err := strconv.ParseInt(trimmedIncrement, 10, 64)
+				if err != nil || parsedIncrement <= 0 {
+					return profileResponse{}, fmt.Errorf("Please enter a valid positive pass increment.")
+				}
+
+				assignments = append(assignments,
+					fmt.Sprintf("PASS_TOTAL_COUNT = NVL(PASS_TOTAL_COUNT, 0) + :%d", nextArg),
+				)
+				args = append(args, parsedIncrement)
+				nextArg++
+				assignments = append(assignments,
+					fmt.Sprintf("PASS_REMAINING_COUNT = NVL(PASS_REMAINING_COUNT, 0) + :%d", nextArg),
+				)
+				args = append(args, parsedIncrement)
+				nextArg++
+			}
+		}
+	}
+
+	if len(assignments) == 0 && !(target.sourceTable == "MAIMEI_TEACHERS" && input.AvailableSchedule != nil) {
+		return s.GetAcademyMemberProfile(ctx, actor, academyMemberProfileInput{
+			AcademyCode: input.AcademyCode,
+			LoginID:     input.LoginID,
+		})
+	}
+
+	if len(assignments) > 0 {
+		query := fmt.Sprintf(`
+UPDATE %s
+   SET %s
+ WHERE LOGIN_ID = :%d`, target.sourceTable, strings.Join(assignments, ",\n       "), nextArg)
+		args = append(args, target.loginID)
+
+		if _, err := s.execWithReconnect(ctx, query, args...); err != nil {
+			return profileResponse{}, fmt.Errorf("We could not update your profile right now. Please try again.")
+		}
+	}
+
+	if target.sourceTable == "MAIMEI_TEACHERS" && input.AvailableSchedule != nil {
+		parsedValue, err := parseOptionalJSONObject(*input.AvailableSchedule, "available schedule")
+		if err != nil {
+			logServerRuntime("accounts", "academy-member-profile-update:schedule-reparse-error", map[string]any{
+				"error":   err.Error(),
+				"loginId": target.loginID,
+			})
+			return profileResponse{}, err
+		}
+
+		timezone := "Asia/Seoul"
+		if rawTimezone, ok := parsedValue.objectMap["timezone"].(string); ok && strings.TrimSpace(rawTimezone) != "" {
+			timezone = strings.TrimSpace(rawTimezone)
+		}
+
+		scheduleUpsertQuery := `
+MERGE INTO MAIMEI_TEACHER_AVAILABLE_SCHEDULES target
+USING (
+    SELECT TEACHER_ID
+      FROM MAIMEI_TEACHERS
+     WHERE LOGIN_ID = :1
+) source
+ON (target.TEACHER_ID = source.TEACHER_ID)
+WHEN MATCHED THEN
+    UPDATE SET
+        TIMEZONE = :2,
+        SCHEDULE_BODY = :3
+WHEN NOT MATCHED THEN
+    INSERT (TEACHER_ID, TIMEZONE, SCHEDULE_BODY)
+    VALUES (source.TEACHER_ID, :2, :3)`
+
+		if _, err := s.execWithReconnect(
+			ctx,
+			scheduleUpsertQuery,
+			target.loginID,
+			timezone,
+			nullIfEmpty(parsedValue.body),
+		); err != nil {
+			logServerRuntime("accounts", "academy-member-profile-update:schedule-upsert-error", map[string]any{
+				"error":    err.Error(),
+				"loginId":  target.loginID,
+				"timezone": timezone,
+			})
+			return profileResponse{}, fmt.Errorf("We could not update your profile right now. Please try again.")
+		}
+		logServerRuntime("accounts", "academy-member-profile-update:schedule-upsert-success", map[string]any{
+			"loginId":          target.loginID,
+			"storedBodyLength": len(strings.TrimSpace(parsedValue.body)),
+			"timezone":         timezone,
+		})
+	}
+
+	result, err := s.GetAcademyMemberProfile(ctx, actor, academyMemberProfileInput{
+		AcademyCode: input.AcademyCode,
+		LoginID:     input.LoginID,
+	})
+	if err != nil {
+		logServerRuntime("accounts", "academy-member-profile-update:reload-error", map[string]any{
+			"error":   err.Error(),
+			"loginId": target.loginID,
+		})
+		return profileResponse{}, err
+	}
+
+	logServerRuntime("accounts", "academy-member-profile-update:success", map[string]any{
+		"availableScheduleLength": len(strings.TrimSpace(findProfileDetailValue(result.Details, "availableSchedule"))),
+		"detailKeys":              profileDetailKeys(result.Details),
+		"loginId":                 target.loginID,
+	})
+	return result, nil
+}
+
+func profileDetailKeys(details []profileDetail) []string {
+	keys := make([]string, 0, len(details))
+	for _, detail := range details {
+		keys = append(keys, detail.Key)
+	}
+	return keys
+}
+
+func findProfileDetailValue(details []profileDetail, key string) string {
+	for _, detail := range details {
+		if detail.Key == key {
+			return detail.Value
+		}
+	}
+	return ""
+}
+
+func keysOfObjectMap(value map[string]any) []string {
+	keys := make([]string, 0, len(value))
+	for key := range value {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func (s *oracleAccountService) resolveAcademyMemberProfileTarget(
+	ctx context.Context,
+	actor accountResponse,
+	academyCode string,
+	targetLoginID string,
+) (storedAccount, error) {
+	trimmedAcademyCode := strings.TrimSpace(academyCode)
+	trimmedLoginID := strings.TrimSpace(targetLoginID)
+	if trimmedAcademyCode == "" || trimmedLoginID == "" {
+		return storedAccount{}, fmt.Errorf("Please choose a valid academy member.")
+	}
+	if actor.RoleCode != "ROOT" && actor.RoleCode != "ADMIN" {
+		return storedAccount{}, fmt.Errorf("Sign in as a root or admin account to manage academy members.")
+	}
+
+	target, err := s.fetchAccount(ctx, trimmedLoginID)
+	if err != nil {
+		return storedAccount{}, err
+	}
+	if strings.TrimSpace(nullStringValue(target.academyCode)) != trimmedAcademyCode {
+		return storedAccount{}, fmt.Errorf("This member is unavailable right now.")
+	}
+	if !canEditAcademyMemberProfile(actor.RoleCode, target.roleCode) {
+		return storedAccount{}, fmt.Errorf("You do not have permission to edit this member.")
+	}
+
+	return target, nil
 }
 
 func buildProfileDetails(account storedAccount) []profileDetail {
@@ -689,12 +1176,16 @@ func buildProfileDetails(account storedAccount) []profileDetail {
 		appendDetail("preset", "Preset", preset)
 		appendDetail("availableSchedule", "Available Schedule", availableSchedule)
 	case "STUDENT":
+		primaryTeacherName := strings.TrimSpace(nullStringValue(account.primaryTeacherName))
+		if primaryTeacherName == "" {
+			primaryTeacherName = "-"
+		}
 		appendDetail("skinLValue", "Skin L Value", nullFloat64Value(account.skinLValue))
 		appendDetail("skinCValue", "Skin C Value", nullFloat64Value(account.skinCValue))
 		appendDetail("skinHValue", "Skin H Value", nullFloat64Value(account.skinHValue))
 		appendDetail("skinTraits", "Skin Traits", nullStringValue(account.skinTraits))
 		appendDetail("preferenceRanges", "Preference Ranges", nullStringValue(account.preferenceRanges))
-		appendDetail("primaryTeacherId", "Primary Teacher ID", nullInt64Value(account.primaryTeacherID))
+		appendDetail("primaryTeacherName", "Primary Teacher", primaryTeacherName)
 		appendDetail("passTotalCount", "Pass Total Count", nullInt64Value(account.passTotalCount))
 		appendDetail("passRemainingCount", "Pass Remaining Count", nullInt64Value(account.passRemainingCount))
 	}
@@ -1394,6 +1885,7 @@ func (s *oracleAccountService) ApprovePendingMember(
 	input.AcademyCode = strings.TrimSpace(input.AcademyCode)
 	input.ActorRoleCode = strings.ToUpper(strings.TrimSpace(input.ActorRoleCode))
 	input.LoginID = strings.TrimSpace(input.LoginID)
+	input.PrimaryTeacherLoginID = strings.TrimSpace(input.PrimaryTeacherLoginID)
 
 	if err := validatePendingModerationAccess(input.AcademyCode, input.ActorRoleCode); err != nil {
 		return accountResponse{}, err
@@ -1423,7 +1915,24 @@ func (s *oracleAccountService) ApprovePendingMember(
 		return accountResponse{}, fmt.Errorf("That pending member could not be found.")
 	}
 
-	if err := approvePendingMemberProfile(ctx, tx, spec, input.AcademyCode, input.LoginID); err != nil {
+	var primaryTeacherID int64
+	if targetRoleCode == "STUDENT" {
+		if input.PrimaryTeacherLoginID == "" {
+			return accountResponse{}, fmt.Errorf("Please choose a teacher before approving this student.")
+		}
+
+		primaryTeacherID, err = lookupActiveTeacherIDByLoginID(
+			ctx,
+			tx,
+			input.AcademyCode,
+			input.PrimaryTeacherLoginID,
+		)
+		if err != nil {
+			return accountResponse{}, err
+		}
+	}
+
+	if err := approvePendingMemberProfile(ctx, tx, spec, input.AcademyCode, input.LoginID, primaryTeacherID); err != nil {
 		return accountResponse{}, err
 	}
 
@@ -1580,16 +2089,27 @@ func approvePendingMemberProfile(
 	spec pendingMemberRoleSpec,
 	academyCode string,
 	loginID string,
+	primaryTeacherID int64,
 ) error {
+	assignments := []string{
+		"ACADEMY_CODE = :1",
+		"STATUS_CODE = 'ACTIVE'",
+	}
+	args := []any{academyCode}
+	if spec.roleCode == "STUDENT" && primaryTeacherID > 0 {
+		assignments = append(assignments, "PRIMARY_TEACHER_ID = :3")
+		args = append(args, primaryTeacherID)
+	}
+	args = append(args, loginID)
+
 	approveProfile := fmt.Sprintf(`
 UPDATE %s
-   SET ACADEMY_CODE = :1,
-        STATUS_CODE = 'ACTIVE'
+   SET %s
  WHERE LOGIN_ID = :2
    AND STATUS_CODE = 'PENDING'
-   AND ACADEMY_CODE IS NULL%s`, spec.profileTable, spec.approveExtraWhereSQL)
+   AND ACADEMY_CODE IS NULL%s`, spec.profileTable, strings.Join(assignments, ",\n        "), spec.approveExtraWhereSQL)
 
-	result, err := tx.ExecContext(ctx, approveProfile, academyCode, loginID)
+	result, err := tx.ExecContext(ctx, approveProfile, args...)
 	if err != nil {
 		return err
 	}
@@ -1604,6 +2124,30 @@ UPDATE %s
 	}
 
 	return nil
+}
+
+func lookupActiveTeacherIDByLoginID(
+	ctx context.Context,
+	tx *sql.Tx,
+	academyCode string,
+	loginID string,
+) (int64, error) {
+	query := `
+SELECT TEACHER_ID
+  FROM MAIMEI_TEACHERS
+ WHERE ACADEMY_CODE = :1
+   AND LOGIN_ID = :2
+   AND STATUS_CODE = 'ACTIVE'`
+
+	var teacherID int64
+	if err := tx.QueryRowContext(ctx, query, academyCode, loginID).Scan(&teacherID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("Please choose an active teacher in this academy.")
+		}
+		return 0, err
+	}
+
+	return teacherID, nil
 }
 
 func updateAcademyMemberStatusProfile(
@@ -1723,6 +2267,7 @@ SELECT
     preference_ranges,
     preset,
     primary_teacher_id,
+    primary_teacher_name,
     role_code,
     skin_c_value,
     skin_h_value,
@@ -1751,6 +2296,7 @@ FROM (
         CAST(NULL AS VARCHAR2(4000)) AS preference_ranges,
         CAST(NULL AS VARCHAR2(4000)) AS preset,
         CAST(NULL AS NUMBER(19, 0)) AS primary_teacher_id,
+        CAST(NULL AS VARCHAR2(4000)) AS primary_teacher_name,
         adm.ROLE_CODE AS role_code,
         CAST(NULL AS NUMBER(10, 4)) AS skin_c_value,
         CAST(NULL AS NUMBER(10, 4)) AS skin_h_value,
@@ -1780,7 +2326,10 @@ FROM (
         aca.ACADEMY_NAME AS academy_name,
         aca.STATUS_CODE AS academy_state,
         CAST(NULL AS VARCHAR2(4000)) AS auth_policy,
-        DBMS_LOB.SUBSTR(tch.AVAILABLE_SCHEDULE, 4000, 1) AS available_schedule,
+        COALESCE(
+            DBMS_LOB.SUBSTR(ts.SCHEDULE_BODY, 4000, 1),
+            DBMS_LOB.SUBSTR(tch.AVAILABLE_SCHEDULE, 4000, 1)
+        ) AS available_schedule,
         tch.DISPLAY_NAME AS display_name,
         tch.EMAIL AS email,
         tch.STATUS_CODE AS status_code,
@@ -1793,6 +2342,7 @@ FROM (
         CAST(NULL AS VARCHAR2(4000)) AS preference_ranges,
         DBMS_LOB.SUBSTR(tch.PRESET, 4000, 1) AS preset,
         CAST(NULL AS NUMBER(19, 0)) AS primary_teacher_id,
+        CAST(NULL AS VARCHAR2(4000)) AS primary_teacher_name,
         'TEACHER' AS role_code,
         CAST(NULL AS NUMBER(10, 4)) AS skin_c_value,
         CAST(NULL AS NUMBER(10, 4)) AS skin_h_value,
@@ -1814,6 +2364,8 @@ FROM (
     FROM MAIMEI_TEACHERS tch
     LEFT JOIN MAIMEI_ACADEMIES aca
       ON aca.ACADEMY_CODE = tch.ACADEMY_CODE
+    LEFT JOIN MAIMEI_TEACHER_AVAILABLE_SCHEDULES ts
+      ON ts.TEACHER_ID = tch.TEACHER_ID
     WHERE tch.LOGIN_ID = :1
     UNION ALL
     SELECT
@@ -1835,6 +2387,11 @@ FROM (
         DBMS_LOB.SUBSTR(stu.PREFERENCE_RANGES_BODY, 4000, 1) AS preference_ranges,
         CAST(NULL AS VARCHAR2(4000)) AS preset,
         stu.PRIMARY_TEACHER_ID AS primary_teacher_id,
+        (
+            SELECT tch.DISPLAY_NAME
+              FROM MAIMEI_TEACHERS tch
+             WHERE tch.TEACHER_ID = stu.PRIMARY_TEACHER_ID
+        ) AS primary_teacher_name,
         'STUDENT' AS role_code,
         stu.SKIN_C_VALUE AS skin_c_value,
         stu.SKIN_H_VALUE AS skin_h_value,
@@ -1880,6 +2437,7 @@ FROM (
 			&account.preferenceRanges,
 			&account.preset,
 			&account.primaryTeacherID,
+			&account.primaryTeacherName,
 			&account.roleCode,
 			&account.skinCValue,
 			&account.skinHValue,
@@ -2172,23 +2730,27 @@ func validateAcademyMemberStatusTransition(currentStatus, nextStatus string) err
 }
 
 func validateAcademyMemberTargetRole(roleCode string) error {
-	if roleCode == "ROOT" {
-		return fmt.Errorf("Root accounts cannot change status here.")
-	}
-
+	_ = roleCode
 	return nil
 }
 
 func canUpdateProfileStatus(actorRoleCode, targetRoleCode string) bool {
-	if targetRoleCode == "ROOT" {
-		return false
-	}
-
 	switch actorRoleCode {
 	case "ROOT":
 		return true
 	case "ADMIN":
 		return targetRoleCode != "ROOT" && targetRoleCode != "ADMIN"
+	default:
+		return false
+	}
+}
+
+func canEditAcademyMemberProfile(actorRoleCode, targetRoleCode string) bool {
+	switch actorRoleCode {
+	case "ROOT":
+		return true
+	case "ADMIN":
+		return targetRoleCode == "TEACHER" || targetRoleCode == "STUDENT"
 	default:
 		return false
 	}
@@ -2296,4 +2858,26 @@ func parseOptionalStudentFloat(value string, label string) (any, error) {
 	}
 
 	return parsedValue, nil
+}
+
+func parseOptionalJSONObject(value string, label string) (parsedJSONObject, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return parsedJSONObject{}, nil
+	}
+
+	var parsed any
+	if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil {
+		return parsedJSONObject{}, fmt.Errorf("Please enter a valid %s.", label)
+	}
+
+	objectMap, ok := parsed.(map[string]any)
+	if !ok {
+		return parsedJSONObject{}, fmt.Errorf("Please enter a valid %s.", label)
+	}
+
+	return parsedJSONObject{
+		body:      trimmed,
+		objectMap: objectMap,
+	}, nil
 }

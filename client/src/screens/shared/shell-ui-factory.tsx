@@ -26,15 +26,36 @@ type CommonShellStyles = {
 export function createShellUi<Palette extends CommonShellPalette>(styles: CommonShellStyles) {
   function Card({
     children,
+    headerRight,
     palette,
     title,
   }: React.PropsWithChildren<{
+    headerRight?: React.ReactNode;
     palette: Palette;
     title: string;
   }>) {
     return (
-      <View style={[styles.card, {backgroundColor: palette.card, borderColor: palette.border}]}>
-        <Text style={[styles.cardTitle, {color: palette.text}]}>{title}</Text>
+      <View
+        style={[
+          styles.card,
+          {
+            alignSelf: 'stretch',
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            minWidth: 0,
+            width: '100%',
+          },
+        ]}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}>
+          <Text style={[styles.cardTitle, {color: palette.text, flexShrink: 1}]}>{title}</Text>
+          {headerRight ? <View style={{flexShrink: 0}}>{headerRight}</View> : null}
+        </View>
         {children}
       </View>
     );
@@ -45,11 +66,13 @@ export function createShellUi<Palette extends CommonShellPalette>(styles: Common
     label,
     onPress,
     palette,
+    testID,
   }: {
     active: boolean;
     label: string;
     onPress: () => void;
     palette: Palette;
+    testID?: string;
   }) {
     const [isHovered, setIsHovered] = React.useState(false);
 
@@ -59,6 +82,7 @@ export function createShellUi<Palette extends CommonShellPalette>(styles: Common
         onHoverIn={() => setIsHovered(true)}
         onHoverOut={() => setIsHovered(false)}
         onPress={onPress}
+        testID={testID}
         style={({pressed}) => [
           styles.optionChip,
           {

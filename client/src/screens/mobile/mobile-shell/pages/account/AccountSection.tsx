@@ -39,6 +39,7 @@ type Props = {
   onLogin: () => void;
   onLoginIdChange: (value: string) => void;
   onNoteChange: (value: string) => void;
+  onOpenRegister: () => void;
   onLogout: () => void;
   onPasswordChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
@@ -47,11 +48,13 @@ type Props = {
   onRegisterTypeChange: (value: 'user' | 'root') => void;
   onRequestedRoleCodeChange: (value: 'STUDENT' | 'TEACHER' | 'ADMIN') => void;
   onSaveProfile: (overrides?: {
+    availableSchedule?: string;
     authPolicy?: string;
     email?: string;
     note?: string;
     password?: string;
     phone?: string;
+    preset?: string;
     statusCode?: string;
   }) => Promise<void> | void;
   onStatusCodeChange: (value: string) => void;

@@ -3,7 +3,11 @@ jest.mock('react-native', () => ({
 }));
 
 import {
+  cancelStudentReservation,
+  createStudentReservation,
   fetchAccountProfile,
+  fetchStudentReservationAvailability,
+  fetchStudentReservationList,
   loginAccount,
   logoutAccount,
   updateAccountProfile,
@@ -32,7 +36,7 @@ describe('account api', () => {
 
   beforeEach(() => {
     instances = [];
-    (global as any).XMLHttpRequest = class {
+    (globalThis as any).XMLHttpRequest = class {
       method = '';
       url = '';
       headers: Record<string, string> = {};
@@ -61,7 +65,10 @@ describe('account api', () => {
 
       send(payload: string | null) {
         this.payload = payload;
-        this.onload?.();
+        const onLoad = this.onload as (() => void) | null;
+        if (onLoad) {
+          onLoad();
+        }
       }
     };
   });
@@ -105,8 +112,48 @@ describe('account api', () => {
     expect(instances[0].payload).toBe(JSON.stringify({}));
   });
 
+  test('fetchStudentReservationAvailability posts the selected date', async () => {
+    await fetchStudentReservationAvailability({date: '2026-04-01'});
+
+    expect(instances[0].method).toBe('POST');
+    expect(instances[0].url).toContain('/api/reservations/student/availability');
+    expect(instances[0].payload).toBe(JSON.stringify({date: '2026-04-01'}));
+  });
+
+  test('fetchStudentReservationList loads reservations with GET', async () => {
+    await fetchStudentReservationList();
+
+    expect(instances[0].method).toBe('GET');
+    expect(instances[0].url).toContain('/api/reservations/student/list');
+    expect(instances[0].payload).toBe(null);
+  });
+
+  test('createStudentReservation posts the selected slot', async () => {
+    await createStudentReservation({
+      startsAtUtc: '2026-04-01T01:00:00Z',
+    });
+
+    expect(instances[0].method).toBe('POST');
+    expect(instances[0].url).toContain('/api/reservations/student/create');
+    expect(instances[0].payload).toBe(
+      JSON.stringify({
+        startsAtUtc: '2026-04-01T01:00:00Z',
+      }),
+    );
+  });
+
+  test('cancelStudentReservation posts the reservation id', async () => {
+    await cancelStudentReservation({reservationId: 'reservation-1'});
+
+    expect(instances[0].method).toBe('POST');
+    expect(instances[0].url).toContain('/api/reservations/student/cancel');
+    expect(instances[0].payload).toBe(
+      JSON.stringify({reservationId: 'reservation-1'}),
+    );
+  });
+
   test('returns an error payload when xhr fails', async () => {
-    (global as any).XMLHttpRequest = class {
+    (globalThis as any).XMLHttpRequest = class {
       method = '';
       url = '';
       headers: Record<string, string> = {};
@@ -122,7 +169,10 @@ describe('account api', () => {
       open() {}
       setRequestHeader() {}
       send() {
-        this.onerror?.();
+        const onError = this.onerror as (() => void) | null;
+        if (onError) {
+          onError();
+        }
       }
     };
 

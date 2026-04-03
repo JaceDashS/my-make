@@ -39,8 +39,8 @@ COMMENT ON COLUMN MAIMEI_TEACHERS.PASSWORD_HASH IS 'パスワードハッシュ�
 COMMENT ON COLUMN MAIMEI_TEACHERS.DISPLAY_NAME IS '講師表示名';
 COMMENT ON COLUMN MAIMEI_TEACHERS.EMAIL IS '講師メールアドレス';
 COMMENT ON COLUMN MAIMEI_TEACHERS.PHONE IS '講師携帯電話番号';
-COMMENT ON COLUMN MAIMEI_TEACHERS.PRESET IS '講師用PRESET JSON。PRESETはSKUの束と許容規則を表現する。形式例: [{ "presetId": "preset_001", "name": "Sensitive Skin", "items": [{ "sku": "#", "displayName": "name" }], "shadeRules": { "mode": "manual-zone", "categoryRules": [] } }]';
-COMMENT ON COLUMN MAIMEI_TEACHERS.AVAILABLE_SCHEDULE IS '講師予約可能時間JSON。形式例: { "timezone": "Asia/Seoul", "weekly": { "mon": [{ "start": "10:00", "end": "12:00" }, { "start": "13:00", "end": "18:00" }], "tue": [], "wed": [] }, "exceptions": [{ "date": "2026-04-01", "closed": true }, { "date": "2026-04-03", "slots": [{ "start": "15:00", "end": "18:00" }] }] }';
+COMMENT ON COLUMN MAIMEI_TEACHERS.PRESET IS '講師用PRESET JSON。形式例: { "version": 2, "presets": [{ "id": "1", "name": "Soft Daily Coral", "createdAt": "2026-04-02T09:00:00+09:00", "updatedAt": "2026-04-02T09:00:00+09:00", "note": "Daily coral tone preset for soft warm classes.", "items": { "base_foundation": [{ "source": "inventory", "sku": "FND-001", "itemName": "Soft Natural Foundation 01", "imageUrl": "https://example.com/images/fnd-001.jpg" }], "blush": [{ "source": "inventory", "sku": "BLS-002", "itemName": "Soft Peach Blush", "imageUrl": "https://example.com/images/bls-002.jpg" }], "lip_color": [{ "source": "inventory", "sku": "LIP-014", "itemName": "Muted Coral Lip", "imageUrl": "https://example.com/images/lip-014.jpg" }], "eyeshadow": null, "contour": null, "highlighter": null, "etc": null } }] }';
+COMMENT ON COLUMN MAIMEI_TEACHERS.AVAILABLE_SCHEDULE IS '旧講師予約可能時間JSON。新規保存先は MAIMEI_TEACHER_AVAILABLE_SCHEDULES を使用する';
 COMMENT ON COLUMN MAIMEI_TEACHERS.NOTE_BODY IS '講師に関する自由記述メモ';
 COMMENT ON COLUMN MAIMEI_TEACHERS.STATUS_CODE IS '講師状態コード';
 COMMENT ON COLUMN MAIMEI_TEACHERS.LAST_LOGIN_AT IS '最終ログイン日時';

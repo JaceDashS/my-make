@@ -22,7 +22,8 @@ import { useShellNavigation } from './useShellNavigation';
 type ShellSection =
   | import('./shell-model').SettingsSection
   | import('./shell-model').AccountSection
-  | import('./shell-model').MembersSection;
+  | import('./shell-model').MembersSection
+  | import('./shell-model').InventorySection;
 
 type UseManagedAppShellParams<TSection extends ShellSection> = {
   allowMembersOverride?: boolean;
@@ -47,7 +48,7 @@ export function useManagedAppShell<TSection extends ShellSection>({
   loginSection,
   profileLoadLogLabel,
 }: UseManagedAppShellParams<TSection>) {
-  const [language, setLanguage] = useState<LanguageMode>('ja');
+  const [language, setLanguage] = useState<LanguageMode>('en');
   const [theme, setTheme] = useState<ThemeMode>('light');
   const [controllerPage, setControllerPage] = useState<AppPage>(initialPage);
   const [controllerSection, setControllerSection] =
@@ -68,13 +69,16 @@ export function useManagedAppShell<TSection extends ShellSection>({
 
   const navigation = useShellNavigation<TSection>({
     allowMembersOverride,
+    canAccessInventoryPage: accountController.canAccessInventoryPage,
     canAccessMembersPage: accountController.canAccessMembersPage,
     closeMenu,
     initialPage: controllerPage,
     initialSection: controllerSection,
     isAuthenticated: accountController.isAuthenticated,
     resetAccountUi: accountController.resetAccountUi,
+    showStudentReservationItem: accountController.showStudentReservationItem,
     showStudentAccountItems: accountController.showStudentAccountItems,
+    showTeacherReservationItem: accountController.showTeacherReservationItem,
     showTeacherAccountItems: accountController.showTeacherAccountItems,
   });
 

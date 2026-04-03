@@ -45,8 +45,9 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logServerRuntime("accounts", "login:start", map[string]any{
-		"loginId": input.LoginID,
-		"token":   tokenPreviewFromRequest(r),
+		"loginId":        input.LoginID,
+		"passwordLength": len(input.Password),
+		"token":          tokenPreviewFromRequest(r),
 	})
 
 	result, err := a.accounts.Login(r.Context(), input)
@@ -189,9 +190,17 @@ func (a *app) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	logServerRuntime("accounts", "profile-update:start", map[string]any{
 		"loginId":     account.LoginID,
+		"presetField": input.Preset != nil,
 		"roleCode":    account.RoleCode,
 		"tokenPrefix": tokenPreview(token),
 	})
+	if input.Preset != nil {
+		logServerRuntime("preset", "update:start", map[string]any{
+			"loginId":     account.LoginID,
+			"roleCode":    account.RoleCode,
+			"tokenPrefix": tokenPreview(token),
+		})
+	}
 
 	result, err := a.accounts.UpdateProfile(r.Context(), account, input)
 	if err != nil {
@@ -201,6 +210,14 @@ func (a *app) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 			"tokenPrefix": tokenPreview(token),
 			"error":       err.Error(),
 		})
+		if input.Preset != nil {
+			logServerRuntime("preset", "update:error", map[string]any{
+				"error":       err.Error(),
+				"loginId":     account.LoginID,
+				"roleCode":    account.RoleCode,
+				"tokenPrefix": tokenPreview(token),
+			})
+		}
 		writeAPIError(w, http.StatusBadRequest, "profile-update", err.Error())
 		return
 	}
@@ -211,6 +228,14 @@ func (a *app) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		"detailsCount": len(result.Details),
 		"tokenPrefix":  tokenPreview(token),
 	})
+	if input.Preset != nil {
+		logServerRuntime("preset", "update:success", map[string]any{
+			"detailsCount": len(result.Details),
+			"loginId":      result.LoginID,
+			"roleCode":     result.RoleCode,
+			"tokenPrefix":  tokenPreview(token),
+		})
+	}
 
 	writeJSON(w, http.StatusOK, result)
 }

@@ -30,6 +30,7 @@ type UiComponents = {
 
 export type AccountSectionPalette = {
   border: string;
+  card: string;
   muted: string;
   primary: string;
   primaryText: string;
@@ -42,6 +43,7 @@ export type AccountSectionPalette = {
 export type AccountTexts = {
   academyCode: string;
   academyName: string;
+  availableSchedule: string;
   cancel: string;
   back: string;
   confirmPassword: string;
@@ -54,6 +56,7 @@ export type AccountTexts = {
   locked?: string;
   login: string;
   loginId: string;
+  loginIdPlaceholder: string;
   loginNotice: string;
   memberRegisterBody: string;
   memberRegisterSuccess?: string;
@@ -63,6 +66,7 @@ export type AccountTexts = {
   memberRoleTeacher: string;
   note: string;
   password: string;
+  passwordPlaceholder: string;
   passwordMismatch: string;
   presetPlaceholderBody: string;
   presetPlaceholderTitle: string;
@@ -86,6 +90,42 @@ export type AccountTexts = {
   reservationView: string;
   reservationViewPlaceholderBody: string;
   reservationViewPlaceholderTitle: string;
+  reservationTeacher: string;
+  reservationSelectDate: string;
+  reservationTimeSlots: string;
+  reservationConfirm: string;
+  reservationDate: string;
+  reservationTime: string;
+  reservationBookLesson: string;
+  reservationBooked: string;
+  reservationBookedBody: string;
+  reservationMyList: string;
+  reservationNone: string;
+  reservationSlotTaken: string;
+  reservationSlotBooked: string;
+  reservationStatusConfirmed: string;
+  reservationStatusPending: string;
+  reservationStatusCanceled: string;
+  reservationDetails: string;
+  reservationHideDetails: string;
+  reservationPreset: string;
+  reservationNote: string;
+  reservationCosmetics: string;
+  reservationNoCosmetics: string;
+  reservationViewApprove: string;
+  reservationViewEmpty: string;
+  reservationViewPending: string;
+  reservationViewCanceled: string;
+  reservationViewReject: string;
+  reservationViewStudent: string;
+  reservationViewUpcoming: string;
+  reservationViewMismatchGuide: string;
+  reservationViewNoPreference: string;
+  reservationViewPass: string;
+  reservationViewPreferenceRanges: string;
+  reservationViewPresetItems: string;
+  reservationViewSkin: string;
+  reservationViewTrait: string;
   rootLoginId: string;
   save: string;
   signIn: string;
@@ -94,11 +134,85 @@ export type AccountTexts = {
   studentOptions: string;
   studentOptionsPlaceholderBody: string;
   studentOptionsPlaceholderTitle: string;
+  studentOptionsSkinData: string;
+  studentOptionsMySkin: string;
+  studentOptionsTraits: string;
+  studentOptionsPreferencePoints: string;
+  studentOptionsCategory: string;
+  studentOptionsActions: string;
+  studentOptionsLightness: string;
+  studentOptionsHue: string;
+  studentOptionsChroma: string;
+  studentOptionsRangeRadius: string;
+  studentOptionsSave: string;
+  studentOptionsReset: string;
+  studentOptionsDone: string;
+  studentOptionsToolSelect: string;
+  studentOptionsToolRange: string;
+  studentOptionsZoom: string;
+  studentOptionsTraitsPlaceholder: string;
+  studentOptionsNoTraits: string;
+  studentOptionsNoPoints: string;
+  studentOptionsPoints: string;
+  studentOptionsDeleteTitle: string;
+  studentOptionsDeleteMessage: string;
+  studentOptionsDeleteConfirm: string;
+  studentOptionsUseFullSkinRange: string;
   statusActive: string;
   statusHold: string;
   statusInactive: string;
   availableSchedulePlaceholderBody: string;
   availableSchedulePlaceholderTitle: string;
+  availableScheduleGuide: string;
+  availableScheduleTimezone: string;
+  availableScheduleWeeklyGrid: string;
+  availableScheduleSlotsSelected: string;
+  availableScheduleBusinessHours: string;
+  availableScheduleClearAll: string;
+  availableScheduleTimeColumn: string;
+  availableScheduleClearDay: string;
+  availableScheduleExceptions: string;
+  availableScheduleExceptionGuide: string;
+  availableScheduleAddException: string;
+  availableScheduleExceptionClosed: string;
+  availableScheduleExceptionCustomSlots: string;
+  availableScheduleAddSlot: string;
+  availableScheduleSlotTo: string;
+  availableScheduleSave: string;
+  availableScheduleExceptionPeriodBlock?: string;
+  availableScheduleExceptionTimeBlock?: string;
+  availableScheduleExceptionAllDay?: string;
+  availableScheduleExceptionSpecificTime?: string;
+  availableScheduleExceptionStartDate?: string;
+  availableScheduleExceptionEndDate?: string;
+  availableScheduleExceptionDate?: string;
+  reservationTimezone: string;
+  presetTitle: string;
+  presetNew: string;
+  presetName: string;
+  presetSave: string;
+  presetDelete: string;
+  presetDeleteConfirm: string;
+  presetShowDetails: string;
+  presetHideDetails: string;
+  presetSummary: string;
+  presetNoItems: string;
+  presetCategoryAll: string;
+  presetSearch: string;
+  presetSearchPlaceholder: string;
+  presetManualItemNamePlaceholder: string;
+  presetManualAdd: string;
+  presetManualCategoryRequired: string;
+  presetItemName: string;
+  presetSku: string;
+  presetLch: string;
+  presetCategoryBaseFoundation: string;
+  presetCategoryBlush: string;
+  presetCategoryLipColor: string;
+  presetCategoryEyeshadow: string;
+  presetCategoryContour: string;
+  presetCategoryHighlighter: string;
+  presetCategoryEtc: string;
 };
 
 type Props = {
@@ -127,6 +241,7 @@ type Props = {
   onLogin: () => void;
   onLoginIdChange: (value: string) => void;
   onNoteChange: (value: string) => void;
+  onOpenRegister: () => void;
   onLogout: () => void;
   onPasswordChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
@@ -135,11 +250,13 @@ type Props = {
   onRegisterTypeChange: (value: 'user' | 'root') => void;
   onRequestedRoleCodeChange: (value: 'STUDENT' | 'TEACHER' | 'ADMIN') => void;
   onSaveProfile: (overrides?: {
+    availableSchedule?: string;
     authPolicy?: string;
     email?: string;
     note?: string;
     password?: string;
     phone?: string;
+    preset?: string;
     statusCode?: string;
   }) => Promise<void> | void;
   onStatusCodeChange: (value: string) => void;
@@ -160,7 +277,6 @@ type Props = {
 export function AccountSection({
   academyName,
   authError,
-  authNotice,
   authPolicy,
   canEditAuthPolicy,
   canEditStatus,
@@ -182,6 +298,7 @@ export function AccountSection({
   onLogin,
   onLoginIdChange,
   onNoteChange,
+  onOpenRegister,
   onLogout,
   onPasswordChange,
   onPhoneChange,
@@ -377,6 +494,7 @@ export function AccountSection({
         <View style={styles.profileFieldEditor}>
           <TextInput
             {...windowsTextInputFocusProps}
+            autoComplete="new-password"
             onChangeText={value => {
               setDraftPassword(value);
               setEditorError(null);
@@ -398,6 +516,7 @@ export function AccountSection({
           />
           <TextInput
             {...windowsTextInputFocusProps}
+            autoComplete="new-password"
             onChangeText={value => {
               setDraftPasswordConfirm(value);
               setEditorError(null);
@@ -513,7 +632,6 @@ export function AccountSection({
       <Card palette={profileActivePalette} title={texts.profile}>
         <BodyText palette={profileActivePalette}>{texts.profileBody}</BodyText>
         {standardProfileDetails.map(renderProfileField)}
-        {authNotice ? <Text style={[styles.bodyText, {color: palette.text}]}>{authNotice}</Text> : null}
         {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
       </Card>
       <Card palette={profileActivePalette} title={texts.protectedControls}>
@@ -576,12 +694,12 @@ export function AccountSection({
       <View {...loginSectionProps}>
         <AccountLoginCard
           authError={authError}
-          authNotice={authNotice}
           isSubmitting={isSubmitting}
           loginId={loginId}
           loginMutedPalette={loginMutedPalette}
           onLogin={onLogin}
           onLoginIdChange={onLoginIdChange}
+          onOpenRegister={onOpenRegister}
           onPasswordChange={onPasswordChange}
           palette={palette}
           password={password}

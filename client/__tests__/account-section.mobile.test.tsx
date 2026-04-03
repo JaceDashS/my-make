@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import {Animated} from 'react-native';
 
 import {AccountSection} from '../src/screens/mobile/mobile-shell/pages/account/AccountSection';
+import {SHELL_LABELS} from '../src/screens/shared/shell-labels';
 
 function collectText(node: any): string[] {
   if (node == null) {
@@ -43,65 +44,7 @@ function findAllPressablesByText(
 }
 
 function createTexts() {
-  return {
-    academyCode: 'Academy Code',
-    academyName: 'Academy Name',
-    availableSchedulePlaceholderBody: 'Available schedule will appear here.',
-    availableSchedulePlaceholderTitle: 'Available Schedule',
-    back: 'Back',
-    cancel: 'Cancel',
-    confirmPassword: 'Confirm Password',
-    createAccount: 'Create Account',
-    displayName: 'Display Name',
-    edit: 'Edit',
-    email: 'Email',
-    guestHint: 'Please sign in to continue.',
-    licenseCode: 'License Code',
-    login: 'Login',
-    loginId: 'Login ID',
-    loginNotice: 'Login Notice',
-    memberRegisterBody: 'Create a member account.',
-    memberRole: 'Member Role',
-    memberRoleAdmin: 'Admin',
-    memberRoleStudent: 'Student',
-    memberRoleTeacher: 'Teacher',
-    note: 'Note',
-    password: 'Password',
-    passwordMismatch: 'Passwords do not match.',
-    phone: 'Phone',
-    presetPlaceholderBody: 'Preset content will appear here.',
-    presetPlaceholderTitle: 'Preset',
-    profile: 'Profile',
-    profileBody: 'Manage your account profile.',
-    protectedControls: 'Protected Controls',
-    protectedUnlocked: 'You are signed in.',
-    register: 'Register',
-    registerBody: 'Choose how to register.',
-    registerCta: 'Need Help?',
-    registerHint: 'Contact support for onboarding.',
-    registerRoot: 'Root Registration',
-    registerRootBody: 'Create the root academy account.',
-    registerType: 'Register Type',
-    registerTypeRoot: 'Root',
-    registerTypeUser: 'User',
-    reservation: 'Reservation',
-    reservationPlaceholderBody: 'Reservation content will appear here.',
-    reservationPlaceholderTitle: 'Reservation',
-    reservationView: 'Reservation View',
-    reservationViewPlaceholderBody: 'Reservation view will appear here.',
-    reservationViewPlaceholderTitle: 'Reservation View',
-    rootLoginId: 'Root Login ID',
-    save: 'Save',
-    signIn: 'Sign In',
-    signOut: 'Sign Out',
-    status: 'Status',
-    statusActive: 'Active',
-    statusHold: 'Hold',
-    statusInactive: 'Inactive',
-    studentOptions: 'Student Options',
-    studentOptionsPlaceholderBody: 'Student options will appear here.',
-    studentOptionsPlaceholderTitle: 'Student Options',
-  };
+  return SHELL_LABELS.en;
 }
 
 function createProps(
@@ -133,6 +76,7 @@ function createProps(
     onLogin: () => undefined,
     onLoginIdChange: () => undefined,
     onNoteChange: () => undefined,
+    onOpenRegister: () => undefined,
     onLogout: () => undefined,
     onPasswordChange: () => undefined,
     onPhoneChange: () => undefined,

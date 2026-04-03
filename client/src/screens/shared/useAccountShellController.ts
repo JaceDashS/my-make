@@ -14,7 +14,7 @@ import {
   runAccountLogoutFlow,
   type AccountSession,
 } from '../../shared/lib/accountSession';
-import { canAccessMembersShellPage } from './shell-routing';
+import { canAccessInventoryShellPage, canAccessMembersShellPage } from './shell-routing';
 
 type AuthAction = 'login' | 'logout' | 'profile' | 'register' | null;
 
@@ -364,11 +364,13 @@ export function useAccountShellController<TSection extends string>({
   const canEditStatus = false;
 
   const handleSaveProfile = async (overrides?: {
+    availableSchedule?: string;
     authPolicy?: string;
     email?: string;
     note?: string;
     password?: string;
     phone?: string;
+    preset?: string;
     preferenceRanges?: string;
     skinCValue?: string;
     skinHValue?: string;
@@ -382,11 +384,13 @@ export function useAccountShellController<TSection extends string>({
 
     try {
       const payload: {
+        availableSchedule?: string;
         authPolicy?: string;
         email?: string;
         note?: string;
         password?: string;
         phone?: string;
+        preset?: string;
         preferenceRanges?: string;
         skinCValue?: string;
         skinHValue?: string;
@@ -397,6 +401,9 @@ export function useAccountShellController<TSection extends string>({
 
       if (overrides?.authPolicy !== undefined && canEditAuthPolicy) {
         payload.authPolicy = overrides.authPolicy;
+      }
+      if (overrides?.availableSchedule !== undefined) {
+        payload.availableSchedule = overrides.availableSchedule;
       }
       if (overrides?.email !== undefined) {
         payload.email = overrides.email;
@@ -409,6 +416,9 @@ export function useAccountShellController<TSection extends string>({
       }
       if (overrides?.phone !== undefined) {
         payload.phone = overrides.phone;
+      }
+      if (overrides?.preset !== undefined) {
+        payload.preset = overrides.preset;
       }
       if (overrides?.skinLValue !== undefined) {
         payload.skinLValue = overrides.skinLValue;
@@ -457,17 +467,28 @@ export function useAccountShellController<TSection extends string>({
   const canAccessMembersPage = canAccessMembersShellPage(
     isAuthenticated,
     session?.roleCode ?? '',
+    session?.statusCode ?? '',
+  );
+  const canAccessInventoryPage = canAccessInventoryShellPage(
+    isAuthenticated,
+    session?.roleCode ?? '',
+    session?.statusCode ?? '',
   );
   const showTeacherAccountItems =
     isAuthenticated && (session?.roleCode ?? '') === 'TEACHER';
   const showStudentAccountItems =
     isAuthenticated && (session?.roleCode ?? '') === 'STUDENT';
+  const showTeacherReservationItem =
+    showTeacherAccountItems && (session?.statusCode ?? '') === 'ACTIVE';
+  const showStudentReservationItem =
+    showStudentAccountItems && (session?.statusCode ?? '') === 'ACTIVE';
 
   return {
     academyName,
     authAction,
     authError,
     authNotice,
+    canAccessInventoryPage,
     canAccessMembersPage,
     canEditAuthPolicy,
     canEditStatus,
@@ -500,7 +521,9 @@ export function useAccountShellController<TSection extends string>({
     setPassword,
     setPhone,
     setRequestedRoleCode,
+    showStudentReservationItem,
     showStudentAccountItems,
+    showTeacherReservationItem,
     showTeacherAccountItems,
   };
 }

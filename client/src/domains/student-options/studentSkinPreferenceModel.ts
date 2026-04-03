@@ -1,4 +1,4 @@
-import ClipperLib = require('clipper-lib');
+import * as ClipperLib from 'clipper-lib';
 
 export type PreferencePoint = {
   x: number;

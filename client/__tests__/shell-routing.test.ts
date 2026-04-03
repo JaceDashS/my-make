@@ -24,6 +24,7 @@ describe('shell routing', () => {
     expect(
       resolvePageSelection({
         canAccessMembersPage: false,
+        canAccessInventoryPage: false,
         nextPage: 'members',
       }),
     ).toEqual({
@@ -36,6 +37,7 @@ describe('shell routing', () => {
     expect(
       resolveGuardedMembersRoute({
         canAccessMembersPage: false,
+        canAccessInventoryPage: false,
         currentPage: 'members',
         fallbackSection: 'login',
       }),
@@ -51,7 +53,9 @@ describe('shell routing', () => {
         allowRegisterWhenUnauthenticated: true,
         currentSection: 'register',
         isAuthenticated: false,
+        showStudentReservationItem: false,
         showStudentAccountItems: false,
+        showTeacherReservationItem: false,
         showTeacherAccountItems: false,
       }),
     ).toBe('register');
@@ -61,7 +65,9 @@ describe('shell routing', () => {
         allowRegisterWhenUnauthenticated: false,
         currentSection: 'register',
         isAuthenticated: true,
+        showStudentReservationItem: false,
         showStudentAccountItems: false,
+        showTeacherReservationItem: false,
         showTeacherAccountItems: false,
       }),
     ).toBe('login');

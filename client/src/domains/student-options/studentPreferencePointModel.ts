@@ -2,6 +2,7 @@ export type HclPoint = {
   l: number;
   c: number;
   h: number;
+  radius: number;
 };
 
 export type PointMode = 'single' | 'multi';
@@ -27,7 +28,7 @@ export type PreferenceCategoryEntry = {
 };
 
 export type PreferencePointDocument = {
-  version: 2;
+  version: 3;
   space: 'hcl';
   matchMode: 'point-distance';
   categories: PreferenceCategoryEntry[];
@@ -72,7 +73,7 @@ export function hclPointDistance(
 
 export function createEmptyPreferencePointDocument(): PreferencePointDocument {
   return {
-    version: 2,
+    version: 3,
     space: 'hcl',
     matchMode: 'point-distance',
     categories: PREFERENCE_CATEGORIES.map(entry => ({
@@ -93,29 +94,36 @@ export function parsePreferencePointDocument(
   try {
     const parsed = JSON.parse(value) as Partial<PreferencePointDocument>;
 
-    if (parsed.version !== 2 || !Array.isArray(parsed.categories)) {
+    const categoryMap = new Map<PreferenceCategoryCode, PreferenceCategoryEntry>();
+
+    if (Array.isArray(parsed.categories)) {
+      for (const entry of parsed.categories) {
+        if (!isValidCategoryCode(entry?.code)) {
+          continue;
+        }
+        categoryMap.set(entry.code, {
+          code: entry.code as PreferenceCategoryCode,
+          pointMode: PREFERENCE_CATEGORIES.find(c => c.code === entry.code)!.pointMode,
+          points: normalizeHclPoints(entry.points),
+        });
+      }
+    } else if (parsed.categories && typeof parsed.categories === 'object') {
+      for (const [rawCode, rawEntry] of Object.entries(parsed.categories)) {
+        if (!isValidCategoryCode(rawCode)) {
+          continue;
+        }
+        categoryMap.set(rawCode, {
+          code: rawCode,
+          pointMode: PREFERENCE_CATEGORIES.find(c => c.code === rawCode)!.pointMode,
+          points: normalizeHclPoints((rawEntry as PreferenceCategoryEntry | undefined)?.points),
+        });
+      }
+    } else {
       return createEmptyPreferencePointDocument();
     }
 
-    const categoryMap = new Map(
-      parsed.categories
-        .filter(entry => isValidCategoryCode(entry?.code))
-        .map(entry => [
-          entry.code,
-          {
-            code: entry.code as PreferenceCategoryCode,
-            pointMode: PREFERENCE_CATEGORIES.find(c => c.code === entry.code)!.pointMode,
-            points: Array.isArray(entry.points)
-              ? entry.points
-                  .filter(p => isValidHclPoint(p))
-                  .map(p => ({l: Number(p.l), c: Number(p.c), h: Number(p.h)}))
-              : [],
-          },
-        ]),
-    );
-
     return {
-      version: 2,
+      version: 3,
       space: 'hcl',
       matchMode: 'point-distance',
       categories: PREFERENCE_CATEGORIES.map(catalog =>
@@ -134,7 +142,35 @@ export function parsePreferencePointDocument(
 export function serializePreferencePointDocument(
   document: PreferencePointDocument,
 ): string {
-  return JSON.stringify(document);
+  const categories = Object.fromEntries(
+    PREFERENCE_CATEGORIES.map(catalog => {
+      const category =
+        document.categories.find(entry => entry.code === catalog.code) ?? {
+          code: catalog.code,
+          pointMode: catalog.pointMode,
+          points: [],
+        };
+      return [
+        catalog.code,
+        {
+          pointMode: catalog.pointMode,
+          points: category.points.map(point => ({
+            l: Number(point.l),
+            c: Number(point.c),
+            h: Number(point.h),
+            radius: Number(point.radius),
+          })),
+        },
+      ];
+    }),
+  );
+
+  return JSON.stringify({
+    version: 3,
+    space: 'hcl',
+    matchMode: 'point-distance',
+    categories,
+  });
 }
 
 function isValidCategoryCode(code: unknown): code is PreferenceCategoryCode {
@@ -151,4 +187,19 @@ function isValidHclPoint(p: unknown): p is HclPoint {
     Number.isFinite(Number(point.c)) &&
     Number.isFinite(Number(point.h))
   );
+}
+
+function normalizeHclPoints(value: unknown): HclPoint[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(point => isValidHclPoint(point))
+    .map(point => ({
+      l: Number(point.l),
+      c: Number(point.c),
+      h: Number(point.h),
+      radius: Number.isFinite(Number(point.radius)) ? Number(point.radius) : 0,
+    }));
 }

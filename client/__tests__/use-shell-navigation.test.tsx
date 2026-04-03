@@ -20,12 +20,15 @@ type NavigationSnapshot = ReturnType<typeof useShellNavigation<HarnessSection>>;
 type HookProps = {
   allowMembersOverride?: boolean;
   canAccessMembersPage: boolean;
+  canAccessInventoryPage: boolean;
   closeMenu?: () => void;
   initialPage?: 'settings' | 'account' | 'members';
   initialSection: HarnessSection;
   isAuthenticated: boolean;
   resetAccountUi: () => void;
+  showStudentReservationItem: boolean;
   showStudentAccountItems: boolean;
+  showTeacherReservationItem: boolean;
   showTeacherAccountItems: boolean;
 };
 
@@ -63,11 +66,14 @@ describe('useShellNavigation', () => {
     const closeMenu = jest.fn();
     const hook = renderHook({
       canAccessMembersPage: false,
+      canAccessInventoryPage: false,
       closeMenu,
       initialSection: 'general' as HarnessSection,
       isAuthenticated: false,
       resetAccountUi: jest.fn(),
+      showStudentReservationItem: false,
       showStudentAccountItems: false,
+      showTeacherReservationItem: false,
       showTeacherAccountItems: false,
     });
 
@@ -84,10 +90,13 @@ describe('useShellNavigation', () => {
     const resetAccountUi = jest.fn();
     const hook = renderHook({
       canAccessMembersPage: true,
+      canAccessInventoryPage: true,
       initialSection: 'general' as HarnessSection,
       isAuthenticated: false,
       resetAccountUi,
+      showStudentReservationItem: false,
       showStudentAccountItems: false,
+      showTeacherReservationItem: false,
       showTeacherAccountItems: false,
     });
 
@@ -111,10 +120,13 @@ describe('useShellNavigation', () => {
     const hook = renderHook({
       allowMembersOverride: true,
       canAccessMembersPage: false,
+      canAccessInventoryPage: false,
       initialSection: 'general' as HarnessSection,
       isAuthenticated: false,
       resetAccountUi: jest.fn(),
+      showStudentReservationItem: false,
       showStudentAccountItems: false,
+      showTeacherReservationItem: false,
       showTeacherAccountItems: false,
     });
 
@@ -130,11 +142,14 @@ describe('useShellNavigation', () => {
   test('recomputes account section from role-specific menu flags', () => {
     const hook = renderHook({
       canAccessMembersPage: true,
+      canAccessInventoryPage: true,
       initialPage: 'account',
       initialSection: 'preset' as HarnessSection,
       isAuthenticated: true,
       resetAccountUi: jest.fn(),
+      showStudentReservationItem: false,
       showStudentAccountItems: false,
+      showTeacherReservationItem: true,
       showTeacherAccountItems: true,
     });
 
@@ -142,14 +157,34 @@ describe('useShellNavigation', () => {
 
     hook.update({
       canAccessMembersPage: true,
+      canAccessInventoryPage: true,
       initialPage: 'account',
       initialSection: 'student-options' as HarnessSection,
       isAuthenticated: true,
       resetAccountUi: jest.fn(),
+      showStudentReservationItem: false,
       showStudentAccountItems: true,
+      showTeacherReservationItem: false,
       showTeacherAccountItems: false,
     });
 
     expect(hook.snapshot.accountSection).toBe('student-options');
+  });
+
+  test('falls back to login section when hold hides reservation items', () => {
+    const hook = renderHook({
+      canAccessMembersPage: false,
+      canAccessInventoryPage: false,
+      initialPage: 'account',
+      initialSection: 'reservation' as HarnessSection,
+      isAuthenticated: true,
+      resetAccountUi: jest.fn(),
+      showStudentReservationItem: false,
+      showStudentAccountItems: true,
+      showTeacherReservationItem: false,
+      showTeacherAccountItems: false,
+    });
+
+    expect(hook.snapshot.accountSection).toBe('login');
   });
 });

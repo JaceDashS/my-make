@@ -19,6 +19,11 @@ type stubHealthStore struct {
 	insertedPayload []string
 }
 
+type stubHealthChecker struct {
+	result healthResponse
+	err    error
+}
+
 type stubDevToolsService struct {
 	initializeResult          devToolsResponse
 	initializeErr             error
@@ -41,31 +46,60 @@ func (s *stubDevToolsService) CreateLicense(context.Context) (devToolsResponse, 
 }
 
 type stubAccountService struct {
-	registerMemberResult accountResponse
-	registerMemberErr    error
-	lastRegisterMember   memberRegisterInput
-	profileResult        profileResponse
-	profileErr           error
-	updateProfileResult  profileResponse
-	updateProfileErr     error
-	lastUpdateProfile    profileUpdateInput
-	searchAcademyResult  academyMembersResponse
-	searchAcademyErr     error
-	lastSearchAcademy    academyMemberSearchInput
-	updateAcademyResult  academyMemberStatusUpdateResponse
-	updateAcademyErr     error
-	lastUpdateAcademy    academyMemberStatusUpdateInput
-	searchPendingResult  pendingMembersResponse
-	searchPendingErr     error
-	approvePendingResult accountResponse
-	approvePendingErr    error
-	lastApprovePending   approvePendingMemberInput
-	loginResult          accountResponse
-	loginErr             error
-	registerRootResult   accountResponse
-	registerRootErr      error
-	renewResult          licenseRenewResponse
-	renewErr             error
+	registerMemberResult             accountResponse
+	registerMemberErr                error
+	lastRegisterMember               memberRegisterInput
+	profileResult                    profileResponse
+	profileErr                       error
+	updateProfileResult              profileResponse
+	updateProfileErr                 error
+	lastUpdateProfile                profileUpdateInput
+	searchAcademyResult              academyMembersResponse
+	searchAcademyErr                 error
+	lastSearchAcademy                academyMemberSearchInput
+	updateAcademyResult              academyMemberStatusUpdateResponse
+	updateAcademyErr                 error
+	lastUpdateAcademy                academyMemberStatusUpdateInput
+	academyMemberProfileResult       profileResponse
+	academyMemberProfileErr          error
+	lastAcademyMemberProfile         academyMemberProfileInput
+	updateAcademyMemberProfileResult profileResponse
+	updateAcademyMemberProfileErr    error
+	lastUpdateAcademyMemberProfile   academyMemberProfileUpdateInput
+	searchPendingResult              pendingMembersResponse
+	searchPendingErr                 error
+	approvePendingResult             accountResponse
+	approvePendingErr                error
+	lastApprovePending               approvePendingMemberInput
+	loginResult                      accountResponse
+	loginErr                         error
+	registerRootResult               accountResponse
+	registerRootErr                  error
+	renewResult                      licenseRenewResponse
+	renewErr                         error
+}
+
+type stubReservationService struct {
+	availabilityResult   reservationAvailabilityResponse
+	availabilityErr      error
+	lastAvailability     studentReservationAvailabilityInput
+	createResult         reservationMutationResponse
+	createErr            error
+	lastCreate           studentReservationCreateInput
+	listResult           studentReservationListResponse
+	listErr              error
+	lastList             studentReservationListInput
+	cancelResult         reservationMutationResponse
+	cancelErr            error
+	lastCancel           studentReservationCancelInput
+	teacherListResult    teacherReservationListResponse
+	teacherListErr       error
+	teacherApproveResult reservationMutationResponse
+	teacherApproveErr    error
+	lastTeacherApprove   teacherReservationMutationInput
+	teacherCancelResult  reservationMutationResponse
+	teacherCancelErr     error
+	lastTeacherCancel    teacherReservationMutationInput
 }
 
 func (s *stubAccountService) Login(context.Context, loginInput) (accountResponse, error) {
@@ -100,6 +134,16 @@ func (s *stubAccountService) UpdateAcademyMemberStatus(_ context.Context, input 
 	return s.updateAcademyResult, s.updateAcademyErr
 }
 
+func (s *stubAccountService) GetAcademyMemberProfile(_ context.Context, _ accountResponse, input academyMemberProfileInput) (profileResponse, error) {
+	s.lastAcademyMemberProfile = input
+	return s.academyMemberProfileResult, s.academyMemberProfileErr
+}
+
+func (s *stubAccountService) UpdateAcademyMemberProfile(_ context.Context, _ accountResponse, input academyMemberProfileUpdateInput) (profileResponse, error) {
+	s.lastUpdateAcademyMemberProfile = input
+	return s.updateAcademyMemberProfileResult, s.updateAcademyMemberProfileErr
+}
+
 func (s *stubAccountService) SearchPendingMembers(context.Context, pendingMemberSearchInput) (pendingMembersResponse, error) {
 	return s.searchPendingResult, s.searchPendingErr
 }
@@ -111,6 +155,52 @@ func (s *stubAccountService) ApprovePendingMember(_ context.Context, input appro
 
 func (s *stubAccountService) RenewLicense(context.Context, renewLicenseInput) (licenseRenewResponse, error) {
 	return s.renewResult, s.renewErr
+}
+
+func (s *stubReservationService) GetStudentAvailability(_ context.Context, actor accountResponse, input studentReservationAvailabilityInput) (reservationAvailabilityResponse, error) {
+	s.lastAvailability = input
+	s.lastAvailability.ActorLoginID = actor.LoginID
+	s.lastAvailability.ActorRoleCode = actor.RoleCode
+	return s.availabilityResult, s.availabilityErr
+}
+
+func (s *stubReservationService) CreateStudentReservation(_ context.Context, actor accountResponse, input studentReservationCreateInput) (reservationMutationResponse, error) {
+	s.lastCreate = input
+	s.lastCreate.ActorLoginID = actor.LoginID
+	s.lastCreate.ActorRoleCode = actor.RoleCode
+	return s.createResult, s.createErr
+}
+
+func (s *stubReservationService) ListStudentReservations(_ context.Context, actor accountResponse, input studentReservationListInput) (studentReservationListResponse, error) {
+	s.lastList = input
+	s.lastAvailability.ActorLoginID = actor.LoginID
+	s.lastAvailability.ActorRoleCode = actor.RoleCode
+	return s.listResult, s.listErr
+}
+
+func (s *stubReservationService) CancelStudentReservation(_ context.Context, actor accountResponse, input studentReservationCancelInput) (reservationMutationResponse, error) {
+	s.lastCancel = input
+	s.lastCancel.ActorLoginID = actor.LoginID
+	s.lastCancel.ActorRoleCode = actor.RoleCode
+	return s.cancelResult, s.cancelErr
+}
+
+func (s *stubReservationService) ListTeacherReservations(_ context.Context, _ accountResponse, _ teacherReservationListInput) (teacherReservationListResponse, error) {
+	return s.teacherListResult, s.teacherListErr
+}
+
+func (s *stubReservationService) ApproveTeacherReservation(_ context.Context, actor accountResponse, input teacherReservationMutationInput) (reservationMutationResponse, error) {
+	s.lastTeacherApprove = input
+	s.lastTeacherApprove.ActorLoginID = actor.LoginID
+	s.lastTeacherApprove.ActorRoleCode = actor.RoleCode
+	return s.teacherApproveResult, s.teacherApproveErr
+}
+
+func (s *stubReservationService) CancelTeacherReservation(_ context.Context, actor accountResponse, input teacherReservationMutationInput) (reservationMutationResponse, error) {
+	s.lastTeacherCancel = input
+	s.lastTeacherCancel.ActorLoginID = actor.LoginID
+	s.lastTeacherCancel.ActorRoleCode = actor.RoleCode
+	return s.teacherCancelResult, s.teacherCancelErr
 }
 
 func (s *stubHealthStore) TableExists(context.Context) (bool, error) {
@@ -139,6 +229,10 @@ func (s *stubHealthStore) InsertStoredDate(_ context.Context, storedDate string)
 	s.insertCalls++
 	s.insertedPayload = append(s.insertedPayload, storedDate)
 	return nil
+}
+
+func (s *stubHealthChecker) Check(context.Context) (healthResponse, error) {
+	return s.result, s.err
 }
 
 func TestHealthServiceCreatesTableForToday(t *testing.T) {
@@ -247,6 +341,40 @@ func TestHealthReturnsStoredDate(t *testing.T) {
 
 	if body.CurrentTimestamp != "2026-03-21T09:00:00Z" {
 		t.Fatalf("expected current timestamp in response, got %q", body.CurrentTimestamp)
+	}
+}
+
+func TestRunStartupDatabaseHealthCheckReturnsNilOnSuccess(t *testing.T) {
+	err := runStartupDatabaseHealthCheck(&stubHealthChecker{
+		result: healthResponse{
+			Status:           "ok",
+			Database:         "connected",
+			StoredDate:       "2026-04-02",
+			Today:            "2026-04-02",
+			CurrentTimestamp: "2026-04-02T00:00:00Z",
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestRunStartupDatabaseHealthCheckReturnsErrorWhenUnavailable(t *testing.T) {
+	err := runStartupDatabaseHealthCheck(nil)
+	if err == nil {
+		t.Fatal("expected error when health checker is nil")
+	}
+	if err.Error() != "database health service is not configured" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunStartupDatabaseHealthCheckReturnsHealthFailure(t *testing.T) {
+	err := runStartupDatabaseHealthCheck(&stubHealthChecker{
+		err: context.DeadlineExceeded,
+	})
+	if err == nil {
+		t.Fatal("expected health failure error")
 	}
 }
 
@@ -691,9 +819,11 @@ func TestUpdateProfileRouteReturnsUpdatedProfile(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/accounts/profile/update", strings.NewReader(`{
+  "availableSchedule":"{\"timezone\":\"Asia/Seoul\",\"weekly\":{\"mon\":[{\"start\":\"10:00\",\"end\":\"12:00\"}],\"tue\":[],\"wed\":[],\"thu\":[],\"fri\":[],\"sat\":[],\"sun\":[]},\"exceptions\":[]}",
   "email":"next@example.com",
   "note":"Updated note",
   "phone":"010-9999-0000",
+  "preset":"{\"version\":2,\"presets\":[{\"id\":\"1\",\"name\":\"Soft Daily Coral\",\"createdAt\":\"2026-04-02T09:00:00+09:00\",\"updatedAt\":\"2026-04-02T09:00:00+09:00\",\"note\":\"Daily coral tone preset for soft warm classes.\",\"items\":{\"base_foundation\":[{\"source\":\"inventory\",\"sku\":\"FND-001\",\"itemName\":\"Soft Natural Foundation 01\",\"imageUrl\":\"https://example.com/images/fnd-001.jpg\"}],\"blush\":[{\"source\":\"inventory\",\"sku\":\"BLS-002\",\"itemName\":\"Soft Peach Blush\",\"imageUrl\":\"https://example.com/images/bls-002.jpg\"},{\"source\":\"manual\",\"sku\":null,\"itemName\":\"Apricot Cream Blush Pot\",\"imageUrl\":\"https://example.com/images/manual-apricot-cream-blush.jpg\"}],\"lip_color\":[{\"source\":\"inventory\",\"sku\":\"LIP-014\",\"itemName\":\"Muted Coral Lip\",\"imageUrl\":\"https://example.com/images/lip-014.jpg\"}],\"eyeshadow\":[{\"source\":\"inventory\",\"sku\":\"EYE-021\",\"itemName\":\"Soft Brown Eyeshadow\",\"imageUrl\":\"https://example.com/images/eye-021.jpg\"}],\"contour\":[{\"source\":\"inventory\",\"sku\":\"CON-004\",\"itemName\":\"Neutral Soft Contour\",\"imageUrl\":\"https://example.com/images/con-004.jpg\"}],\"highlighter\":[{\"source\":\"inventory\",\"sku\":\"HIL-003\",\"itemName\":\"Soft Gold Highlighter\",\"imageUrl\":\"https://example.com/images/hil-003.jpg\"}],\"etc\":null}}]}",
   "skinLValue":"65.5",
   "skinCValue":"14.2",
   "skinHValue":"58.1",
@@ -728,6 +858,12 @@ func TestUpdateProfileRouteReturnsUpdatedProfile(t *testing.T) {
 	}
 	if stub.lastUpdateProfile.Note == nil || *stub.lastUpdateProfile.Note != "Updated note" {
 		t.Fatalf("expected note to reach service, got %+v", stub.lastUpdateProfile.Note)
+	}
+	if stub.lastUpdateProfile.AvailableSchedule == nil || *stub.lastUpdateProfile.AvailableSchedule != "{\"timezone\":\"Asia/Seoul\",\"weekly\":{\"mon\":[{\"start\":\"10:00\",\"end\":\"12:00\"}],\"tue\":[],\"wed\":[],\"thu\":[],\"fri\":[],\"sat\":[],\"sun\":[]},\"exceptions\":[]}" {
+		t.Fatalf("expected available schedule to reach service, got %+v", stub.lastUpdateProfile.AvailableSchedule)
+	}
+	if stub.lastUpdateProfile.Preset == nil || *stub.lastUpdateProfile.Preset != "{\"version\":2,\"presets\":[{\"id\":\"1\",\"name\":\"Soft Daily Coral\",\"createdAt\":\"2026-04-02T09:00:00+09:00\",\"updatedAt\":\"2026-04-02T09:00:00+09:00\",\"note\":\"Daily coral tone preset for soft warm classes.\",\"items\":{\"base_foundation\":[{\"source\":\"inventory\",\"sku\":\"FND-001\",\"itemName\":\"Soft Natural Foundation 01\",\"imageUrl\":\"https://example.com/images/fnd-001.jpg\"}],\"blush\":[{\"source\":\"inventory\",\"sku\":\"BLS-002\",\"itemName\":\"Soft Peach Blush\",\"imageUrl\":\"https://example.com/images/bls-002.jpg\"},{\"source\":\"manual\",\"sku\":null,\"itemName\":\"Apricot Cream Blush Pot\",\"imageUrl\":\"https://example.com/images/manual-apricot-cream-blush.jpg\"}],\"lip_color\":[{\"source\":\"inventory\",\"sku\":\"LIP-014\",\"itemName\":\"Muted Coral Lip\",\"imageUrl\":\"https://example.com/images/lip-014.jpg\"}],\"eyeshadow\":[{\"source\":\"inventory\",\"sku\":\"EYE-021\",\"itemName\":\"Soft Brown Eyeshadow\",\"imageUrl\":\"https://example.com/images/eye-021.jpg\"}],\"contour\":[{\"source\":\"inventory\",\"sku\":\"CON-004\",\"itemName\":\"Neutral Soft Contour\",\"imageUrl\":\"https://example.com/images/con-004.jpg\"}],\"highlighter\":[{\"source\":\"inventory\",\"sku\":\"HIL-003\",\"itemName\":\"Soft Gold Highlighter\",\"imageUrl\":\"https://example.com/images/hil-003.jpg\"}],\"etc\":null}}]}" {
+		t.Fatalf("expected preset to reach service, got %+v", stub.lastUpdateProfile.Preset)
 	}
 	if stub.lastUpdateProfile.SkinLValue == nil || *stub.lastUpdateProfile.SkinLValue != "65.5" {
 		t.Fatalf("expected skin L value to reach service, got %+v", stub.lastUpdateProfile.SkinLValue)
@@ -837,7 +973,8 @@ func TestApprovePendingMemberRouteReturnsApprovedLoginID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/members/pending/approve", strings.NewReader(`{
   "academyCode":"abc123def456",
   "actorRoleCode":"ROOT",
-  "loginId":"pending-user"
+  "loginId":"pending-user",
+  "primaryTeacherLoginId":"teacher-1"
 }`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -855,6 +992,11 @@ func TestApprovePendingMemberRouteReturnsApprovedLoginID(t *testing.T) {
 
 	if body.LoginID != "pending-user" {
 		t.Fatalf("expected approved login ID pending-user, got %q", body.LoginID)
+	}
+
+	stub := application.accounts.(*stubAccountService)
+	if stub.lastApprovePending.PrimaryTeacherLoginID != "teacher-1" {
+		t.Fatalf("expected primary teacher login to reach service, got %q", stub.lastApprovePending.PrimaryTeacherLoginID)
 	}
 }
 
@@ -906,6 +1048,10 @@ func TestApprovePendingMemberRouteSupportsTeacherAndAdminApprovals(t *testing.T)
 				t.Fatalf("expected login ID pending-user to reach service, got %q", stub.lastApprovePending.LoginID)
 			}
 
+			if stub.lastApprovePending.PrimaryTeacherLoginID != "" {
+				t.Fatalf("expected non-student approval to omit primary teacher, got %q", stub.lastApprovePending.PrimaryTeacherLoginID)
+			}
+
 			if stub.lastApprovePending.ActorRoleCode != "ROOT" {
 				t.Fatalf("expected actor role ROOT to reach service, got %q", stub.lastApprovePending.ActorRoleCode)
 			}
@@ -944,5 +1090,472 @@ func TestRenewLicenseRouteReturnsNewExpiration(t *testing.T) {
 
 	if body.ExpiresAt != "2027-03-24T00:00:00Z" {
 		t.Fatalf("expected renewed expiration, got %q", body.ExpiresAt)
+	}
+}
+
+func TestStudentReservationAvailabilityRouteReturnsSlots(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			availabilityResult: reservationAvailabilityResponse{
+				Status:  "ok",
+				Message: "Availability loaded.",
+				Date:    "2026-04-01",
+				Slots: []studentReservationSlot{
+					{StartTime: "10:00", Status: "available"},
+				},
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "student01",
+		RoleCode: "STUDENT",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/student/availability", strings.NewReader(`{
+  "date":"2026-04-01"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body reservationAvailabilityResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(body.Slots) != 1 || body.Slots[0].StartTime != "10:00" {
+		t.Fatalf("expected slot payload, got %+v", body.Slots)
+	}
+}
+
+func TestStudentReservationAvailabilityRoutePassesTargetStudentLoginID(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			availabilityResult: reservationAvailabilityResponse{
+				Status:  "ok",
+				Message: "Availability loaded.",
+				Slots:   []studentReservationSlot{},
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "admin01",
+		RoleCode: "ADMIN",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/student/availability", strings.NewReader(`{
+  "date":"2026-04-01",
+  "studentLoginId":"student01"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastAvailability.StudentLoginID != "student01" {
+		t.Fatalf("expected target student login id to reach service, got %+v", stub.lastAvailability)
+	}
+}
+
+func TestStudentReservationCreateRoutePassesSlotPayload(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			createResult: reservationMutationResponse{
+				Status:        "ok",
+				Message:       "Reservation created.",
+				ReservationID: "reservation-1",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "student01",
+		RoleCode: "STUDENT",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/student/create", strings.NewReader(`{
+  "presetId":"preset-soft-daily-coral-001",
+  "startsAtUtc":"2026-04-01T01:00:00Z"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastCreate.StartsAtUTC != "2026-04-01T01:00:00Z" || stub.lastCreate.PresetID != "preset-soft-daily-coral-001" {
+		t.Fatalf("expected slot payload to reach service, got %+v", stub.lastCreate)
+	}
+}
+
+func TestStudentReservationCreateRoutePassesTargetStudentLoginID(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			createResult: reservationMutationResponse{
+				Status:  "ok",
+				Message: "Reservation created.",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "admin01",
+		RoleCode: "ADMIN",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/student/create", strings.NewReader(`{
+  "startsAtUtc":"2026-04-01T01:00:00Z",
+  "studentLoginId":"student01"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastCreate.StudentLoginID != "student01" {
+		t.Fatalf("expected target student login id to reach service, got %+v", stub.lastCreate)
+	}
+}
+
+func TestStudentReservationListRouteReturnsReservations(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			listResult: studentReservationListResponse{
+				Status:  "ok",
+				Message: "Reservations loaded.",
+				Reservations: []studentReservationRecord{
+					{
+						Date:        "2026-04-02",
+						PresetID:    "preset-soft-daily-coral-001",
+						ID:          "reservation-1",
+						Status:      "PENDING",
+						TeacherName: "Teacher Kim",
+						Time:        "11:00",
+					},
+				},
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "student01",
+		RoleCode: "STUDENT",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/reservations/student/list", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body studentReservationListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(body.Reservations) != 1 || body.Reservations[0].ID != "reservation-1" {
+		t.Fatalf("expected reservation payload, got %+v", body.Reservations)
+	}
+}
+
+func TestStudentReservationListRoutePassesTargetStudentLoginID(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			listResult: studentReservationListResponse{
+				Status:       "ok",
+				Message:      "Reservations loaded.",
+				Reservations: []studentReservationRecord{},
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "admin01",
+		RoleCode: "ADMIN",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/reservations/student/list?studentLoginId=student01", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastList.StudentLoginID != "student01" {
+		t.Fatalf("expected target student login id to reach service, got %+v", stub.lastList)
+	}
+}
+
+func TestStudentReservationCancelRoutePassesReservationID(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			cancelResult: reservationMutationResponse{
+				Status:        "ok",
+				Message:       "Reservation canceled.",
+				ReservationID: "reservation-1",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "student01",
+		RoleCode: "STUDENT",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/student/cancel", strings.NewReader(`{
+  "reservationId":"reservation-1"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastCancel.ReservationID != "reservation-1" {
+		t.Fatalf("expected reservation id to reach service, got %+v", stub.lastCancel)
+	}
+}
+
+func TestStudentReservationCancelRoutePassesTargetStudentLoginID(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			cancelResult: reservationMutationResponse{
+				Status:  "ok",
+				Message: "Reservation canceled.",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "admin01",
+		RoleCode: "ADMIN",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/student/cancel", strings.NewReader(`{
+  "reservationId":"reservation-1",
+  "studentLoginId":"student01"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastCancel.StudentLoginID != "student01" {
+		t.Fatalf("expected target student login id to reach service, got %+v", stub.lastCancel)
+	}
+}
+
+func TestTeacherReservationListRouteReturnsReservations(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			teacherListResult: teacherReservationListResponse{
+				Status:  "ok",
+				Message: "Teacher reservations loaded.",
+				Reservations: []teacherReservationRecord{
+					{
+						Date:        "2026-04-02",
+						ID:          "reservation-1",
+						PresetID:    "preset-soft-daily-coral-001",
+						Status:      "pending",
+						StudentName: "Hana Suzuki",
+						Time:        "11:00",
+					},
+				},
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "teacher01",
+		RoleCode: "TEACHER",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/reservations/teacher/list", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var body teacherReservationListResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if len(body.Reservations) != 1 || body.Reservations[0].StudentName != "Hana Suzuki" {
+		t.Fatalf("expected teacher reservation payload, got %+v", body.Reservations)
+	}
+}
+
+func TestTeacherReservationApproveRoutePassesReservationID(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			teacherApproveResult: reservationMutationResponse{
+				Status:        "ok",
+				Message:       "Reservation approved.",
+				ReservationID: "reservation-1",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "teacher01",
+		RoleCode: "TEACHER",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/teacher/approve", strings.NewReader(`{
+  "reservationId":"reservation-1",
+  "presetId":"preset-empty"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastTeacherApprove.ReservationID != "reservation-1" || stub.lastTeacherApprove.PresetID != "preset-empty" {
+		t.Fatalf("expected reservation id to reach teacher approve service, got %+v", stub.lastTeacherApprove)
+	}
+}
+
+func TestTeacherReservationCancelRoutePassesReservationID(t *testing.T) {
+	application := &app{
+		reservations: &stubReservationService{
+			teacherCancelResult: reservationMutationResponse{
+				Status:        "ok",
+				Message:       "Reservation canceled.",
+				ReservationID: "reservation-1",
+			},
+		},
+		sessions: newSessionManager(),
+	}
+
+	token, err := application.sessions.Create(accountResponse{
+		Status:   "ok",
+		LoginID:  "teacher01",
+		RoleCode: "TEACHER",
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/reservations/teacher/cancel", strings.NewReader(`{
+  "reservationId":"reservation-1"
+}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+
+	application.routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	stub := application.reservations.(*stubReservationService)
+	if stub.lastTeacherCancel.ReservationID != "reservation-1" {
+		t.Fatalf("expected reservation id to reach teacher cancel service, got %+v", stub.lastTeacherCancel)
 	}
 }

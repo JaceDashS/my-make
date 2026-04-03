@@ -2,7 +2,8 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import {Animated} from 'react-native';
 
-import {AccountSectionV2} from '../src/screens/desktop/desktop-shell/pages/account/AccountSectionV2';
+import {AccountFeatureSection} from '../src/screens/desktop/desktop-shell/pages/account/AccountFeatureSection';
+import {SHELL_LABELS} from '../src/screens/shared/shell-labels';
 
 function collectText(node: any): string[] {
   if (node == null) {
@@ -35,70 +36,12 @@ function findByLabel(
 }
 
 function createTexts() {
-  return {
-    academyCode: 'Academy Code',
-    academyName: 'Academy Name',
-    availableSchedulePlaceholderBody: 'Available schedule will appear here.',
-    availableSchedulePlaceholderTitle: 'Available Schedule',
-    back: 'Back',
-    cancel: 'Cancel',
-    confirmPassword: 'Confirm Password',
-    createAccount: 'Create Account',
-    displayName: 'Display Name',
-    edit: 'Edit',
-    email: 'Email',
-    guestHint: 'Please sign in to continue.',
-    licenseCode: 'License Code',
-    login: 'Login',
-    loginId: 'Login ID',
-    loginNotice: 'Login Notice',
-    memberRegisterBody: 'Create a member account.',
-    memberRole: 'Member Role',
-    memberRoleAdmin: 'Admin',
-    memberRoleStudent: 'Student',
-    memberRoleTeacher: 'Teacher',
-    note: 'Note',
-    password: 'Password',
-    passwordMismatch: 'Passwords do not match.',
-    phone: 'Phone',
-    presetPlaceholderBody: 'Preset content will appear here.',
-    presetPlaceholderTitle: 'Preset',
-    profile: 'Profile',
-    profileBody: 'Manage your account profile.',
-    protectedControls: 'Protected Controls',
-    protectedUnlocked: 'You are signed in.',
-    register: 'Register',
-    registerBody: 'Choose how to register.',
-    registerCta: 'Need Help?',
-    registerHint: 'Contact support for onboarding.',
-    registerRoot: 'Root Registration',
-    registerRootBody: 'Create the root academy account.',
-    registerType: 'Register Type',
-    registerTypeRoot: 'Root',
-    registerTypeUser: 'User',
-    reservation: 'Reservation',
-    reservationPlaceholderBody: 'Reservation content will appear here.',
-    reservationPlaceholderTitle: 'Reservation',
-    reservationView: 'Reservation View',
-    reservationViewPlaceholderBody: 'Reservation view will appear here.',
-    reservationViewPlaceholderTitle: 'Reservation View',
-    rootLoginId: 'Root Login ID',
-    save: 'Save',
-    signIn: 'Sign In',
-    signOut: 'Sign Out',
-    status: 'Status',
-    statusActive: 'Active',
-    statusHold: 'Hold',
-    statusInactive: 'Inactive',
-    studentOptions: 'Student Options',
-    studentOptionsPlaceholderBody: 'Student options will appear here.',
-    studentOptionsPlaceholderTitle: 'Student Options',
-  };
+  return SHELL_LABELS.en;
 }
 
 function createProps(
-  overrides: Partial<React.ComponentProps<typeof AccountSectionV2>> = {},
-): React.ComponentProps<typeof AccountSectionV2> {
+  overrides: Partial<React.ComponentProps<typeof AccountFeatureSection>> = {},
+): React.ComponentProps<typeof AccountFeatureSection> {
   return {
     academyCode: 'ACD001',
     academyName: 'My Academy',
@@ -111,6 +54,7 @@ function createProps(
     currentSection: 'student-options',
     displayName: 'Student One',
     email: 'student@example.com',
+    language: 'en',
     isAuthenticated: true,
     isSubmitting: false,
     licenseCode: '',
@@ -125,6 +69,7 @@ function createProps(
     onLogin: () => undefined,
     onLoginIdChange: () => undefined,
     onNoteChange: () => undefined,
+    onOpenRegister: () => undefined,
     onLogout: () => undefined,
     onPasswordChange: () => undefined,
     onPhoneChange: () => undefined,
@@ -182,13 +127,13 @@ describe('desktop student account section v2', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(<AccountSectionV2 {...createProps()} />);
+      renderer = ReactTestRenderer.create(<AccountFeatureSection {...createProps()} />);
     });
 
     const textContent = collectText(renderer!.toJSON()).join(' ');
 
-    expect(textContent).toContain('Student Options');
-    expect(textContent).toContain('Color Picker');
+    expect(textContent).toContain('Skin & Preferences');
+    expect(textContent).toContain('My Skin');
     expect(textContent).toContain('Preference Points');
     expect(textContent).not.toContain('Student options will appear here.');
   });
@@ -197,52 +142,35 @@ describe('desktop student account section v2', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(<AccountSectionV2 {...createProps()} />);
+      renderer = ReactTestRenderer.create(<AccountFeatureSection {...createProps()} />);
     });
 
     const pickerBoard = findByTestID(renderer!.root, 'skin-palette-board');
     const textContent = collectText(renderer!.toJSON()).join(' ');
 
     expect(pickerBoard).toBeTruthy();
-    expect(textContent).toContain('HCL Color Picker draft.');
+    expect(textContent).toContain('My Skin');
     expect(textContent).not.toContain('Apply Picker Color');
   });
 
-  test('shows ctrl indicator under range tool and activates it while the picker is focused', () => {
+  test('shows a static zoom indicator under range tool', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(<AccountSectionV2 {...createProps()} />);
+      renderer = ReactTestRenderer.create(<AccountFeatureSection {...createProps()} />);
     });
 
-    const board = findByTestID(renderer!.root, 'preference-picker-board');
     const ctrlIndicatorBefore = findByTestID(renderer!.root, 'preference-picker-ctrl-indicator');
 
-    expect(collectText(ctrlIndicatorBefore.children)).toContain('C');
+    expect(ctrlIndicatorBefore).toBeTruthy();
     expect(ctrlIndicatorBefore.props.style.backgroundColor).toBe('#222222');
-
-    ReactTestRenderer.act(() => {
-      board.props.onFocus();
-      board.props.onKeyDown({nativeEvent: {key: 'Control'}});
-    });
-
-    const ctrlIndicatorActive = findByTestID(renderer!.root, 'preference-picker-ctrl-indicator');
-    expect(ctrlIndicatorActive.props.style.backgroundColor).toBe('#3366ff');
-
-    ReactTestRenderer.act(() => {
-      board.props.onKeyUp({nativeEvent: {key: 'Control'}});
-      board.props.onBlur();
-    });
-
-    const ctrlIndicatorAfter = findByTestID(renderer!.root, 'preference-picker-ctrl-indicator');
-    expect(ctrlIndicatorAfter.props.style.backgroundColor).toBe('#222222');
   });
 
   test('updates picker preview when the lightness slider moves', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(<AccountSectionV2 {...createProps()} />);
+      renderer = ReactTestRenderer.create(<AccountFeatureSection {...createProps()} />);
     });
 
     const slider = findByTestID(renderer!.root, 'skin-slider-l');
@@ -273,7 +201,7 @@ describe('desktop student account section v2', () => {
 
     ReactTestRenderer.act(() => {
       renderer = ReactTestRenderer.create(
-        <AccountSectionV2 {...createProps({onSaveProfile})} />,
+        <AccountFeatureSection {...createProps({onSaveProfile})} />,
       );
     });
 
@@ -317,45 +245,71 @@ describe('desktop student account section v2', () => {
     );
   });
 
-  test('applies typed skin values on blur and clamps out-of-range input', () => {
+  test('updates lightness, hue and chroma slider ranges when full plane range is toggled', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(<AccountSectionV2 {...createProps()} />);
+      renderer = ReactTestRenderer.create(<AccountFeatureSection {...createProps()} />);
     });
 
-    const lightnessInput = findByTestID(renderer!.root, 'skinLValue');
-    const chromaInput = findByTestID(renderer!.root, 'skinCValue');
-    const hueInput = findByTestID(renderer!.root, 'skinHValue');
+    const lightnessRangeBefore = findByTestID(renderer!.root, 'skin-slider-l-range');
+    const hueRangeBefore = findByTestID(renderer!.root, 'skin-slider-h-range');
+    const chromaRangeBefore = findByTestID(renderer!.root, 'skin-slider-c-range');
+
+    expect(collectText(lightnessRangeBefore)).toContain('35-75');
+    expect(collectText(hueRangeBefore)).toContain('45-75');
+    expect(collectText(chromaRangeBefore)).toContain('10-30');
+
+    const toggle = findByTestID(renderer!.root, 'skin-use-full-range-toggle');
 
     ReactTestRenderer.act(() => {
-      lightnessInput.props.onChangeText('10');
-      lightnessInput.props.onBlur();
-      chromaInput.props.onChangeText('500');
-      chromaInput.props.onBlur();
-      hueInput.props.onChangeText('58');
-      hueInput.props.onSubmitEditing();
+      toggle.props.onPress();
+    });
+
+    const lightnessRangeAfter = findByTestID(renderer!.root, 'skin-slider-l-range');
+    const hueRangeAfter = findByTestID(renderer!.root, 'skin-slider-h-range');
+    const chromaRangeAfter = findByTestID(renderer!.root, 'skin-slider-c-range');
+
+    expect(collectText(lightnessRangeAfter)).toContain('0-100');
+    expect(collectText(hueRangeAfter)).toContain('0-359');
+    expect(collectText(chromaRangeAfter)).toContain('0-100');
+  });
+
+  test('clamps initial zero skin values into default range when full range is off', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <AccountFeatureSection
+          {...createProps({
+            profileDetails: [
+              {key: 'skinLValue', label: 'Skin L Value', value: '0'},
+              {key: 'skinCValue', label: 'Skin C Value', value: '0'},
+              {key: 'skinHValue', label: 'Skin H Value', value: '0'},
+              {key: 'skinTraits', label: 'Skin Traits', value: 'Warm undertone'},
+              {
+                key: 'preferenceRanges',
+                label: 'Preference Ranges',
+                value: '{"version":1,"space":"lch","plane":"h-c","hueMode":"unwrap","regions":[]}',
+              },
+            ],
+          })}
+        />,
+      );
     });
 
     const textContent = collectText(renderer!.toJSON()).join(' ');
-    const lightnessAfter = findByTestID(renderer!.root, 'skinLValue');
-    const chromaAfter = findByTestID(renderer!.root, 'skinCValue');
-    const hueAfter = findByTestID(renderer!.root, 'skinHValue');
 
-    expect(textContent).toContain('Picker board lightness:  35');
-    expect(textContent).toContain('Hue (H) 58');
-    expect(textContent).toContain('Chroma (C) 30');
-    expect(textContent).toContain('Lightness (L) 35');
-    expect(lightnessAfter.props.value).toBe('35.0000');
-    expect(chromaAfter.props.value).toBe('30.0000');
-    expect(hueAfter.props.value).toBe('58.0000');
+    expect(textContent).toContain('H:  45');
+    expect(textContent).toContain('C:  10');
+    expect(textContent).toContain('L:  35');
   });
 
   test('shows skin traits as text until edit is toggled', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(<AccountSectionV2 {...createProps()} />);
+      renderer = ReactTestRenderer.create(<AccountFeatureSection {...createProps()} />);
     });
 
     const displayBefore = findByTestID(renderer!.root, 'skin-traits-display');
