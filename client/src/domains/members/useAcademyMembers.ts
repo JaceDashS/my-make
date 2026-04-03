@@ -281,7 +281,7 @@ export function useAcademyMembers({
             ? '所属メンバーを管理するには、root または admin アカウントでサインインしてください。'
             : 'Sign in as a root or admin account to manage academy members.',
       });
-      return;
+      return false;
     }
 
     dispatch({
@@ -306,7 +306,7 @@ export function useAcademyMembers({
             result.message ??
             (language === 'ja' ? '状態変更に失敗しました。' : 'Update failed.'),
         });
-        return;
+        return false;
       }
 
       dispatch({
@@ -322,11 +322,13 @@ export function useAcademyMembers({
       } else {
         await handleLoadAllMembers();
       }
+      return true;
     } catch (error) {
       dispatch({
         type: 'status_update_failed',
         errorMessage: error instanceof Error ? error.message : String(error),
       });
+      return false;
     } finally {
       dispatch({type: 'status_update_finished'});
       onCleanupNativeState('academy-members:update');

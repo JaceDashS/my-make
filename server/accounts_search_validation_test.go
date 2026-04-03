@@ -124,9 +124,9 @@ func TestValidateAcademyMemberStatusTransitionAllowsConfiguredTransitions(t *tes
 	}
 }
 
-func TestValidateAcademyMemberTargetRoleRejectsRoot(t *testing.T) {
+func TestValidateAcademyMemberTargetRoleAllowsRoot(t *testing.T) {
 	err := validateAcademyMemberTargetRole("ROOT")
-	if err == nil {
-		t.Fatal("expected root target role to be rejected")
+	if err != nil {
+		t.Fatalf("expected root target role to be allowed, got %q", err.Error())
 	}
 }

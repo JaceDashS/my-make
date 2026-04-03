@@ -46,6 +46,112 @@ afterAll(() => {
 });
 
 describe('members page red stage', () => {
+  test('desktop dev health stays hidden until settings is pressed five times', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <SidebarMenu
+          animation={new Animated.Value(1)}
+          disableConditionalVisibility={false}
+          isAuthenticated={true}
+          isOpen={true}
+          showInventoryPage={false}
+          showMembersPage={false}
+          showStudentReservationItem={false}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
+          labels={
+            {
+              account: 'Account',
+              devHealth: 'Dev Health',
+              general: 'General',
+              login: 'Login',
+              members: 'Members',
+              profile: 'Profile',
+              register: 'Register',
+              settings: 'Settings',
+            } as any
+          }
+          onNavigate={() => undefined}
+          page="settings"
+          palette={
+            {
+              sidebar: '#111111',
+              sidebarItem: '#222222',
+              sidebarItemText: '#ffffff',
+            } as any
+          }
+          section="general"
+        />,
+      );
+    });
+
+    expect(collectText(renderer!.toJSON())).not.toContain('Dev Health');
+
+    const settingsPressable = findPressableByText(renderer!.root, 'Settings');
+    ReactTestRenderer.act(() => {
+      for (let index = 0; index < 5; index += 1) {
+        settingsPressable.props.onPress();
+      }
+    });
+
+    expect(collectText(renderer!.toJSON())).toContain('Dev Health');
+  });
+
+  test('mobile dev health stays hidden until settings is pressed five times', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <MenuPanel
+          currentPage="settings"
+          currentSection="general"
+          isAuthenticated={true}
+          showInventoryPage={false}
+          showMembersPage={false}
+          showStudentReservationItem={false}
+          showStudentAccountItems={false}
+          showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
+          labels={
+            {
+              account: 'Account',
+              devHealth: 'Dev Health',
+              general: 'General',
+              login: 'Login',
+              members: 'Members',
+              profile: 'Profile',
+              register: 'Register',
+              settings: 'Settings',
+            } as any
+          }
+          onSelectSection={() => undefined}
+          palette={
+            {
+              menuCard: '#111111',
+              menuText: '#ffffff',
+              sidebarItem: '#222222',
+              sidebarItemText: '#ffffff',
+            } as any
+          }
+        />,
+      );
+    });
+
+    expect(collectText(renderer!.toJSON())).not.toContain('Dev Health');
+
+    const settingsPressable = findPressableByText(renderer!.root, 'Settings');
+    ReactTestRenderer.act(() => {
+      for (let index = 0; index < 5; index += 1) {
+        settingsPressable.props.onPress();
+      }
+    });
+
+    expect(collectText(renderer!.toJSON())).toContain('Dev Health');
+  });
+
   test('desktop academy members menu should request the academy-members section', () => {
     const onSectionChange = jest.fn();
     let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -57,9 +163,12 @@ describe('members page red stage', () => {
           disableConditionalVisibility={false}
           isAuthenticated={true}
           isOpen={true}
+          showInventoryPage={false}
           showMembersPage={true}
+          showStudentReservationItem={false}
           showStudentAccountItems={false}
           showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
           labels={
             {
               account: 'Account',
@@ -74,7 +183,7 @@ describe('members page red stage', () => {
               settings: 'Settings',
             } as any
           }
-          onPageChange={() => undefined}
+          onNavigate={() => undefined}
           onSectionChange={onSectionChange}
           page="members"
           palette={
@@ -111,9 +220,12 @@ describe('members page red stage', () => {
           disableConditionalVisibility={false}
           isAuthenticated={true}
           isOpen={true}
+          showInventoryPage={false}
           showMembersPage={true}
+          showStudentReservationItem={false}
           showStudentAccountItems={false}
           showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
           labels={
             {
               account: 'Account',
@@ -128,7 +240,7 @@ describe('members page red stage', () => {
               settings: 'Settings',
             } as any
           }
-          onPageChange={() => undefined}
+          onNavigate={() => undefined}
           onSectionChange={() => undefined}
           page="members"
           palette={
@@ -158,9 +270,12 @@ describe('members page red stage', () => {
           currentPage="members"
           currentSection="pending-approval"
           isAuthenticated={true}
+          showInventoryPage={false}
           showMembersPage={true}
+          showStudentReservationItem={false}
           showStudentAccountItems={false}
           showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
           labels={
             {
               account: 'Account',
@@ -205,9 +320,12 @@ describe('members page red stage', () => {
           currentPage="members"
           currentSection="pending-approval"
           isAuthenticated={true}
+          showInventoryPage={false}
           showMembersPage={true}
+          showStudentReservationItem={false}
           showStudentAccountItems={false}
           showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
           labels={
             {
               account: 'Account',
@@ -258,9 +376,12 @@ describe('members page red stage', () => {
           disableConditionalVisibility={false}
           isAuthenticated={true}
           isOpen={true}
+          showInventoryPage={false}
           showMembersPage={false}
+          showStudentReservationItem={false}
           showStudentAccountItems={false}
           showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
           labels={
             {
               account: 'Account',
@@ -275,7 +396,7 @@ describe('members page red stage', () => {
               settings: 'Settings',
             } as any
           }
-          onPageChange={() => undefined}
+          onNavigate={() => undefined}
           onSectionChange={() => undefined}
           page="account"
           palette={
@@ -306,9 +427,12 @@ describe('members page red stage', () => {
           currentPage="account"
           currentSection="login"
           isAuthenticated={true}
+          showInventoryPage={false}
           showMembersPage={false}
+          showStudentReservationItem={false}
           showStudentAccountItems={false}
           showTeacherAccountItems={false}
+          showTeacherReservationItem={false}
           labels={
             {
               account: 'Account',

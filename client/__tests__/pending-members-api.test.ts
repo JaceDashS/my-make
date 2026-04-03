@@ -30,7 +30,7 @@ describe('pending members api', () => {
 
   beforeEach(() => {
     instances = [];
-    (global as any).XMLHttpRequest = class {
+    (globalThis as any).XMLHttpRequest = class {
       headers: Record<string, string> = {};
       method = '';
       onabort = null;
@@ -59,7 +59,10 @@ describe('pending members api', () => {
 
       send(payload: string | null) {
         this.payload = payload;
-        this.onload?.();
+        const onLoad = this.onload as (() => void) | null;
+        if (onLoad) {
+          onLoad();
+        }
       }
     };
   });
@@ -76,7 +79,7 @@ describe('pending members api', () => {
     expect(instances[0].method).toBe('POST');
     expect(instances[0].url).toContain('/api/members/pending/search');
     expect(instances[0].headers['Content-Type']).toBe('application/json');
-    expect(instances[0].withCredentials).toBe(false);
+    expect(instances[0].withCredentials).toBe(true);
     expect(instances[0].payload).toBe(
       JSON.stringify({
         academyCode: 'A100',
@@ -106,7 +109,7 @@ describe('pending members api', () => {
   });
 
   test('returns an error payload when xhr fails for every candidate', async () => {
-    (global as any).XMLHttpRequest = class {
+    (globalThis as any).XMLHttpRequest = class {
       headers: Record<string, string> = {};
       method = '';
       onabort = null;
@@ -128,7 +131,10 @@ describe('pending members api', () => {
       }
       send(payload: string | null) {
         this.payload = payload;
-        this.onerror?.();
+        const onError = this.onerror as (() => void) | null;
+        if (onError) {
+          onError();
+        }
       }
     };
 

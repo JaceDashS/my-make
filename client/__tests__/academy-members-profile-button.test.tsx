@@ -21,14 +21,13 @@ function collectText(node: any): string[] {
 }
 
 describe('academy members profile action button', () => {
-  test('renders edit profile with two status actions for active non-root members', () => {
+  test('renders edit profile without status action buttons for active non-root members', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
       renderer = ReactTestRenderer.create(
         <AcademyMembersDesktopTable
           actorRoleCode="ROOT"
-          onAction={() => {}}
           onEditProfile={() => {}}
           palette={
             {
@@ -57,16 +56,15 @@ describe('academy members profile action button', () => {
             },
           ]}
           ui={ACADEMY_MEMBERS_LABELS.en}
-          updatingKey={null}
         />,
       );
     });
 
     const textContent = collectText(renderer!.toJSON()).join(' ');
 
-    expect(textContent).toContain('Edit Profile');
-    expect(textContent).toContain('Hold');
-    expect(textContent).toContain('Deactivate');
+    expect(textContent).toContain('Edit');
+    expect(textContent).not.toContain('Hold');
+    expect(textContent).not.toContain('Deactivate');
   });
 
   test('renders only edit profile for root members', () => {
@@ -76,7 +74,6 @@ describe('academy members profile action button', () => {
       renderer = ReactTestRenderer.create(
         <AcademyMembersDesktopTable
           actorRoleCode="ROOT"
-          onAction={() => {}}
           onEditProfile={() => {}}
           palette={
             {
@@ -105,14 +102,13 @@ describe('academy members profile action button', () => {
             },
           ]}
           ui={ACADEMY_MEMBERS_LABELS.en}
-          updatingKey={null}
         />,
       );
     });
 
     const textContent = collectText(renderer!.toJSON()).join(' ');
 
-    expect(textContent).toContain('Edit Profile');
+    expect(textContent).toContain('Edit');
     expect(textContent).not.toContain('Hold');
     expect(textContent).not.toContain('Deactivate');
   });
@@ -124,7 +120,6 @@ describe('academy members profile action button', () => {
       renderer = ReactTestRenderer.create(
         <AcademyMembersDesktopTable
           actorRoleCode="ADMIN"
-          onAction={() => {}}
           onEditProfile={() => {}}
           palette={
             {
@@ -153,16 +148,15 @@ describe('academy members profile action button', () => {
             },
           ]}
           ui={ACADEMY_MEMBERS_LABELS.en}
-          updatingKey={null}
         />,
       );
     });
 
     const textContent = collectText(renderer!.toJSON()).join(' ');
 
-    expect(textContent).not.toContain('Edit Profile');
-    expect(textContent).toContain('Hold');
-    expect(textContent).toContain('Deactivate');
+    expect(textContent).not.toContain('Edit');
+    expect(textContent).not.toContain('Hold');
+    expect(textContent).not.toContain('Deactivate');
   });
 
   test('shows edit profile when admin targets teacher', () => {
@@ -172,7 +166,6 @@ describe('academy members profile action button', () => {
       renderer = ReactTestRenderer.create(
         <AcademyMembersDesktopTable
           actorRoleCode="ADMIN"
-          onAction={() => {}}
           onEditProfile={() => {}}
           palette={
             {
@@ -201,15 +194,14 @@ describe('academy members profile action button', () => {
             },
           ]}
           ui={ACADEMY_MEMBERS_LABELS.en}
-          updatingKey={null}
         />,
       );
     });
 
     const textContent = collectText(renderer!.toJSON()).join(' ');
 
-    expect(textContent).toContain('Edit Profile');
-    expect(textContent).toContain('Hold');
-    expect(textContent).toContain('Deactivate');
+    expect(textContent).toContain('Edit');
+    expect(textContent).not.toContain('Hold');
+    expect(textContent).not.toContain('Deactivate');
   });
 });

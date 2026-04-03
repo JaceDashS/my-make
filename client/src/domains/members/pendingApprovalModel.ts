@@ -6,7 +6,7 @@ import type {
 } from './pendingApprovalTypes';
 
 export const CHART_ROW_SLOTS = 12;
-export const TABLE_PAGE_SIZE = 5;
+export const TABLE_PAGE_SIZE = 10;
 
 export function formatPhoneQuery(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);

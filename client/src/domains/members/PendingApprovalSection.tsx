@@ -9,20 +9,27 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { ActionButton } from '../../shared/components/ActionButton';
+import { SearchHeader } from '../../shared/components/SearchHeader';
+import type { AcademyMemberRecord } from '../../shared/lib/pendingMembersApi';
 import type { LanguageMode } from '../../screens/shared/shell-model';
 import { FIELD_LABELS, FIELD_ORDER, MEMBERS_LABELS } from './pendingApprovalLabels';
 import { PendingApprovalDesktopTable } from './PendingApprovalDesktopTable';
 import { PendingApprovalMobileList } from './PendingApprovalMobileList';
 import { TABLE_PAGE_SIZE, formatPhoneQuery } from './pendingApprovalModel';
 import type {
+  PendingMemberSlot,
   ProfileSlotSource,
   SearchField,
   ShellPaletteLike,
 } from './pendingApprovalTypes';
 import { logPendingApprovalEvent } from './pendingApprovalLogging';
 import { usePendingApproval } from './usePendingApproval';
+
+const CONTENT_EDGE_INSET = Platform.OS === 'web' ? 18 : 16;
+const HEADER_HEIGHT = 100;
 
 export function PendingApprovalSection({
   academyCode,
@@ -48,11 +55,22 @@ export function PendingApprovalSection({
   const [field, setField] = useState<SearchField>('phone');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+  const [isTeacherDropdownOpen, setIsTeacherDropdownOpen] = useState(false);
+  const [teacherErrorMessage, setTeacherErrorMessage] = useState('');
+  const [teacherOptions, setTeacherOptions] = useState<AcademyMemberRecord[]>([]);
+  const [selectedTeacherLoginId, setSelectedTeacherLoginId] = useState('');
+  const [isLoadingTeacherOptions, setIsLoadingTeacherOptions] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [scrollOffsetY, setScrollOffsetY] = useState(0);
+  const [teacherApprovalTarget, setTeacherApprovalTarget] =
+    useState<PendingMemberSlot | null>(null);
   const queryInputRef = useRef<TextInput | null>(null);
   const rootScrollRef = useRef<ScrollView | null>(null);
   const ui = MEMBERS_LABELS[language];
   const fieldLabels = FIELD_LABELS[language];
-  const isMobileLayout = Platform.OS !== 'windows';
+  const isMobileLayout = Platform.OS === 'ios' || Platform.OS === 'android';
+  const modalCardTop = Math.max(24, scrollOffsetY + viewportHeight / 2);
   const profileSlotSource: ProfileSlotSource = {
     academyCode,
     academyName,
@@ -86,6 +104,7 @@ export function PendingApprovalSection({
     handleApprove,
     handleSearch,
     isSearching,
+    loadActiveTeacherOptions,
     paginatedSlots,
     setCurrentPage,
     statusMessage,
@@ -110,6 +129,109 @@ export function PendingApprovalSection({
     setQuery(nextValue);
   };
 
+  const closeTeacherModal = (reason: string) => {
+    logPendingApprovalEvent('teacher-modal:close', {
+      reason,
+      selectedTeacherLoginId,
+      targetLoginId: teacherApprovalTarget?.loginId ?? '',
+    });
+    setIsTeacherModalOpen(false);
+    setIsTeacherDropdownOpen(false);
+    setTeacherErrorMessage('');
+    setTeacherApprovalTarget(null);
+    setSelectedTeacherLoginId('');
+  };
+
+  const openTeacherModal = async (slot: PendingMemberSlot) => {
+    logPendingApprovalEvent('teacher-modal:position-snapshot', {
+      scrollOffsetY,
+      targetLoginId: slot.loginId,
+      viewportHeight,
+    });
+    logPendingApprovalEvent('teacher-modal:open', {
+      roleCode: slot.roleCode,
+      targetLoginId: slot.loginId,
+      targetName: slot.displayName,
+    });
+    setTeacherApprovalTarget(slot);
+    setTeacherErrorMessage('');
+    setSelectedTeacherLoginId('');
+    setTeacherOptions([]);
+    setIsTeacherDropdownOpen(false);
+    setIsTeacherModalOpen(true);
+    setIsLoadingTeacherOptions(true);
+
+    try {
+      const activeTeachers = await loadActiveTeacherOptions();
+      if (activeTeachers.length === 0) {
+        logPendingApprovalEvent('teacher-modal:teachers-empty', {
+          academyCode,
+          targetLoginId: slot.loginId,
+        });
+        setTeacherErrorMessage(
+          language === 'ja'
+            ? 'この塾で選択できる有効な講師がいません。'
+            : 'There are no active teachers available in this academy.',
+        );
+        return;
+      }
+
+      setTeacherOptions(activeTeachers);
+      setSelectedTeacherLoginId(activeTeachers[0]?.loginId ?? '');
+      logPendingApprovalEvent('teacher-modal:teachers-loaded', {
+        count: activeTeachers.length,
+        firstTeacherLoginId: activeTeachers[0]?.loginId ?? '',
+        targetLoginId: slot.loginId,
+      });
+    } catch (error) {
+      logPendingApprovalEvent('teacher-modal:teachers-load-failed', {
+        error: error instanceof Error ? error.message : String(error),
+        targetLoginId: slot.loginId,
+      });
+      setTeacherErrorMessage(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setIsLoadingTeacherOptions(false);
+    }
+  };
+
+  const handleApprovePress = async (slot: PendingMemberSlot) => {
+    if (slot.roleCode === 'STUDENT') {
+      await openTeacherModal(slot);
+      return;
+    }
+
+    await handleApprove(slot.loginId);
+  };
+
+  const confirmTeacherApproval = async () => {
+    if (!teacherApprovalTarget) {
+      return;
+    }
+    if (!selectedTeacherLoginId) {
+      setTeacherErrorMessage(ui.teacherRequired);
+      return;
+    }
+
+    const result = await handleApprove(teacherApprovalTarget.loginId, {
+      primaryTeacherLoginId: selectedTeacherLoginId,
+    });
+    if (result.ok) {
+      closeTeacherModal('approve-success');
+      return;
+    }
+    logPendingApprovalEvent('teacher-modal:approve-failed', {
+      error: result.errorMessage ?? '',
+      selectedTeacherLoginId,
+      targetLoginId: teacherApprovalTarget.loginId,
+    });
+    setTeacherErrorMessage(
+      result.errorMessage ??
+        (language === 'ja' ? '承認に失敗しました。' : 'Approval failed.'),
+    );
+  };
+
   const handleDropdownKeyDown = (event: any, mobile = false) => {
     const key = event?.nativeEvent?.key;
     if (key !== 'Enter') {
@@ -123,6 +245,28 @@ export function PendingApprovalSection({
     });
     handleSearch();
   };
+
+  const handleViewportLayout = (event: LayoutChangeEvent) => {
+    const nextViewportHeight = event.nativeEvent.layout.height;
+    setViewportHeight(nextViewportHeight);
+    logPendingApprovalEvent('teacher-modal:viewport-layout', {
+      nextViewportHeight,
+    });
+  };
+
+const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const nextScrollOffsetY = event.nativeEvent.contentOffset.y;
+    setScrollOffsetY(nextScrollOffsetY);
+    if (isTeacherModalOpen) {
+      logPendingApprovalEvent('teacher-modal:scroll', {
+        modalCardTop: Math.max(24, nextScrollOffsetY + viewportHeight / 2),
+        nextScrollOffsetY,
+        viewportHeight,
+      });
+    }
+  };
+
+  const searchHeaderInset = compact ? 16 : CONTENT_EDGE_INSET;
 
   const renderDropdown = (mobile = false) => (
     <View
@@ -154,12 +298,17 @@ export function PendingApprovalSection({
           },
         ]}
       >
-        <Text style={[styles.dropdownText, { color: palette.text }]}>
-          {fieldLabels[field]}
-        </Text>
-        <Text style={[styles.dropdownArrow, { color: palette.textMuted }]}>
-          {isDropdownOpen ? '▲' : '▼'}
-        </Text>
+        <View style={styles.dropdownButtonContent}>
+          <Text
+            numberOfLines={1}
+            style={[styles.dropdownText, { color: palette.text }]}
+          >
+            {fieldLabels[field]}
+          </Text>
+          <Text style={[styles.dropdownArrow, { color: palette.textMuted }]}>
+            {isDropdownOpen ? '▲' : '▼'}
+          </Text>
+        </View>
       </Pressable>
 
       <View
@@ -204,80 +353,51 @@ export function PendingApprovalSection({
   );
 
   return (
-    <ScrollView
-      ref={rootScrollRef}
-      contentContainerStyle={styles.stack}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-          },
-        ]}
-      >
-        <Text style={[styles.cardTitle, { color: palette.text }]}>
-          {ui.title}
-        </Text>
-        <Text style={[styles.cardBody, { color: palette.textMuted }]}>
-          {ui.notice}
-        </Text>
+    <View style={styles.sectionRoot}>
+      <View style={styles.topOverlayWrap}>
+        <SearchHeader
+          edgeInset={searchHeaderInset}
+          palette={palette}
+          style={styles.searchHeaderSurface}
+        >
+          <View style={styles.searchHeaderBody}>
+            <View style={styles.headerCopy}>
+              <Text style={[styles.cardTitle, { color: palette.text }]}>
+                {ui.title}
+              </Text>
+              {ui.notice ? (
+                <Text style={[styles.cardBody, { color: palette.textMuted }]}>
+                  {ui.notice}
+                </Text>
+              ) : null}
+            </View>
 
-        <View style={styles.searchCard}>
-          <View
-            style={[
-              styles.searchRow,
-              isMobileLayout ? styles.searchRowMobile : null,
-            ]}
-          >
-            {!isMobileLayout ? renderDropdown() : null}
+            <View style={styles.searchRow}>
+              {renderDropdown(isMobileLayout)}
 
-            <TextInput
-              ref={queryInputRef}
-              onChangeText={handleQueryChange}
-              placeholder={`${ui.search} ${fieldLabels[field]}`}
-              placeholderTextColor={palette.textMuted}
-              style={[
-                styles.searchInput,
-                compact ? styles.searchInputCompact : null,
-                {
-                  backgroundColor: palette.card,
-                  borderColor: palette.border,
-                  color: palette.text,
-                },
-              ]}
-              onSubmitEditing={handleSearch}
-              value={query}
-            />
-
-            {!isMobileLayout ? (
-              <View style={styles.searchButtonWrap}>
-                <ActionButton
-                  backgroundColor={palette.primary}
-                  hint=""
-                  isLoading={isSearching}
-                  label={ui.search}
-                  onPress={handleSearch}
-                  style={[
-                    styles.searchButton,
-                    compact ? styles.searchButtonCompact : null,
-                  ]}
-                  textColor={palette.primaryText}
-                />
-              </View>
-            ) : null}
-          </View>
-
-          {isMobileLayout ? (
-            <View
-              style={[styles.searchActionRow, styles.searchActionRowMobile]}
-            >
-              {renderDropdown(true)}
+              <TextInput
+                ref={queryInputRef}
+                onChangeText={handleQueryChange}
+                placeholder={`${ui.search} ${fieldLabels[field]}`}
+                placeholderTextColor={palette.textMuted}
+                style={[
+                  styles.searchInput,
+                  compact ? styles.searchInputCompact : null,
+                  {
+                    backgroundColor: palette.card,
+                    borderColor: palette.border,
+                    color: palette.text,
+                  },
+                ]}
+                onSubmitEditing={handleSearch}
+                value={query}
+              />
 
               <View
-                style={[styles.searchButtonWrap, styles.searchButtonWrapMobile]}
+                style={[
+                  styles.searchButtonWrap,
+                  isMobileLayout ? styles.searchButtonWrapMobile : null,
+                ]}
               >
                 <ActionButton
                   backgroundColor={palette.primary}
@@ -293,10 +413,33 @@ export function PendingApprovalSection({
                 />
               </View>
             </View>
-          ) : null}
+          </View>
+        </SearchHeader>
+      </View>
 
-        </View>
-
+      <ScrollView
+        ref={rootScrollRef}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        onLayout={handleViewportLayout}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        style={[
+          styles.scrollRoot,
+          {
+            backgroundColor: palette.card,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: palette.card,
+              borderColor: palette.border,
+            },
+          ]}
+        >
         <Text
           style={[
             styles.metaText,
@@ -310,7 +453,7 @@ export function PendingApprovalSection({
             <PendingApprovalMobileList
               approvingLoginId={approvingLoginId}
               currentPage={currentPage}
-              onApprove={handleApprove}
+              onApprove={handleApprovePress}
               pageSize={TABLE_PAGE_SIZE}
               palette={palette}
               slots={paginatedSlots}
@@ -319,7 +462,7 @@ export function PendingApprovalSection({
           ) : (
             <PendingApprovalDesktopTable
               approvingLoginId={approvingLoginId}
-              onApprove={handleApprove}
+              onApprove={handleApprovePress}
               palette={palette}
               slots={paginatedSlots}
               ui={ui}
@@ -364,32 +507,222 @@ export function PendingApprovalSection({
             </Text>
           </Pressable>
         </View>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+      {isTeacherModalOpen ? (
+        <View style={styles.modalLayer} pointerEvents="box-none">
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => closeTeacherModal('backdrop-press')}
+          />
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.modalCardWrap,
+              {
+                top: modalCardTop,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => {
+                logPendingApprovalEvent('teacher-modal:card-press', {
+                  dropdownOpen: isTeacherDropdownOpen,
+                  targetLoginId: teacherApprovalTarget?.loginId ?? '',
+                });
+              }}
+              style={[
+                styles.modalCard,
+                {
+                  backgroundColor: palette.card,
+                  borderColor: palette.border,
+                },
+              ]}
+            >
+            <Text style={[styles.modalTitle, { color: palette.text }]}>
+              {ui.studentTeacherTitle}
+            </Text>
+            <Text style={[styles.modalBody, { color: palette.textMuted }]}>
+              {teacherApprovalTarget
+                ? `${teacherApprovalTarget.displayName} · ${ui.studentTeacherHelp}`
+                : ui.studentTeacherHelp}
+            </Text>
+
+            <Text style={[styles.modalFieldLabel, { color: palette.textMuted }]}>
+              {ui.teacherField}
+            </Text>
+
+            <View style={styles.modalDropdownWrap}>
+              <Pressable
+                disabled={isLoadingTeacherOptions || teacherOptions.length === 0}
+                onPress={() =>
+                  setIsTeacherDropdownOpen(open => {
+                    const next = !open;
+                    logPendingApprovalEvent('teacher-modal:dropdown-toggle', {
+                      next,
+                      optionCount: teacherOptions.length,
+                      selectedTeacherLoginId,
+                      targetLoginId: teacherApprovalTarget?.loginId ?? '',
+                    });
+                    return next;
+                  })
+                }
+                style={[
+                  styles.dropdownButton,
+                  styles.modalDropdownButton,
+                  {
+                    backgroundColor: palette.muted,
+                    borderColor: palette.border,
+                    opacity:
+                      isLoadingTeacherOptions || teacherOptions.length === 0
+                        ? 0.6
+                        : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.dropdownText, { color: palette.text }]}>
+                  {isLoadingTeacherOptions
+                    ? ui.loadingTeachers
+                    : teacherOptions.find(
+                        option => option.loginId === selectedTeacherLoginId,
+                      )?.displayName ?? ui.selectTeacher}
+                </Text>
+                <Text style={[styles.dropdownArrow, { color: palette.textMuted }]}>
+                  {isTeacherDropdownOpen ? '▲' : '▼'}
+                </Text>
+              </Pressable>
+
+              <View
+                pointerEvents={isTeacherDropdownOpen ? 'auto' : 'none'}
+                style={[
+                  styles.dropdownMenu,
+                  styles.modalDropdownMenu,
+                  {
+                    backgroundColor: palette.card,
+                    borderColor: palette.border,
+                    display: isTeacherDropdownOpen ? 'flex' : 'none',
+                  },
+                ]}
+              >
+                {teacherOptions.map(option => (
+                  <Pressable
+                    key={option.loginId}
+                    onPress={() => {
+                      logPendingApprovalEvent('teacher-modal:dropdown-select', {
+                        nextTeacherLoginId: option.loginId,
+                        targetLoginId: teacherApprovalTarget?.loginId ?? '',
+                      });
+                      setSelectedTeacherLoginId(option.loginId);
+                      setTeacherErrorMessage('');
+                      setIsTeacherDropdownOpen(false);
+                    }}
+                    style={[
+                      styles.dropdownItem,
+                      option.loginId === selectedTeacherLoginId
+                        ? { backgroundColor: palette.muted }
+                        : null,
+                    ]}
+                  >
+                    <Text style={[styles.dropdownItemText, { color: palette.text }]}>
+                      {option.displayName}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.modalDropdownSubtext,
+                        { color: palette.textMuted },
+                      ]}
+                    >
+                      {option.loginId}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {teacherErrorMessage ? (
+              <Text style={[styles.modalErrorText, { color: '#bc4749' }]}>
+                {teacherErrorMessage}
+              </Text>
+            ) : null}
+
+            <View style={styles.modalActions}>
+              <ActionButton
+                backgroundColor={palette.muted}
+                hint=""
+                label={ui.cancel}
+                onPress={() => closeTeacherModal('cancel-button')}
+                style={styles.modalActionButton}
+                textColor={palette.text}
+              />
+              <ActionButton
+                backgroundColor={palette.primary}
+                hint=""
+                isLoading={
+                  Boolean(teacherApprovalTarget) &&
+                  approvingLoginId === teacherApprovalTarget?.loginId
+                }
+                label={ui.approveWithTeacher}
+                onPress={confirmTeacherApproval}
+                style={styles.modalActionButton}
+                textColor={palette.primaryText}
+              />
+            </View>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  stack: {
+  sectionRoot: {
+    alignSelf: 'stretch',
+    flex: 1,
+    minHeight: 0,
+    position: 'relative',
+  },
+  topOverlayWrap: {
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 10,
+  },
+  scrollRoot: {
+    bottom: 0,
+    left: 0,
+    minHeight: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  scrollContent: {
     gap: 16,
     paddingBottom: 12,
+    paddingTop: HEADER_HEIGHT + 8,
   },
   card: {
     borderRadius: 22,
     borderWidth: 1,
     padding: 20,
   },
+  headerCopy: {
+    gap: 6,
+  },
   cardTitle: {
     fontSize: 22,
     fontWeight: '800',
-    marginBottom: 8,
   },
   cardBody: {
     fontSize: 14,
     lineHeight: 22,
   },
-  searchCard: {
-    marginTop: 16,
+  searchHeaderSurface: {
+    borderRadius: 18,
+  },
+  searchHeaderBody: {
+    gap: 12,
   },
   searchRow: {
     alignItems: 'center',
@@ -416,30 +749,43 @@ const styles = StyleSheet.create({
     zIndex: 6,
   },
   dropdownWrapMobile: {
-    flex: 1,
-    minWidth: 0,
+    flexShrink: 0,
+    minWidth: 112,
   },
   dropdownButton: {
-    alignItems: 'center',
     borderRadius: 16,
     borderWidth: 1,
-    flexDirection: 'row',
     height: 48,
-    justifyContent: 'space-between',
     paddingHorizontal: 14,
+    paddingVertical: 0,
+    justifyContent: 'center',
   },
   dropdownButtonCompact: {
     borderRadius: 12,
     height: 32,
     paddingHorizontal: 10,
   },
+  dropdownButtonContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 10,
+    height: '100%',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   dropdownText: {
+    flex: 1,
     fontSize: 14,
     fontWeight: '700',
+    lineHeight: 18,
+    paddingRight: 8,
   },
   dropdownArrow: {
+    flexShrink: 0,
     fontSize: 12,
     fontWeight: '800',
+    lineHeight: 12,
   },
   dropdownMenu: {
     borderRadius: 16,
@@ -469,6 +815,86 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  modalLayer: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 40,
+  },
+  modalBackdrop: {
+    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  modalCardWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    left: 0,
+    padding: 20,
+    position: 'absolute',
+    right: 0,
+  },
+  modalCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 12,
+    maxWidth: 520,
+    padding: 20,
+    width: '100%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  modalBody: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  modalFieldLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    marginTop: 4,
+    textTransform: 'uppercase',
+  },
+  modalDropdownWrap: {
+    minHeight: 48,
+    position: 'relative',
+    zIndex: 20,
+  },
+  modalDropdownButton: {
+    width: '100%',
+  },
+  modalDropdownMenu: {
+    top: 52,
+  },
+  modalDropdownSubtext: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  modalErrorText: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  modalActionButton: {
+    borderRadius: 14,
+    minWidth: 128,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
   searchInput: {
     borderRadius: 16,
     borderWidth: 1,
@@ -476,6 +902,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     height: 48,
     paddingHorizontal: 14,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
   },
   searchInputCompact: {
     height: 32,
@@ -484,7 +912,8 @@ const styles = StyleSheet.create({
     width: 124,
   },
   searchButtonWrapMobile: {
-    flex: 1,
+    flexShrink: 0,
+    width: 112,
   },
   searchButton: {
     borderRadius: 16,
@@ -527,7 +956,7 @@ const styles = StyleSheet.create({
   },
   tableWrap: {
     alignSelf: 'stretch',
-    marginTop: 14,
+    marginTop: 8,
     width: '100%',
   },
   mobileTableList: {

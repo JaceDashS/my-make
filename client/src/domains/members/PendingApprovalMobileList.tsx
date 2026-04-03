@@ -10,7 +10,7 @@ import type {
 type PendingApprovalMobileListProps = {
   approvingLoginId: string | null;
   currentPage: number;
-  onApprove: (loginId: string) => void;
+  onApprove: (slot: PendingMemberSlot) => void;
   pageSize: number;
   palette: ShellPaletteLike;
   slots: PendingMemberSlot[];
@@ -49,7 +49,7 @@ function renderMobileRow(
   index: number,
   approvingLoginId: string | null,
   currentPage: number,
-  onApprove: (loginId: string) => void,
+  onApprove: (slot: PendingMemberSlot) => void,
   pageSize: number,
   palette: ShellPaletteLike,
   ui: PendingApprovalUiLabels,
@@ -106,7 +106,7 @@ function renderMobileRow(
         disabled={isRowDisabled}
         onPress={() => {
           if (slot.hasMember && slot.mode !== 'profile') {
-            onApprove(slot.loginId);
+            onApprove(slot);
           }
         }}
         style={[

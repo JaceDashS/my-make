@@ -20,7 +20,7 @@ function collectText(node: any): string[] {
 }
 
 describe('academy members section', () => {
-  test('renders the academy members search shell and status filters', () => {
+  test('renders the academy members search shell', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
@@ -50,9 +50,6 @@ describe('academy members section', () => {
 
     expect(textContent).toContain('Academy Members');
     expect(textContent).toContain('All');
-    expect(textContent).toContain('All Members');
-    expect(textContent).toContain('Active');
-    expect(textContent).toContain('Hold');
-    expect(textContent).toContain('Inactive');
+    expect(textContent).toContain('Search');
   });
 });

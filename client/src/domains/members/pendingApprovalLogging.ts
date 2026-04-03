@@ -5,9 +5,12 @@ function isLoggingEnabled() {
     return __DEV__;
   }
 
-  return typeof process !== 'undefined'
-    ? process.env.NODE_ENV !== 'production'
-    : true;
+  const runtimeProcess =
+    typeof globalThis === 'object' && 'process' in globalThis
+      ? (globalThis as {process?: {env?: {NODE_ENV?: string}}}).process
+      : undefined;
+
+  return runtimeProcess?.env?.NODE_ENV !== 'production';
 }
 
 export function logPendingApprovalEvent(

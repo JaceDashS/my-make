@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer, useState } from 'react';
 
 import {
   approvePendingMember,
+  searchAcademyMembers,
   searchPendingMembers,
 } from '../../shared/lib/pendingMembersApi';
 import type { LanguageMode } from '../../screens/shared/shell-model';
@@ -282,7 +283,12 @@ export function usePendingApproval({
     onCleanupNativeState('search:apply-direct');
   };
 
-  const handleApprove = async (loginIdToApprove: string) => {
+  const handleApprove = async (
+    loginIdToApprove: string,
+    options?: {
+      primaryTeacherLoginId?: string;
+    },
+  ) => {
     logPendingApprovalEvent('approve:start', {
       academyCode,
       loginId: loginIdToApprove,
@@ -303,7 +309,13 @@ export function usePendingApproval({
           ? '承認待ちメンバーを承認するには、root または admin アカウントでサインインしてください。'
           : 'Sign in as a root or admin account to approve pending members.',
       });
-      return;
+      return {
+        errorMessage:
+          language === 'ja'
+            ? '承認待ちメンバーを承認するには、root または admin アカウントでサインインしてください。'
+            : 'Sign in as a root or admin account to approve pending members.',
+        ok: false,
+      };
     }
 
     onCleanupNativeState('approve:start');
@@ -314,6 +326,7 @@ export function usePendingApproval({
         academyCode,
         actorRoleCode: roleCode,
         loginId: loginIdToApprove,
+        primaryTeacherLoginId: options?.primaryTeacherLoginId,
       });
 
       if (result.status !== 'ok') {
@@ -330,7 +343,10 @@ export function usePendingApproval({
           type: 'approve_failed',
           errorMessage: nextErrorMessage,
         });
-        return;
+        return {
+          errorMessage: nextErrorMessage,
+          ok: false,
+        };
       }
 
       logPendingApprovalEvent('approve:success', {
@@ -347,6 +363,9 @@ export function usePendingApproval({
               result.displayName || loginIdToApprove
             } was approved and is now assigned to ${academyCode}.`,
       });
+      return {
+        ok: true,
+      };
     } catch (error) {
       const nextErrorMessage =
         error instanceof Error ? error.message : String(error);
@@ -358,6 +377,10 @@ export function usePendingApproval({
         type: 'approve_failed',
         errorMessage: nextErrorMessage,
       });
+      return {
+        errorMessage: nextErrorMessage,
+        ok: false,
+      };
     } finally {
       logPendingApprovalEvent('approve:finally', {
         approvingLoginId: state.approvingLoginId,
@@ -365,6 +388,28 @@ export function usePendingApproval({
       });
       dispatch({ type: 'approve_finished' });
     }
+  };
+
+  const loadActiveTeacherOptions = async () => {
+    const result = await searchAcademyMembers({
+      academyCode,
+      actorRoleCode: roleCode,
+      field: 'displayName',
+      query: '',
+      statusFilter: 'ACTIVE',
+    });
+
+    if (result.status !== 'ok') {
+      throw new Error(
+        result.error ??
+          result.message ??
+          (language === 'ja'
+            ? '講師一覧を読み込めませんでした。'
+            : 'Failed to load teacher options.'),
+      );
+    }
+
+    return (result.members ?? []).filter(member => member.roleCode === 'TEACHER');
   };
 
   return {
@@ -376,6 +421,7 @@ export function usePendingApproval({
     handleSearch,
     isProfileApplied: state.isProfileApplied,
     isSearching: state.isSearching,
+    loadActiveTeacherOptions,
     memberCount: presentation.memberCount,
     noticeMessage: state.noticeMessage,
     paginatedSlots,

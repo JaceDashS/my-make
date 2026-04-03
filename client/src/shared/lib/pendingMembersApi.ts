@@ -22,6 +22,8 @@ export type PendingMemberRecord = {
 };
 
 export type AcademyMemberRecord = PendingMemberRecord & {
+  academyCode?: string;
+  academyName?: string;
   statusCode: 'ACTIVE' | 'HOLD' | 'INACTIVE';
 };
 
@@ -37,6 +39,21 @@ export type AcademyMembersResponse = {
   message: string;
   error?: string;
   members?: AcademyMemberRecord[];
+};
+
+export type AcademyMemberProfileResponse = {
+  status: string;
+  message: string;
+  error?: string;
+  academyCode?: string;
+  academyName?: string;
+  displayName?: string;
+  details?: Array<{key?: string; label?: string; value?: string}>;
+  email?: string;
+  loginId?: string;
+  note?: string;
+  phone?: string;
+  roleCode?: string;
 };
 
 export type ApprovePendingMemberResponse = {
@@ -64,7 +81,7 @@ async function postJson<
   TResponse extends {error?: string; message: string; status: string},
 >(
   path: string,
-  payload: Record<string, string>,
+  payload: Record<string, string | undefined>,
 ): Promise<TResponse> {
   return requestLocalJson<TResponse>({
     body: payload,
@@ -75,6 +92,7 @@ async function postJson<
     path,
     timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     urlStrategy: FALLBACK_API_URL_STRATEGY,
+    withCredentials: true,
   });
 }
 
@@ -91,6 +109,7 @@ export function approvePendingMember(payload: {
   academyCode: string;
   actorRoleCode: string;
   loginId: string;
+  primaryTeacherLoginId?: string;
 }) {
   return postJson<ApprovePendingMemberResponse>(
     '/api/members/pending/approve',
@@ -117,6 +136,37 @@ export function updateAcademyMemberStatus(payload: {
 }) {
   return postJson<UpdateAcademyMemberStatusResponse>(
     '/api/members/academy/status',
+    payload,
+  );
+}
+
+export function fetchAcademyMemberProfile(payload: {
+  academyCode: string;
+  loginId: string;
+}) {
+  return postJson<AcademyMemberProfileResponse>('/api/members/academy/profile', payload);
+}
+
+export function updateAcademyMemberProfile(payload: {
+  academyCode: string;
+  loginId: string;
+  availableSchedule?: string;
+  displayName?: string;
+  password?: string;
+  email?: string;
+  phone?: string;
+  note?: string;
+  preset?: string;
+  skinLValue?: string;
+  skinCValue?: string;
+  skinHValue?: string;
+  skinTraits?: string;
+  preferenceRanges?: string;
+  passIncrement?: string;
+  statusCode?: string;
+}) {
+  return postJson<AcademyMemberProfileResponse>(
+    '/api/members/academy/profile/update',
     payload,
   );
 }
